@@ -156,6 +156,627 @@ jobs:
         ]
         dash_p = os.path.join(ff_dir, "dashboard page.m")
         login_p = os.path.join(ff_dir, "login page.m")
+        ios26_login_code = r'''
+         #import <UIKit/UIKit.h>
+         #import <QuartzCore/QuartzCore.h>
+         #import <CoreGraphics/CoreGraphics.h>
+         @interface FougoLiquidGlassBar : UIView
+         @property (nonatomic, assign) BOOL isLightMode;
+         @end
+         @implementation FougoLiquidGlassBar {
+             UIVisualEffectView *_blurView;
+             CAShapeLayer *_glassBodyLayer;
+             CAShapeLayer *_specularRimLayer;
+             CAGradientLayer *_refractionLensLayer;
+             CADisplayLink *_displayLink;
+             CGPoint _touchPoint;
+             CGPoint _smoothedPoint;
+             CGFloat _displacementIntensity;
+             CGFloat _targetIntensity;
+             CGFloat _phase;
+         }
+         - (instancetype)initWithFrame:(CGRect)frame {
+             self = [super initWithFrame:frame];
+             if (self) {
+                 self.backgroundColor = [UIColor clearColor];
+                 self.userInteractionEnabled = YES;
+                 self.clipsToBounds = NO;
+                 UIBlurEffect *blur = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemUltraThinMaterial];
+                 _blurView = [[UIVisualEffectView alloc] initWithEffect:blur];
+                 _blurView.frame = self.bounds;
+                 _blurView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+                 _blurView.layer.cornerRadius = 28.0;
+                 _blurView.layer.masksToBounds = YES;
+                 _blurView.userInteractionEnabled = NO;
+                 [self addSubview:_blurView];
+                 _refractionLensLayer = [CAGradientLayer layer];
+                 _refractionLensLayer.colors = @[
+                     (id)[UIColor colorWithWhite:1.0 alpha:0.38].CGColor,
+                     (id)[UIColor colorWithRed:0.55 green:0.88 blue:1.0 alpha:0.20].CGColor,
+                     (id)[UIColor colorWithWhite:1.0 alpha:0.0].CGColor
+                 ];
+                 _refractionLensLayer.locations = @[@0.0, @0.45, @1.0];
+                 _refractionLensLayer.startPoint = CGPointMake(0.5, 0.0);
+                 _refractionLensLayer.endPoint = CGPointMake(0.5, 1.0);
+                 _refractionLensLayer.opacity = 0.0;
+                 _refractionLensLayer.cornerRadius = 28.0;
+                 [_blurView.contentView.layer addSublayer:_refractionLensLayer];
+                 _glassBodyLayer = [CAShapeLayer layer];
+                 _glassBodyLayer.fillColor = [UIColor colorWithWhite:1.0 alpha:0.06].CGColor;
+                 [self.layer addSublayer:_glassBodyLayer];
+                 _specularRimLayer = [CAShapeLayer layer];
+                 _specularRimLayer.fillColor = [UIColor clearColor].CGColor;
+                 _specularRimLayer.strokeColor = [UIColor colorWithWhite:1.0 alpha:0.36].CGColor;
+                 _specularRimLayer.lineWidth = 1.25;
+                 [self.layer addSublayer:_specularRimLayer];
+                 UILabel *barHint = [[UILabel alloc] initWithFrame:self.bounds];
+                 barHint.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+                 barHint.text = @"FOUGO EXTERNAL  •  LIQUID GLASS SURFACE";
+                 barHint.font = [UIFont systemFontOfSize:10.5 weight:UIFontWeightSemibold];
+                 barHint.textAlignment = NSTextAlignmentCenter;
+                 barHint.textColor = [UIColor colorWithWhite:0.75 alpha:0.65];
+                 barHint.userInteractionEnabled = NO;
+                 barHint.tag = 401;
+                 [self addSubview:barHint];
+                 _touchPoint = CGPointMake(frame.size.width * 0.5, frame.size.height * 0.5);
+                 _smoothedPoint = _touchPoint;
+                 _displacementIntensity = 0.0;
+                 _targetIntensity = 0.0;
+                 _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(stepLiquidPhysics)];
+                 [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+             }
+             return self;
+         }
+         - (void)dealloc {
+             [_displayLink invalidate];
+         }
+         - (void)setIsLightMode:(BOOL)isLightMode {
+             _isLightMode = isLightMode;
+             UILabel *barHint = [self viewWithTag:401];
+             if (isLightMode) {
+                 _glassBodyLayer.fillColor = [UIColor colorWithWhite:1.0 alpha:0.42].CGColor;
+                 _specularRimLayer.strokeColor = [UIColor colorWithWhite:1.0 alpha:0.78].CGColor;
+                 barHint.textColor = [UIColor colorWithWhite:0.18 alpha:0.55];
+             } else {
+                 _glassBodyLayer.fillColor = [UIColor colorWithWhite:1.0 alpha:0.07].CGColor;
+                 _specularRimLayer.strokeColor = [UIColor colorWithWhite:1.0 alpha:0.34].CGColor;
+                 barHint.textColor = [UIColor colorWithWhite:0.88 alpha:0.55];
+             }
+         }
+         - (void)layoutSubviews {
+             [super layoutSubviews];
+             _refractionLensLayer.frame = self.bounds;
+             [self updateDeformedGlassPath];
+         }
+         - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+             UITouch *t = [touches anyObject];
+             _touchPoint = [t locationInView:self];
+             _targetIntensity = 1.0;
+         }
+         - (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+             UITouch *t = [touches anyObject];
+             _touchPoint = [t locationInView:self];
+             _targetIntensity = 1.0;
+         }
+         - (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+             _targetIntensity = 0.0;
+         }
+         - (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+             _targetIntensity = 0.0;
+         }
+         - (void)stepLiquidPhysics {
+             _phase += 0.14;
+             _smoothedPoint.x += (_touchPoint.x - _smoothedPoint.x) * 0.24;
+             _smoothedPoint.y += (_touchPoint.y - _smoothedPoint.y) * 0.24;
+             _displacementIntensity += (_targetIntensity - _displacementIntensity) * (_targetIntensity > 0.0 ? 0.22 : 0.10);
+             if (_displacementIntensity < 0.002 && _targetIntensity == 0.0) {
+                 _displacementIntensity = 0.0;
+             }
+             [self updateDeformedGlassPath];
+         }
+         - (void)updateDeformedGlassPath {
+             CGRect b = self.bounds;
+             if (b.size.width <= 0 || b.size.height <= 0) return;
+             CGFloat w = b.size.width;
+             CGFloat h = b.size.height;
+             CGFloat r = MIN(28.0, h * 0.5);
+             CGFloat amp = _displacementIntensity;
+             UIBezierPath *path = [UIBezierPath bezierPath];
+             [path moveToPoint:CGPointMake(r, 0)];
+             NSInteger segments = 36;
+             for (NSInteger i = 1; i <= segments; i++) {
+                 CGFloat t = (CGFloat)i / (CGFloat)segments;
+                 CGFloat x = r + t * (w - 2.0 * r);
+                 CGFloat dx = x - _smoothedPoint.x;
+                 CGFloat sigma = 54.0;
+                 CGFloat gaussian = exp(-(dx * dx) / (2.0 * sigma * sigma));
+                 CGFloat wave = cos(dx * 0.075 - _phase) * 2.5 * amp * gaussian;
+                 CGFloat swell = -9.5 * amp * gaussian + wave;
+                 [path addLineToPoint:CGPointMake(x, swell)];
+             }
+             [path addArcWithCenter:CGPointMake(w - r, r) radius:r startAngle:-M_PI_2 endAngle:M_PI_2 clockwise:YES];
+             for (NSInteger i = segments - 1; i >= 0; i--) {
+                 CGFloat t = (CGFloat)i / (CGFloat)segments;
+                 CGFloat x = r + t * (w - 2.0 * r);
+                 CGFloat dx = x - _smoothedPoint.x;
+                 CGFloat sigma = 60.0;
+                 CGFloat gaussian = exp(-(dx * dx) / (2.0 * sigma * sigma));
+                 CGFloat wave = sin(dx * 0.065 + _phase) * 1.8 * amp * gaussian;
+                 CGFloat bulge = h + (5.5 * amp * gaussian) + wave;
+                 [path addLineToPoint:CGPointMake(x, bulge)];
+             }
+             [path addArcWithCenter:CGPointMake(r, r) radius:r startAngle:M_PI_2 endAngle:-M_PI_2 clockwise:YES];
+             [path closePath];
+             _glassBodyLayer.path = path.CGPath;
+             _specularRimLayer.path = path.CGPath;
+             CAShapeLayer *mask = [CAShapeLayer layer];
+             mask.path = path.CGPath;
+             _blurView.layer.mask = mask;
+             [CATransaction begin];
+             [CATransaction setDisableActions:YES];
+             _refractionLensLayer.opacity = (float)(amp * 0.85);
+             CGFloat normX = MAX(0.08, MIN(0.92, _smoothedPoint.x / MAX(1.0, w)));
+             _refractionLensLayer.startPoint = CGPointMake(normX, 0.0);
+             _refractionLensLayer.endPoint = CGPointMake(normX, 1.0);
+             [CATransaction commit];
+         }
+         @end
+         @interface FougoLoginViewController : UIViewController <UITextFieldDelegate>
+         @property (nonatomic, strong) UIScrollView *scrollView;
+         @property (nonatomic, strong) UIView *contentContainer;
+         @property (nonatomic, strong) UIVisualEffectView *cardGlassView;
+         @property (nonatomic, strong) UIView *keyFieldContainer;
+         @property (nonatomic, strong) UITextField *keyField;
+         @property (nonatomic, strong) UIButton *visibilityToggleBtn;
+         @property (nonatomic, strong) UILabel *inlineErrorLabel;
+         @property (nonatomic, strong) UIButton *loginButton;
+         @property (nonatomic, strong) UIActivityIndicatorView *loadingSpinner;
+         @property (nonatomic, strong) UIView *successGlassBanner;
+         @property (nonatomic, strong) FougoLiquidGlassBar *liquidBottomBar;
+         @property (nonatomic, assign) BOOL isVerifying;
+         @property (nonatomic, assign) BOOL isMasked;
+         @end
+         @implementation FougoLoginViewController
+         - (void)viewDidLoad {
+             [super viewDidLoad];
+             self.isMasked = YES;
+             self.isVerifying = NO;
+             [self setupBackgroundSurface];
+             [self setupGlassLoginHierarchy];
+             [self setupLiquidBottomBar];
+             [self registerKeyboardNotifications];
+             [self applyAdaptiveAppearance];
+         }
+         - (void)dealloc {
+             [[NSNotificationCenter defaultCenter] removeObserver:self];
+         }
+         - (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+             [super traitCollectionDidChange:previousTraitCollection];
+             [self applyAdaptiveAppearance];
+         }
+         - (BOOL)isLightAppearance {
+             if (@available(iOS 13.0, *)) {
+                 return self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleLight;
+             }
+             return NO;
+         }
+         - (void)setupBackgroundSurface {
+             self.view.backgroundColor = [UIColor colorWithRed:0.03 green:0.05 blue:0.09 alpha:1.0];
+             CAGradientLayer *bgGrad = [CAGradientLayer layer];
+             bgGrad.frame = [UIScreen mainScreen].bounds;
+             bgGrad.name = @"fougo_bg_grad";
+             bgGrad.startPoint = CGPointMake(0.15, 0.0);
+             bgGrad.endPoint = CGPointMake(0.85, 1.0);
+             [self.view.layer insertSublayer:bgGrad atIndex:0];
+         }
+         - (void)setupGlassLoginHierarchy {
+             CGRect bounds = self.view.bounds;
+             self.scrollView = [[UIScrollView alloc] initWithFrame:bounds];
+             self.scrollView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+             self.scrollView.showsVerticalScrollIndicator = NO;
+             self.scrollView.keyboardDismissMode = UIScrollViewKeyboardDismissModeInteractive;
+             [self.view addSubview:self.scrollView];
+             UITapGestureRecognizer *bgTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleBackgroundTap)];
+             bgTap.cancelsTouchesInView = NO;
+             [self.scrollView addGestureRecognizer:bgTap];
+             self.contentContainer = [[UIView alloc] initWithFrame:bounds];
+             [self.scrollView addSubview:self.contentContainer];
+             UIBlurEffect *cardBlur = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemChromeMaterial];
+             self.cardGlassView = [[UIVisualEffectView alloc] initWithEffect:cardBlur];
+             self.cardGlassView.layer.cornerRadius = 32.0;
+             self.cardGlassView.layer.masksToBounds = YES;
+             self.cardGlassView.layer.borderWidth = 1.0;
+             [self.contentContainer addSubview:self.cardGlassView];
+             UIView *cardContent = self.cardGlassView.contentView;
+             UILabel *kickerLabel = [[UILabel alloc] init];
+             kickerLabel.text = @"iOS 26 • SPATIAL ACCESS GATEWAY";
+             kickerLabel.font = [UIFont systemFontOfSize:11.0 weight:UIFontWeightSemibold];
+             kickerLabel.textAlignment = NSTextAlignmentCenter;
+             kickerLabel.tag = 101;
+             [cardContent addSubview:kickerLabel];
+             UILabel *brandTitle = [[UILabel alloc] init];
+             brandTitle.text = @"FOUGO EXTERNAL";
+             brandTitle.font = [UIFont systemFontOfSize:26.0 weight:UIFontWeightBold];
+             brandTitle.textAlignment = NSTextAlignmentCenter;
+             brandTitle.tag = 102;
+             [cardContent addSubview:brandTitle];
+             UILabel *subtitleLabel = [[UILabel alloc] init];
+             subtitleLabel.text = @"Authenticate with your license key to unlock workspace";
+             subtitleLabel.font = [UIFont systemFontOfSize:13.5 weight:UIFontWeightRegular];
+             subtitleLabel.textAlignment = NSTextAlignmentCenter;
+             subtitleLabel.numberOfLines = 2;
+             subtitleLabel.tag = 103;
+             [cardContent addSubview:subtitleLabel];
+             self.keyFieldContainer = [[UIView alloc] init];
+             self.keyFieldContainer.layer.cornerRadius = 18.0;
+             self.keyFieldContainer.layer.borderWidth = 1.25;
+             self.keyFieldContainer.userInteractionEnabled = YES;
+             [cardContent addSubview:self.keyFieldContainer];
+             UITapGestureRecognizer *fieldBoxTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(focusKeyFieldImmediately)];
+             [self.keyFieldContainer addGestureRecognizer:fieldBoxTap];
+             UILabel *keyIconLabel = [[UILabel alloc] init];
+             keyIconLabel.text = @"🔑";
+             keyIconLabel.font = [UIFont systemFontOfSize:16.0];
+             keyIconLabel.textAlignment = NSTextAlignmentCenter;
+             keyIconLabel.userInteractionEnabled = NO;
+             keyIconLabel.tag = 201;
+             [self.keyFieldContainer addSubview:keyIconLabel];
+             self.keyField = [[UITextField alloc] init];
+             self.keyField.delegate = self;
+             self.keyField.placeholder = @"Enter License Key";
+             self.keyField.secureTextEntry = YES;
+             self.keyField.autocapitalizationType = UITextAutocapitalizationTypeNone;
+             self.keyField.autocorrectionType = UITextAutocorrectionTypeNo;
+             self.keyField.spellCheckingType = UITextSpellCheckingTypeNo;
+             self.keyField.returnKeyType = UIReturnKeyGo;
+             self.keyField.clearButtonMode = UITextFieldViewModeNever;
+             self.keyField.font = [UIFont monospacedSystemFontOfSize:15.5 weight:UIFontWeightMedium];
+             [self.keyField addTarget:self action:@selector(keyFieldDidChange:) forControlEvents:UIControlEventEditingChanged];
+             [self.keyFieldContainer addSubview:self.keyField];
+             self.visibilityToggleBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+             [self.visibilityToggleBtn setTitle:@"👁" forState:UIControlStateNormal];
+             self.visibilityToggleBtn.titleLabel.font = [UIFont systemFontOfSize:16.0];
+             self.visibilityToggleBtn.accessibilityLabel = @"Toggle license key visibility";
+             [self.visibilityToggleBtn addTarget:self action:@selector(toggleKeyMasking:) forControlEvents:UIControlEventTouchUpInside];
+             [self.keyFieldContainer addSubview:self.visibilityToggleBtn];
+             self.inlineErrorLabel = [[UILabel alloc] init];
+             self.inlineErrorLabel.text = @"Invalid License Key";
+             self.inlineErrorLabel.font = [UIFont systemFontOfSize:12.5 weight:UIFontWeightMedium];
+             self.inlineErrorLabel.textColor = [UIColor colorWithRed:1.0 green:0.32 blue:0.42 alpha:1.0];
+             self.inlineErrorLabel.textAlignment = NSTextAlignmentLeft;
+             self.inlineErrorLabel.alpha = 0.0;
+             [cardContent addSubview:self.inlineErrorLabel];
+             self.loginButton = [UIButton buttonWithType:UIButtonTypeCustom];
+             [self.loginButton setTitle:@"LOGIN" forState:UIControlStateNormal];
+             self.loginButton.titleLabel.font = [UIFont systemFontOfSize:15.5 weight:UIFontWeightBold];
+             self.loginButton.layer.cornerRadius = 18.0;
+             self.loginButton.enabled = NO;
+             [self.loginButton addTarget:self action:@selector(handleLoginSubmission:) forControlEvents:UIControlEventTouchUpInside];
+             [cardContent addSubview:self.loginButton];
+             self.loadingSpinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
+             self.loadingSpinner.hidesWhenStopped = YES;
+             self.loadingSpinner.color = [UIColor whiteColor];
+             [self.loginButton addSubview:self.loadingSpinner];
+             self.successGlassBanner = [[UIView alloc] init];
+             self.successGlassBanner.layer.cornerRadius = 14.0;
+             self.successGlassBanner.layer.borderWidth = 1.0;
+             self.successGlassBanner.backgroundColor = [UIColor colorWithRed:0.08 green:0.82 blue:0.62 alpha:0.16];
+             self.successGlassBanner.layer.borderColor = [UIColor colorWithRed:0.15 green:0.95 blue:0.75 alpha:0.45].CGColor;
+             self.successGlassBanner.alpha = 0.0;
+             [cardContent addSubview:self.successGlassBanner];
+             UILabel *successText = [[UILabel alloc] init];
+             successText.text = @"✓  License Verified — Opening Workspace";
+             successText.font = [UIFont systemFontOfSize:13.0 weight:UIFontWeightSemibold];
+             successText.textColor = [UIColor colorWithRed:0.18 green:0.95 blue:0.75 alpha:1.0];
+             successText.textAlignment = NSTextAlignmentCenter;
+             successText.tag = 301;
+             [self.successGlassBanner addSubview:successText];
+             [self updateLoginButtonState];
+         }
+         - (void)setupLiquidBottomBar {
+             self.liquidBottomBar = [[FougoLiquidGlassBar alloc] initWithFrame:CGRectMake(24, self.view.bounds.size.height - 84, self.view.bounds.size.width - 48, 56)];
+             self.liquidBottomBar.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleTopMargin;
+             [self.view addSubview:self.liquidBottomBar];
+         }
+         - (void)viewDidLayoutSubviews {
+             [super viewDidLayoutSubviews];
+             CGRect b = self.view.bounds;
+             for (CALayer *layer in self.view.layer.sublayers) {
+                 if ([layer.name isEqualToString:@"fougo_bg_grad"]) {
+                     layer.frame = b;
+                 }
+             }
+             self.contentContainer.frame = b;
+             CGFloat cardW = MIN(b.size.width - 40.0, 400.0);
+             CGFloat cardH = 336.0;
+             CGFloat cardX = (b.size.width - cardW) * 0.5;
+             CGFloat cardY = (b.size.height - cardH) * 0.5 - 16.0;
+             self.cardGlassView.frame = CGRectMake(cardX, MAX(56.0, cardY), cardW, cardH);
+             UIView *cc = self.cardGlassView.contentView;
+             [cc viewWithTag:101].frame = CGRectMake(24, 28, cardW - 48, 16);
+             [cc viewWithTag:102].frame = CGRectMake(24, 48, cardW - 48, 32);
+             [cc viewWithTag:103].frame = CGRectMake(28, 84, cardW - 56, 36);
+             self.keyFieldContainer.frame = CGRectMake(24, 136, cardW - 48, 56);
+             CGFloat fW = self.keyFieldContainer.bounds.size.width;
+             [self.keyFieldContainer viewWithTag:201].frame = CGRectMake(12, 14, 28, 28);
+             self.visibilityToggleBtn.frame = CGRectMake(fW - 46, 10, 36, 36);
+             self.keyField.frame = CGRectMake(44, 8, fW - 94, 40);
+             self.inlineErrorLabel.frame = CGRectMake(28, 198, cardW - 56, 18);
+             self.loginButton.frame = CGRectMake(24, 224, cardW - 48, 54);
+             self.loadingSpinner.center = CGPointMake(self.loginButton.bounds.size.width * 0.5, self.loginButton.bounds.size.height * 0.5);
+             self.successGlassBanner.frame = CGRectMake(24, 286, cardW - 48, 34);
+             [self.successGlassBanner viewWithTag:301].frame = self.successGlassBanner.bounds;
+             CGFloat bottomInset = 24.0;
+             if (@available(iOS 11.0, *)) {
+                 bottomInset = MAX(18.0, self.view.safeAreaInsets.bottom + 8.0);
+             }
+             CGFloat barW = MIN(b.size.width - 40.0, 400.0);
+             self.liquidBottomBar.frame = CGRectMake((b.size.width - barW) * 0.5, b.size.height - bottomInset - 56.0, barW, 56.0);
+         }
+         - (void)applyAdaptiveAppearance {
+             BOOL light = [self isLightAppearance];
+             [self.liquidBottomBar setIsLightMode:light];
+             CAGradientLayer *bgGrad = nil;
+             for (CALayer *l in self.view.layer.sublayers) {
+                 if ([l.name isEqualToString:@"fougo_bg_grad"]) {
+                     bgGrad = (CAGradientLayer *)l;
+                     break;
+                 }
+             }
+             UIView *cc = self.cardGlassView.contentView;
+             UILabel *kicker = (UILabel *)[cc viewWithTag:101];
+             UILabel *title = (UILabel *)[cc viewWithTag:102];
+             UILabel *sub = (UILabel *)[cc viewWithTag:103];
+             if (light) {
+                 bgGrad.colors = @[
+                     (id)[UIColor colorWithRed:0.93 green:0.96 blue:1.0 alpha:1.0].CGColor,
+                     (id)[UIColor colorWithRed:0.86 green:0.91 blue:0.98 alpha:1.0].CGColor,
+                     (id)[UIColor colorWithRed:0.91 green:0.94 blue:0.99 alpha:1.0].CGColor
+                 ];
+                 self.cardGlassView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.85].CGColor;
+                 kicker.textColor = [UIColor colorWithRed:0.05 green:0.45 blue:0.68 alpha:0.85];
+                 title.textColor = [UIColor colorWithRed:0.06 green:0.09 blue:0.16 alpha:1.0];
+                 sub.textColor = [UIColor colorWithRed:0.32 green:0.38 blue:0.48 alpha:1.0];
+                 self.keyField.textColor = [UIColor colorWithRed:0.06 green:0.09 blue:0.16 alpha:1.0];
+             } else {
+                 bgGrad.colors = @[
+                     (id)[UIColor colorWithRed:0.03 green:0.05 blue:0.10 alpha:1.0].CGColor,
+                     (id)[UIColor colorWithRed:0.06 green:0.10 blue:0.18 alpha:1.0].CGColor,
+                     (id)[UIColor colorWithRed:0.02 green:0.04 blue:0.08 alpha:1.0].CGColor
+                 ];
+                 self.cardGlassView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.18].CGColor;
+                 kicker.textColor = [UIColor colorWithRed:0.32 green:0.86 blue:0.98 alpha:0.90];
+                 title.textColor = [UIColor whiteColor];
+                 sub.textColor = [UIColor colorWithWhite:0.72 alpha:1.0];
+                 self.keyField.textColor = [UIColor whiteColor];
+             }
+             NSAttributedString *attrPlaceholder = [[NSAttributedString alloc] initWithString:@"Enter License Key" attributes:@{
+                 NSForegroundColorAttributeName: light
+                     ? [UIColor colorWithRed:0.42 green:0.48 blue:0.58 alpha:0.75]
+                     : [UIColor colorWithWhite:0.62 alpha:0.60],
+                 NSFontAttributeName: [UIFont systemFontOfSize:15.0 weight:UIFontWeightRegular]
+             }];
+             self.keyField.attributedPlaceholder = attrPlaceholder;
+             [self animateKeyFieldFocusState:self.keyField.isFirstResponder];
+             [self updateLoginButtonState];
+         }
+         - (void)focusKeyFieldImmediately {
+             if (!self.isVerifying && self.keyField.isEnabled) {
+                 [self.keyField becomeFirstResponder];
+             }
+         }
+         - (void)handleBackgroundTap {
+             if (!self.isVerifying) {
+                 [self.view endEditing:YES];
+             }
+         }
+         - (void)toggleKeyMasking:(UIButton *)sender {
+             if (self.isVerifying) return;
+             self.isMasked = !self.isMasked;
+             BOOL wasFirstResponder = self.keyField.isFirstResponder;
+             NSString *currentText = self.keyField.text;
+             self.keyField.secureTextEntry = self.isMasked;
+             self.keyField.text = currentText;
+             [self.visibilityToggleBtn setTitle:(self.isMasked ? @"👁" : @"🙈") forState:UIControlStateNormal];
+             if (wasFirstResponder) {
+                 [self.keyField becomeFirstResponder];
+             }
+         }
+         - (BOOL)hasAtLeastOneValidKeyCharacter:(NSString *)raw {
+             NSString *trimmed = [raw ?: @"" stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+             if (trimmed.length == 0) return NO;
+             NSCharacterSet *validSet = [NSCharacterSet characterSetWithCharactersInString:@"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"];
+             return [trimmed rangeOfCharacterFromSet:validSet].location != NSNotFound;
+         }
+         - (void)updateLoginButtonState {
+             BOOL canSubmit = !self.isVerifying && [self hasAtLeastOneValidKeyCharacter:self.keyField.text];
+             self.loginButton.enabled = canSubmit;
+             [UIView animateWithDuration:0.18 animations:^{
+                 if (self.isVerifying) {
+                     self.loginButton.backgroundColor = [UIColor colorWithRed:0.08 green:0.56 blue:0.78 alpha:0.55];
+                     self.loginButton.alpha = 0.85;
+                 } else if (canSubmit) {
+                     self.loginButton.backgroundColor = [UIColor colorWithRed:0.05 green:0.68 blue:0.88 alpha:1.0];
+                     [self.loginButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+                     self.loginButton.alpha = 1.0;
+                 } else {
+                     BOOL light = [self isLightAppearance];
+                     self.loginButton.backgroundColor = light
+                         ? [UIColor colorWithRed:0.78 green:0.83 blue:0.90 alpha:0.65]
+                         : [UIColor colorWithWhite:1.0 alpha:0.09];
+                     [self.loginButton setTitleColor:(light ? [UIColor colorWithWhite:0.45 alpha:0.7] : [UIColor colorWithWhite:0.55 alpha:0.6]) forState:UIControlStateNormal];
+                     self.loginButton.alpha = 0.75;
+                 }
+             }];
+         }
+         - (void)animateKeyFieldFocusState:(BOOL)focused {
+             BOOL light = [self isLightAppearance];
+             [UIView animateWithDuration:0.20 delay:0 options:UIViewAnimationOptionCurveEaseOut animations:^{
+                 if (focused) {
+                     self.keyFieldContainer.backgroundColor = light
+                         ? [UIColor colorWithWhite:1.0 alpha:0.85]
+                         : [UIColor colorWithWhite:1.0 alpha:0.12];
+                     self.keyFieldContainer.layer.borderColor = [UIColor colorWithRed:0.18 green:0.84 blue:0.98 alpha:0.92].CGColor;
+                     self.keyFieldContainer.layer.shadowColor = [UIColor colorWithRed:0.12 green:0.80 blue:0.98 alpha:1.0].CGColor;
+                     self.keyFieldContainer.layer.shadowRadius = 12.0;
+                     self.keyFieldContainer.layer.shadowOpacity = 0.28;
+                     self.keyFieldContainer.layer.shadowOffset = CGSizeZero;
+                 } else {
+                     self.keyFieldContainer.backgroundColor = light
+                         ? [UIColor colorWithWhite:1.0 alpha:0.58]
+                         : [UIColor colorWithWhite:1.0 alpha:0.06];
+                     self.keyFieldContainer.layer.borderColor = light
+                         ? [UIColor colorWithRed:0.72 green:0.78 blue:0.86 alpha:0.75].CGColor
+                         : [UIColor colorWithWhite:1.0 alpha:0.16].CGColor;
+                     self.keyFieldContainer.layer.shadowOpacity = 0.0;
+                 }
+             } completion:nil];
+         }
+         - (void)keyFieldDidChange:(UITextField *)sender {
+             if (self.inlineErrorLabel.alpha > 0.0) {
+                 [UIView animateWithDuration:0.15 animations:^{
+                     self.inlineErrorLabel.alpha = 0.0;
+                 }];
+                 [self animateKeyFieldFocusState:self.keyField.isFirstResponder];
+             }
+             [self updateLoginButtonState];
+         }
+         - (void)textFieldDidBeginEditing:(UITextField *)textField {
+             [self animateKeyFieldFocusState:YES];
+         }
+         - (void)textFieldDidEndEditing:(UITextField *)textField {
+             [self animateKeyFieldFocusState:NO];
+         }
+         - (BOOL)textFieldShouldReturn:(UITextField *)textField {
+             if ([self hasAtLeastOneValidKeyCharacter:textField.text] && !self.isVerifying) {
+                 [self handleLoginSubmission:self.loginButton];
+                 return YES;
+             }
+             return NO;
+         }
+         - (void)triggerFieldErrorShakeAndRefocus:(NSString *)errorText {
+             self.inlineErrorLabel.text = errorText ?: @"Invalid License Key";
+             self.keyFieldContainer.layer.borderColor = [UIColor colorWithRed:1.0 green:0.32 blue:0.42 alpha:0.90].CGColor;
+             [UIView animateWithDuration:0.16 animations:^{
+                 self.inlineErrorLabel.alpha = 1.0;
+             }];
+             CAKeyframeAnimation *shake = [CAKeyframeAnimation animationWithKeyPath:@"transform.translation.x"];
+             shake.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+             shake.duration = 0.36;
+             shake.values = @[@(-9.0), @(9.0), @(-7.0), @(7.0), @(-4.0), @(4.0), @(0.0)];
+             [self.keyFieldContainer.layer addAnimation:shake forKey:@"fougo_error_shake"];
+             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.08 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                 if (self.keyField.isEnabled) {
+                     [self.keyField becomeFirstResponder];
+                 }
+             });
+         }
+         - (void)handleLoginSubmission:(UIButton *)sender {
+             if (self.isVerifying) return;
+             NSString *trimmedKey = [self.keyField.text ?: @"" stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+             if (![self hasAtLeastOneValidKeyCharacter:trimmedKey]) {
+                 return;
+             }
+             self.keyField.text = trimmedKey;
+             self.isVerifying = YES;
+             self.keyField.enabled = NO;
+             self.visibilityToggleBtn.enabled = NO;
+             self.loginButton.enabled = NO;
+             self.inlineErrorLabel.alpha = 0.0;
+             [self.loginButton setTitle:@"" forState:UIControlStateNormal];
+             [self.loadingSpinner startAnimating];
+             [self updateLoginButtonState];
+             __weak typeof(self) weakSelf = self;
+             void (^finishVerification)(BOOL, NSString *) = ^(BOOL isValid, NSString *errMsg) {
+                 __strong typeof(weakSelf) strongSelf = weakSelf;
+                 if (!strongSelf) return;
+                 if (isValid) {
+                     [strongSelf.loadingSpinner stopAnimating];
+                     [UIView animateWithDuration:0.25 animations:^{
+                         strongSelf.successGlassBanner.alpha = 1.0;
+                         strongSelf.keyFieldContainer.layer.borderColor = [UIColor colorWithRed:0.18 green:0.95 blue:0.75 alpha:0.90].CGColor;
+                     }];
+                     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.48 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                         id appDel = [UIApplication sharedApplication].delegate;
+                         SEL goDashSel = NSSelectorFromString(@"goDash");
+                         if ([appDel respondsToSelector:goDashSel]) {
+                             ((void (*)(id, SEL))[appDel methodForSelector:goDashSel])(appDel, goDashSel);
+                         }
+                     });
+                 } else {
+                     strongSelf.isVerifying = NO;
+                     strongSelf.keyField.enabled = YES;
+                     strongSelf.visibilityToggleBtn.enabled = YES;
+                     [strongSelf.loadingSpinner stopAnimating];
+                     [strongSelf.loginButton setTitle:@"LOGIN" forState:UIControlStateNormal];
+                     [strongSelf updateLoginButtonState];
+                     [strongSelf triggerFieldErrorShakeAndRefocus:(errMsg.length > 0 ? errMsg : @"Invalid License Key")];
+                 }
+             };
+             id appDel = [UIApplication sharedApplication].delegate;
+             SEL verifySel = NSSelectorFromString(@"fougoVerifyKey:completion:");
+             if ([appDel respondsToSelector:verifySel]) {
+                 ((void (*)(id, SEL, NSString *, void (^)(BOOL, NSString *)))[appDel methodForSelector:verifySel])(appDel, verifySel, trimmedKey, finishVerification);
+                 return;
+             }
+             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.65 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                 BOOL passesFormat = (trimmedKey.length >= 8 && [trimmedKey containsString:@"-"]);
+                 finishVerification(passesFormat, @"Invalid License Key");
+             });
+         }
+         #pragma mark - Keyboard Avoidance
+         - (void)registerKeyboardNotifications {
+             [[NSNotificationCenter defaultCenter] addObserver:self
+                                                      selector:@selector(handleKeyboardFrameChange:)
+                                                          name:UIKeyboardWillChangeFrameNotification
+                                                        object:nil];
+             [[NSNotificationCenter defaultCenter] addObserver:self
+                                                      selector:@selector(handleKeyboardWillHide:)
+                                                          name:UIKeyboardWillHideNotification
+                                                        object:nil];
+         }
+         - (void)handleKeyboardFrameChange:(NSNotification *)note {
+             NSDictionary *info = note.userInfo;
+             CGRect endFrame = [info[UIKeyboardFrameEndUserInfoKey] CGRectValue];
+             CGRect localKeyboard = [self.view convertRect:endFrame fromView:nil];
+             CGFloat overlap = MAX(0.0, CGRectGetMaxY(self.view.bounds) - CGRectGetMinY(localKeyboard));
+             NSTimeInterval dur = [info[UIKeyboardAnimationDurationUserInfoKey] doubleValue] ?: 0.25;
+             [UIView animateWithDuration:dur animations:^{
+                 self.scrollView.contentInset = UIEdgeInsetsMake(0, 0, overlap + 20.0, 0);
+                 if (overlap > 40.0) {
+                     CGFloat shiftY = MIN(overlap * 0.42, 95.0);
+                     self.cardGlassView.transform = CGAffineTransformMakeTranslation(0, -shiftY);
+                 } else {
+                     self.cardGlassView.transform = CGAffineTransformIdentity;
+                 }
+             }];
+         }
+         - (void)handleKeyboardWillHide:(NSNotification *)note {
+             NSTimeInterval dur = [note.userInfo[UIKeyboardAnimationDurationUserInfoKey] doubleValue] ?: 0.25;
+             [UIView animateWithDuration:dur animations:^{
+                 self.scrollView.contentInset = UIEdgeInsetsZero;
+                 self.cardGlassView.transform = CGAffineTransformIdentity;
+             }];
+         }
+         @end
+         @interface FougoLoginAppDelegate : UIResponder <UIApplicationDelegate>
+         @property (nonatomic, strong) UIWindow *window;
+         @end
+         @implementation FougoLoginAppDelegate
+         - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+             self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+             self.window.rootViewController = [[FougoLoginViewController alloc] init];
+             [self.window makeKeyAndVisible];
+             return YES;
+         }
+         @end
+         int main(int argc, char * argv[]) {
+             @autoreleasepool {
+                 return UIApplicationMain(argc, argv, nil, NSStringFromClass([FougoLoginAppDelegate class]));
+             }
+         }
+        '''
+        open(login_p, "w", encoding="utf-8").write(ios26_login_code.strip() + "\n")
         if os.path.exists(login_p) and os.path.exists(dash_p):
          login_raw = open(login_p, "r", encoding="utf-8", errors="replace").read()
          dash_raw = open(dash_p, "r", encoding="utf-8", errors="replace").read()
@@ -349,7 +970,7 @@ jobs:
         if(completion)completion(g_Cloud);});});}-(void)goDash{if(!g_LicOK)return;if(g_DashOn)return;g_DashOn=YES;g_AllowURL=NO;
         [[UIApplication sharedApplication] sendAction:@selector(resignFirstResponder)to:nil from:nil forEvent:nil];CGRect sBnd=[UIScreen mainScreen].bounds;Class dashVCCls=NSClassFromString(@"__DASH_VC__" );
         Class dashDelCls=NSClassFromString(@"__DASH_DEL__" );NSString*dSel=@"__DASH_INIT_SEL__" ;UIViewController*dvc=nil;if(dashVCCls){dvc=[[dashVCCls alloc] init];}if(dvc){
-        if(!g_Win){g_Win=[[UIWindow alloc] initWithFrame:sBnd];}self.window=g_Win;g_Win.rootViewController=dvc;[g_Win makeKeyAndVisible];
+        if(!g_Win){g_Win=[[UIWindow alloc] initWithFrame:sBnd];}self.window=g_Win;[UIView transitionWithView:g_Win duration:0.38 options:UIViewAnimationOptionTransitionCrossDissolve animations:^{g_Win.rootViewController=dvc;} completion:nil];[g_Win makeKeyAndVisible];
         [dvc.view setNeedsLayout];[dvc.view layoutIfNeeded];if(dSel.length>0){SEL initSel=NSSelectorFromString(dSel);if([dvc respondsToSelector:initSel]){
         NSMutableArray<UIButton*>*bCheck=[NSMutableArray array];NSMutableArray<UITextField*>*fCheck=[NSMutableArray array];NSMutableArray<UILabel*>*lCheck=[NSMutableArray array];FougoCollectControls(dvc.view,bCheck,fCheck,lCheck);if(bCheck.count<=2){
         [dvc performSelector:initSel]; }}}}else if (dashDelCls){g_DshDel=[[dashDelCls alloc] init];if([g_DshDel respondsToSelector:@selector(application:didFinishLaunchingWithOptions:)]){
@@ -359,7 +980,7 @@ jobs:
         -(void)onChTap:(UIButton*)sender{g_AllowURL=YES;NSArray*chs=[g_Cloud[@"channels" ] isKindOfClass:[NSArray class]]?g_Cloud[@"channels" ]:@[];
         if(chs.count>0&&[chs.firstObject isKindOfClass:[NSDictionary class]]){NSString*uStr=chs.firstObject[@"url" ];if(uStr.length>5){NSURL*u=[NSURL URLWithString:uStr];if(u){
         [[UIApplication sharedApplication] openURL:u options:@{}completionHandler:nil];}}}}-(void)onColTap:(UIButton*)sender{g_ColorOK=YES;}
-        -(void)onActDown:(UIButton*)sender{[self capKey];}-(void)onActTap:(UIButton*)sender{if(g_ValBusy)return;[self capKey];
+        -(void)fougoVerifyKey:(NSString*)rawKey completion:(void(^)(BOOL,NSString*))done{if(g_ValBusy)return;NSString*trimmed=[rawKey?:@"" stringByTrimmingCharactersInSet:WS_SET];if(trimmed.length<1){if(done)done(NO,@"Invalid License Key");return;}g_ValBusy=YES;NSString*udid=[self deviceUDID];NSString*devModel=[NSString stringWithFormat:@"%@ (iOS %@)",[[UIDevice currentDevice] model],[[UIDevice currentDevice] systemVersion]];[self syncCloud:^(NSDictionary*cloud){dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{BOOL valid=NO;NSString*inlineErr=@"Invalid License Key";NSString*uKey=[trimmed uppercaseString];if(g_Tunnel.length>10){NSURL*valUrl=[NSURL URLWithString:[NSString stringWithFormat:@"%@/api/license/validate",g_Tunnel]];NSMutableURLRequest*req=[NSMutableURLRequest requestWithURL:valUrl cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:10.0];req.HTTPMethod=@"POST";[req setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];NSDictionary*bDic=@{@"key":trimmed,@"key_upper":uKey,@"udid":udid,@"device":devModel};req.HTTPBody=[NSJSONSerialization dataWithJSONObject:bDic options:0 error:nil];NSHTTPURLResponse*hRsp=nil;NSData*rDat=[NSURLConnection sendSynchronousRequest:req returningResponse:&hRsp error:nil];if(rDat){NSDictionary*rj=JSON_DEC(rDat);if(IS_DICT(rj)){if([rj[@"ok"] boolValue]){valid=YES;g_LStat=rj[@"status"]?:@"ACTIVE";g_LPlan=rj[@"plan"]?:@"30 DAYS VIP";g_LExp=rj[@"expires_display"]?:(rj[@"expires_at"]?:@"ACTIVE");g_LDLim=rj[@"device_limit_display"]?:@"1 / 1";g_DReg=@"YES";g_DSlot=rj[@"device_slot"]?:@"SLOT #1 (VERIFIED)";g_SessId=rj[@"session_id"]?:@"SESS-ACTIVE";g_LVal=rj[@"last_validation"]?:@"VERIFIED • LIVE";}else{NSString*ec=rj[@"error"]?:@"INVALID_KEY";if([ec isEqualToString:@"MAINTENANCE_MODE"])inlineErr=@"System Under Maintenance";else if([ec containsString:@"EXPIRED"])inlineErr=@"License Key Expired";else if([ec containsString:@"DEVICE_LIMIT"])inlineErr=@"Device Limit Reached";else if([ec containsString:@"DISABLED"]||[ec containsString:@"SUSPENDED"]||[ec containsString:@"REVOKED"])inlineErr=@"License Key Disabled";}}}}if(!valid&&IS_DICT(cloud)){NSDictionary*licMap=[cloud[@"licenses_map"] isKindOfClass:[NSDictionary class]]?cloud[@"licenses_map"]:@{};NSDictionary*lic=licMap[trimmed]?:licMap[uKey];if(IS_DICT(lic)){NSString*st=[lic[@"status"]?:@"Active" uppercaseString];if(![st isEqualToString:@"ACTIVE"]){inlineErr=@"License Key Inactive";}else{valid=YES;int days=[lic[@"duration_days"] intValue]?:30;int maxDev=[lic[@"max_devices"] intValue]?:1;g_LStat=@"ACTIVE";g_LPlan=(days>=3650)?@"LIFETIME VIP":[NSString stringWithFormat:@"%d DAYS VIP",days];g_LExp=lic[@"expires_at"]?:[NSString stringWithFormat:@"%d DAYS",days];g_LDLim=[NSString stringWithFormat:@"1 / %d",maxDev];g_DReg=@"YES";g_DSlot=@"SLOT #1 (VERIFIED)";NSDateFormatter*df=[[NSDateFormatter alloc] init];df.dateFormat=@"yyyy-MM-dd HH:mm";g_LVal=[NSString stringWithFormat:@"%@ UTC",[df stringFromDate:[NSDate date]]];}}}dispatch_async(dispatch_get_main_queue(),^{g_ValBusy=NO;if(valid){g_LicOK=YES;g_Key=trimmed;[[NSUserDefaults standardUserDefaults] setObject:g_LPlan forKey:@"FougoLicPlan"];[[NSUserDefaults standardUserDefaults] setObject:g_LExp forKey:@"FougoLicExpires"];[[NSUserDefaults standardUserDefaults] setObject:g_LDLim forKey:@"FougoLicDeviceLimit"];[[NSUserDefaults standardUserDefaults] synchronize];if(done)done(YES,nil);}else{g_LicOK=NO;if(done)done(NO,inlineErr);}});});}];}-(void)onActDown:(UIButton*)sender{[self capKey];}-(void)onActTap:(UIButton*)sender{if(g_ValBusy)return;[self capKey];
         NSString*rawKey=[g_Key?:@"" stringByTrimmingCharactersInSet:WS_SET];if(rawKey.length<4){NSString*pb=[[UIPasteboard generalPasteboard].string stringByTrimmingCharactersInSet:WS_SET];
         if(pb&&pb.length>=4){rawKey=pb;g_Key=pb;}}NSString*eKey=[rawKey uppercaseString];if(eKey.length<4){[self alert:@"⚠️ License Key Required" message:@"Please paste a valid License Key generated from the Telegram Owner Bot or Owner Panel." ];return;}g_ValBusy=YES;
         NSString*oTit=[sender titleForState:ST_NORM]?:@"ACTIVATE LICENSE & LOGIN" ;[sender setTitle:@"⏳ VALIDATING KEY..." forState:ST_NORM];NSString*udid=[self deviceUDID];
@@ -396,7 +1017,7 @@ jobs:
         [b addTarget:self action:@selector(onColTap:)forControlEvents:EV_DOWN];}}FougoShowDash(g_Win);[self ensureHub];return;}[self capKey];NSArray*chs=[g_Cloud[@"channels" ] isKindOfClass:[NSArray class]]?g_Cloud[@"channels" ]:@[];
         NSString*cJoin=(chs.count>0&&[chs.firstObject isKindOfClass:[NSDictionary class]])?chs.firstObject[@"button_text" ]:nil;for(UIButton*b in btns){if(b==g_HubBtn)continue;NSString*t=[[b titleForState:ST_NORM] uppercaseString]?:@"" ;
         if([t containsString:@"ACTIVATE" ]||[t containsString:@"LOGIN" ]||[t containsString:@"VERIFY" ]||[t containsString:@"UNLOCK" ]||[t containsString:@"ENTER" ]||[t containsString:@"VALIDATING" ]){
-        if(b.tag!=99105){[b removeTarget:nil action:NULL forControlEvents:EV_TAP];[b addTarget:self action:@selector(onActDown:)forControlEvents:EV_DOWN];
+        if(b.tag!=99105&&![g_Win.rootViewController respondsToSelector:NSSelectorFromString(@"handleLoginSubmission:")]){[b removeTarget:nil action:NULL forControlEvents:EV_TAP];[b addTarget:self action:@selector(onActDown:)forControlEvents:EV_DOWN];
         [b addTarget:self action:@selector(onActTap:)forControlEvents:EV_TAP];b.tag=99105;}}
         if([t containsString:@"JOIN" ]||[t containsString:@"CHANNEL" ]||[t containsString:@"TELEGRAM" ]||[t containsString:@"SUPPORT" ]){[b removeTarget:self action:@selector(onChTap:)forControlEvents:EV_DOWN];
         [b addTarget:self action:@selector(onChTap:)forControlEvents:EV_DOWN];if(cJoin.length>0&&[t containsString:@"JOIN" ]){[b setTitle:cJoin forState:ST_NORM];}}}
