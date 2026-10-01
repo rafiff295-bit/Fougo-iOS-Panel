@@ -769,6 +769,8 @@ jobs:
          dash_src = re.sub(r'#import\s+"ProtectedConfig[^"]*"', '#import "ProtectedConfig_Dash.h"', dash_raw)
          dash_src = re.sub(r"\bint\s+main\s*\(","int fougo_dash_entry_main(", dash_src)
          dash_src = re.sub(r"NOVA\s+BODY", "FOUGO EXTERNAL", dash_src, flags=re.I)
+         dash_src = re.sub(r"FREE\s+FIRE\s+TH\b", "FREE FIRE", dash_src)
+         dash_src = re.sub(r"26\s*/\s*27", "", dash_src)
          all_dash_vcs = [
           m.group(1)
           for m in re.finditer(r"@interface\s+([A-Za-z_]\w*)\s*:\s*(?:UIViewController|UITableViewController|UINavigationController)", dash_src)
@@ -863,17 +865,27 @@ jobs:
         static NSString*FougoSafeStr(id val,NSString*fb){if(!val||val==[NSNull null])return fb?:@"";if([val isKindOfClass:[NSString class]]){NSString*s=(NSString*)val;return s.length>0?s:(fb?:@"");}if([val respondsToSelector:@selector(stringValue)])return [val stringValue]?:(fb?:@"");return fb?:@"";}
         static NSString*FougoCleanKey(NSString*raw){if(!raw||![raw isKindOfClass:[NSString class]])return @"";NSMutableCharacterSet*cs=[WS_SET mutableCopy];[cs addCharactersInString:@"`'\"\u200B\u200C\u200D\uFEFF"];return [raw stringByTrimmingCharactersInSet:cs];}
         static BOOL FougoLooksLikeGeneratedKey(NSString*uKey){if(!uKey||uKey.length<8)return NO;if([uKey hasPrefix:@"FOUGO-"]||[uKey hasPrefix:@"NOVA-"]||[uKey hasPrefix:@"VIP-"])return uKey.length>=10;NSArray<NSString*>*parts=[uKey componentsSeparatedByString:@"-"];if(parts.count>=3&&uKey.length>=11){NSCharacterSet*alnum=[[NSCharacterSet characterSetWithCharactersInString:@"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"] invertedSet];for(NSString*p in parts){if(p.length<2||[p rangeOfCharacterFromSet:alnum].location!=NSNotFound)return NO;}return YES;}return NO;}
+        static char kFougoBtnHookKey;
+        static char kFougoCardStyleKey;
+        @implementation UIColor(FougoLiquidPalette)
+        +(void)load{Method m1=class_getClassMethod(self,@selector(colorWithRed:green:blue:alpha:));Method m2=class_getClassMethod(self,@selector(fougo_colorWithRed:green:blue:alpha:));if(m1&&m2)method_exchangeImplementations(m1,m2);
+        Method m3=class_getClassMethod(self,@selector(colorWithHue:saturation:brightness:alpha:));Method m4=class_getClassMethod(self,@selector(fougo_colorWithHue:saturation:brightness:alpha:));if(m3&&m4)method_exchangeImplementations(m3,m4);}
+        +(UIColor*)fougo_colorWithRed:(CGFloat)r green:(CGFloat)g blue:(CGFloat)b alpha:(CGFloat)a{
+        if(!g_DashOn||a<=0.01)return [self fougo_colorWithRed:r green:g blue:b alpha:a];
+        CGFloat mx=MAX(r,MAX(g,b)),mn=MIN(r,MIN(g,b)),sat=mx-mn;
+        if(mx<0.18&&a>=0.90)return [self fougo_colorWithRed:0.03 green:0.05 blue:0.10 alpha:a];
+        if(mx<0.32&&sat<0.20&&a>=0.15&&a<0.90)return [self fougo_colorWithRed:0.08 green:0.13 blue:0.22 alpha:a];
+        if(sat>0.18&&mx>=0.22){CGFloat sc=MIN(1.0,MAX(0.68,mx));return [self fougo_colorWithRed:0.36*sc green:0.86*sc blue:1.00*sc alpha:a];}
+        return [self fougo_colorWithRed:r green:g blue:b alpha:a];}
+        +(UIColor*)fougo_colorWithHue:(CGFloat)h saturation:(CGFloat)s brightness:(CGFloat)b alpha:(CGFloat)a{
+        if(g_DashOn&&a>0.01&&s>0.18&&b>=0.22)return [self fougo_colorWithHue:0.53 saturation:MIN(s,0.72) brightness:MAX(b,0.85) alpha:a];
+        return [self fougo_colorWithHue:h saturation:s brightness:b alpha:a];}
+        @end
         @implementation UIApplication(FougoBlockStartupRedirect)+(void)load{Method m1=class_getInstanceMethod(self,@selector(openURL:options:completionHandler:));
         Method m2=class_getInstanceMethod(self,@selector(fougo_safe_openURL:options:completionHandler:));if(m1&&m2)method_exchangeImplementations(m1,m2);Method m3=class_getInstanceMethod(self,@selector(openURL:));
-        Method m4=class_getInstanceMethod(self,@selector(fougo_safe_openURL:));if(m3&&m4)method_exchangeImplementations(m3,m4);
-        Method m5=class_getInstanceMethod(self,@selector(sendAction:to:from:forEvent:));Method m6=class_getInstanceMethod(self,@selector(fougo_hook_sendAction:to:from:forEvent:));if(m5&&m6)method_exchangeImplementations(m5,m6);}
+        Method m4=class_getInstanceMethod(self,@selector(fougo_safe_openURL:));if(m3&&m4)method_exchangeImplementations(m3,m4);}
         -(void)fougo_safe_openURL:(NSURL*)url options:(NSDictionary*)options completionHandler:(void(^)(BOOL))completion{if(!g_AllowURL){if(completion)completion(NO);return;}
-        g_AllowURL=NO;[self fougo_safe_openURL:url options:options completionHandler:completion];}-(BOOL)fougo_safe_openURL:(NSURL*)url{if(!g_AllowURL){return NO;}g_AllowURL=NO;return [self fougo_safe_openURL:url];}
-        static void FougoShowDash(UIView*rv);
-        -(BOOL)fougo_hook_sendAction:(SEL)action to:(id)target from:(id)sender forEvent:(UIEvent*)event{
-        BOOL res=[self fougo_hook_sendAction:action to:target from:sender forEvent:event];
-        if(g_DashOn&&g_Win){UIView*tv=g_Win.rootViewController?g_Win.rootViewController.view:g_Win;FougoShowDash(tv);}
-        return res;}@end
+        g_AllowURL=NO;[self fougo_safe_openURL:url options:options completionHandler:completion];}-(BOOL)fougo_safe_openURL:(NSURL*)url{if(!g_AllowURL){return NO;}g_AllowURL=NO;return [self fougo_safe_openURL:url];}@end
         @interface FougoVecIcon:UIView
         @property(nonatomic,assign)NSInteger iconKind;
         @property(nonatomic,strong)UIColor*strokeCol;
@@ -886,36 +898,7 @@ jobs:
         if(_iconKind==0){[p moveToPoint:CGPointMake(w*0.14,h*0.46)];[p addLineToPoint:CGPointMake(w*0.50,h*0.14)];[p addLineToPoint:CGPointMake(w*0.86,h*0.46)];[p moveToPoint:CGPointMake(w*0.24,h*0.42)];[p addLineToPoint:CGPointMake(w*0.24,h*0.84)];[p addLineToPoint:CGPointMake(w*0.76,h*0.84)];[p addLineToPoint:CGPointMake(w*0.76,h*0.42)];[p moveToPoint:CGPointMake(w*0.42,h*0.84)];[p addLineToPoint:CGPointMake(w*0.42,h*0.58)];[p addLineToPoint:CGPointMake(w*0.58,h*0.58)];[p addLineToPoint:CGPointMake(w*0.58,h*0.84)];}
         else if(_iconKind==1){CGFloat r=w*0.08;[p appendPath:[UIBezierPath bezierPathWithRoundedRect:CGRectMake(w*0.14,h*0.14,w*0.31,h*0.31) cornerRadius:r]];[p appendPath:[UIBezierPath bezierPathWithRoundedRect:CGRectMake(w*0.55,h*0.14,w*0.31,h*0.31) cornerRadius:r]];[p appendPath:[UIBezierPath bezierPathWithRoundedRect:CGRectMake(w*0.14,h*0.55,w*0.31,h*0.31) cornerRadius:r]];[p appendPath:[UIBezierPath bezierPathWithRoundedRect:CGRectMake(w*0.55,h*0.55,w*0.31,h*0.31) cornerRadius:r]];}
         else if(_iconKind==2){CGPoint c=CGPointMake(w*0.5,h*0.5);[p appendPath:[UIBezierPath bezierPathWithArcCenter:c radius:w*0.15 startAngle:0 endAngle:M_PI*2 clockwise:YES]];[p appendPath:[UIBezierPath bezierPathWithArcCenter:c radius:w*0.29 startAngle:0 endAngle:M_PI*2 clockwise:YES]];for(int i=0;i<6;i++){CGFloat a=i*(M_PI/3.0);[p moveToPoint:CGPointMake(c.x+cos(a)*w*0.29,c.y+sin(a)*h*0.29)];[p addLineToPoint:CGPointMake(c.x+cos(a)*w*0.41,c.y+sin(a)*h*0.41)];}}
-        else if(_iconKind==3){CGPoint c=CGPointMake(w*0.5,h*0.5);[p appendPath:[UIBezierPath bezierPathWithArcCenter:c radius:w*0.32 startAngle:0 endAngle:M_PI*2 clockwise:YES]];[p appendPath:[UIBezierPath bezierPathWithArcCenter:c radius:w*0.07 startAngle:0 endAngle:M_PI*2 clockwise:YES]];[p moveToPoint:CGPointMake(c.x,h*0.08)];[p addLineToPoint:CGPointMake(c.x,h*0.23)];[p moveToPoint:CGPointMake(c.x,h*0.77)];[p addLineToPoint:CGPointMake(c.x,h*0.92)];[p moveToPoint:CGPointMake(w*0.08,c.y)];[p addLineToPoint:CGPointMake(w*0.23,c.y)];[p moveToPoint:CGPointMake(w*0.77,c.y)];[p addLineToPoint:CGPointMake(w*0.92,c.y)];}
-        else if(_iconKind==4){[p moveToPoint:CGPointMake(w*0.50,h*0.15)];[p addLineToPoint:CGPointMake(w*0.86,h*0.34)];[p addLineToPoint:CGPointMake(w*0.50,h*0.52)];[p addLineToPoint:CGPointMake(w*0.14,h*0.34)];[p closePath];[p moveToPoint:CGPointMake(w*0.14,h*0.52)];[p addLineToPoint:CGPointMake(w*0.50,h*0.70)];[p addLineToPoint:CGPointMake(w*0.86,h*0.52)];[p moveToPoint:CGPointMake(w*0.14,h*0.68)];[p addLineToPoint:CGPointMake(w*0.50,h*0.86)];[p addLineToPoint:CGPointMake(w*0.86,h*0.68)];}
         _sl.path=p.CGPath;}
-        @end
-        @interface FougoLiquidCardSurface:UIView
-        @property(nonatomic,assign)BOOL isGameCard;
-        @property(nonatomic,assign)BOOL isSelectedGame;
-        @property(nonatomic,strong)FougoVecIcon*gameIconView;
-        -(void)updateGlassAppearance;
-        @end
-        @implementation FougoLiquidCardSurface{CAGradientLayer*_sheenL;CAShapeLayer*_innerRimL;}
-        -(instancetype)initWithFrame:(CGRect)f{self=[super initWithFrame:f];if(self){self.backgroundColor=[UIColor clearColor];self.userInteractionEnabled=NO;self.clipsToBounds=YES;self.layer.zPosition=-100.0;
-        _sheenL=[CAGradientLayer layer];_sheenL.name=@"fougo_grad";_sheenL.locations=@[@0.0,@0.48,@1.0];_sheenL.startPoint=CGPointMake(0.15,0.0);_sheenL.endPoint=CGPointMake(0.85,1.0);[self.layer addSublayer:_sheenL];
-        _innerRimL=[CAShapeLayer layer];_innerRimL.fillColor=[UIColor clearColor].CGColor;_innerRimL.lineWidth=1.0;[self.layer addSublayer:_innerRimL];
-        [self updateGlassAppearance];}return self;}
-        -(void)layoutSubviews{[super layoutSubviews];[CATransaction begin];[CATransaction setDisableActions:YES];_sheenL.frame=self.bounds;
-        CGFloat cr=self.layer.cornerRadius>2.0?self.layer.cornerRadius:16.0;
-        _innerRimL.frame=self.bounds;_innerRimL.path=[UIBezierPath bezierPathWithRoundedRect:CGRectInset(self.bounds,1.0,1.0) cornerRadius:MAX(2.0,cr-1.0)].CGPath;
-        if(_gameIconView){_gameIconView.frame=CGRectMake(20,(self.bounds.size.height-26)*0.5,26,26);}
-        [CATransaction commit];}
-        -(void)updateGlassAppearance{[CATransaction begin];[CATransaction setDisableActions:YES];
-        if(_isSelectedGame){
-        _sheenL.colors=@[(id)RGBA(0.28,0.82,1.0,0.22).CGColor,(id)RGBA(0.12,0.45,0.78,0.10).CGColor,(id)RGBA(0.05,0.12,0.24,0.04).CGColor];
-        _innerRimL.strokeColor=RGBA(0.55,0.92,1.0,0.35).CGColor;
-        if(_gameIconView)[_gameIconView setStrokeCol:RGBA(0.62,0.94,1.0,1.0)];
-        }else{
-        _sheenL.colors=@[(id)RGBA(1.0,1.0,1.0,0.13).CGColor,(id)RGBA(1.0,1.0,1.0,0.04).CGColor,(id)RGBA(1.0,1.0,1.0,0.01).CGColor];
-        _innerRimL.strokeColor=RGBA(1.0,1.0,1.0,0.09).CGColor;
-        if(_gameIconView)[_gameIconView setStrokeCol:RGBA(0.85,0.90,0.96,0.85)];}
-        [CATransaction commit];}
         @end
         @interface FougoFloatingBottomBar:UIView
         @property(nonatomic,assign)NSInteger activeIdx;
@@ -924,36 +907,34 @@ jobs:
         @end
         @implementation FougoFloatingBottomBar{UIVisualEffectView*_bv;CAGradientLayer*_topSheen;UIView*_pill;NSMutableArray<UIView*>*_slots;NSMutableArray<FougoVecIcon*>*_icons;NSMutableArray<UILabel*>*_lbs;}
         -(instancetype)initWithFrame:(CGRect)f{self=[super initWithFrame:f];if(self){self.backgroundColor=[UIColor clearColor];self.clipsToBounds=NO;_activeIdx=1;self.layer.zPosition=999.0;
-        self.layer.shadowColor=[UIColor blackColor].CGColor;self.layer.shadowOffset=CGSizeMake(0,12);self.layer.shadowRadius=24.0;self.layer.shadowOpacity=0.55;
-        _bv=[[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemChromeMaterialDark]];_bv.frame=self.bounds;_bv.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight;_bv.layer.cornerRadius=31.0;_bv.layer.masksToBounds=YES;_bv.layer.borderWidth=1.0;_bv.layer.borderColor=RGBA(1.0,1.0,1.0,0.22).CGColor;_bv.userInteractionEnabled=NO;[self addSubview:_bv];
-        _topSheen=[CAGradientLayer layer];_topSheen.name=@"fougo_grad";_topSheen.colors=@[(id)RGBA(1.0,1.0,1.0,0.16).CGColor,(id)RGBA(1.0,1.0,1.0,0.02).CGColor,(id)RGBA(1.0,1.0,1.0,0.0).CGColor];_topSheen.locations=@[@0.0,@0.5,@1.0];_topSheen.startPoint=CGPointMake(0.5,0.0);_topSheen.endPoint=CGPointMake(0.5,1.0);[_bv.contentView.layer addSublayer:_topSheen];
-        _pill=[[UIView alloc] init];_pill.backgroundColor=RGBA(0.35,0.84,1.0,0.18);_pill.layer.borderWidth=1.0;_pill.layer.borderColor=RGBA(0.58,0.93,1.0,0.48).CGColor;_pill.layer.shadowColor=RGBA(0.35,0.85,1.0,1.0).CGColor;_pill.layer.shadowRadius=10.0;_pill.layer.shadowOpacity=0.25;_pill.layer.shadowOffset=CGSizeZero;_pill.userInteractionEnabled=NO;[_bv.contentView addSubview:_pill];
+        self.layer.shadowColor=[UIColor blackColor].CGColor;self.layer.shadowOffset=CGSizeMake(0,10);self.layer.shadowRadius=22.0;self.layer.shadowOpacity=0.50;
+        _bv=[[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemChromeMaterialDark]];_bv.frame=self.bounds;_bv.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight;_bv.layer.cornerRadius=31.0;_bv.layer.masksToBounds=YES;_bv.layer.borderWidth=1.0;_bv.layer.borderColor=[UIColor colorWithWhite:1.0 alpha:0.22].CGColor;_bv.userInteractionEnabled=NO;[self addSubview:_bv];
+        _topSheen=[CAGradientLayer layer];_topSheen.colors=@[(id)[UIColor colorWithWhite:1.0 alpha:0.16].CGColor,(id)[UIColor colorWithWhite:1.0 alpha:0.02].CGColor,(id)[UIColor colorWithWhite:1.0 alpha:0.0].CGColor];_topSheen.locations=@[@0.0,@0.5,@1.0];_topSheen.startPoint=CGPointMake(0.5,0.0);_topSheen.endPoint=CGPointMake(0.5,1.0);[_bv.contentView.layer addSublayer:_topSheen];
+        _pill=[[UIView alloc] init];_pill.backgroundColor=[UIColor colorWithRed:0.35 green:0.84 blue:1.0 alpha:0.18];_pill.layer.borderWidth=1.0;_pill.layer.borderColor=[UIColor colorWithRed:0.58 green:0.93 blue:1.0 alpha:0.48].CGColor;_pill.userInteractionEnabled=NO;[_bv.contentView addSubview:_pill];
         NSArray*names=@[@"HOME",@"GAMES",@"SETTINGS"];_slots=[NSMutableArray array];_icons=[NSMutableArray array];_lbs=[NSMutableArray array];
         for(int i=0;i<3;i++){UIView*s=[[UIView alloc] init];s.userInteractionEnabled=NO;[_bv.contentView addSubview:s];[_slots addObject:s];FougoVecIcon*ic=[[FougoVecIcon alloc] initWithFrame:CGRectMake(0,0,20,20) kind:i];[s addSubview:ic];[_icons addObject:ic];UILabel*lb=[[UILabel alloc] init];lb.text=names[i];lb.font=[UIFont systemFontOfSize:10.0 weight:UIFontWeightBold];lb.textAlignment=NSTextAlignmentCenter;[s addSubview:lb];[_lbs addObject:lb];}
         [self setActiveIdx:1 animated:NO];}return self;}
         -(void)layoutSubviews{[super layoutSubviews];CGRect b=self.bounds;[CATransaction begin];[CATransaction setDisableActions:YES];_bv.layer.cornerRadius=b.size.height*0.5;_topSheen.frame=b;[CATransaction commit];CGFloat sw=b.size.width/3.0;for(int i=0;i<3;i++){UIView*s=_slots[i];s.frame=CGRectMake(sw*i,0,sw,b.size.height);_icons[i].frame=CGRectMake((sw-20)*0.5,11,20,20);_lbs[i].frame=CGRectMake(2,35,sw-4,14);}
         CGFloat pw=sw-12.0,ph=b.size.height-10.0;_pill.frame=CGRectMake(sw*_activeIdx+6.0,5.0,pw,ph);_pill.layer.cornerRadius=ph*0.5;}
         -(void)setActiveIdx:(NSInteger)idx animated:(BOOL)anim{_activeIdx=MAX(0,MIN(2,idx));CGRect b=self.bounds;CGFloat sw=b.size.width/3.0;CGFloat pw=MAX(56.0,sw-12.0),ph=MAX(38.0,b.size.height-10.0);
-        void(^blk)(void)=^{if(b.size.width>0){self->_pill.frame=CGRectMake(sw*self->_activeIdx+6.0,5.0,pw,ph);self->_pill.layer.cornerRadius=ph*0.5;}for(int i=0;i<3;i++){BOOL a=(i==self->_activeIdx);self->_slots[i].transform=a?CGAffineTransformMakeScale(1.04,1.04):CGAffineTransformIdentity;[self->_icons[i] setStrokeCol:a?RGBA(0.68,0.95,1.0,1.0):RGBA(0.78,0.82,0.88,0.60)];self->_lbs[i].textColor=a?[UIColor whiteColor]:RGBA(0.78,0.82,0.88,0.58);}};
-        if(anim)[UIView animateWithDuration:0.34 delay:0 usingSpringWithDamping:0.78 initialSpringVelocity:0.85 options:UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionAllowUserInteraction animations:blk completion:nil];else blk();}
+        void(^blk)(void)=^{if(b.size.width>0){self->_pill.frame=CGRectMake(sw*self->_activeIdx+6.0,5.0,pw,ph);self->_pill.layer.cornerRadius=ph*0.5;}for(int i=0;i<3;i++){BOOL a=(i==self->_activeIdx);self->_slots[i].transform=a?CGAffineTransformMakeScale(1.04,1.04):CGAffineTransformIdentity;[self->_icons[i] setStrokeCol:a?[UIColor colorWithRed:0.68 green:0.95 blue:1.0 alpha:1.0]:[UIColor colorWithWhite:0.80 alpha:0.60]];self->_lbs[i].textColor=a?[UIColor whiteColor]:[UIColor colorWithWhite:0.80 alpha:0.58];}};
+        if(anim)[UIView animateWithDuration:0.30 delay:0 usingSpringWithDamping:0.80 initialSpringVelocity:0.8 options:UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionAllowUserInteraction animations:blk completion:nil];else blk();}
         -(void)handlePt:(CGPoint)p ended:(BOOL)end{CGFloat sw=MAX(1.0,self.bounds.size.width/3.0);NSInteger idx=MAX(0,MIN(2,(NSInteger)(p.x/sw)));
-        [UIView animateWithDuration:0.20 delay:0 options:UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionAllowUserInteraction animations:^{self->_pill.transform=end?CGAffineTransformIdentity:CGAffineTransformMakeScale(1.04,0.95);} completion:nil];
+        [UIView animateWithDuration:0.18 delay:0 options:UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionAllowUserInteraction animations:^{self->_pill.transform=end?CGAffineTransformIdentity:CGAffineTransformMakeScale(1.03,0.96);} completion:nil];
         if(idx!=_activeIdx||end){[self setActiveIdx:idx animated:YES];if(end&&self.onSelectTab)self.onSelectTab(idx);}}
         -(void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event{[self handlePt:[[touches anyObject] locationInView:self] ended:NO];}
         -(void)touchesMoved:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event{[self handlePt:[[touches anyObject] locationInView:self] ended:NO];}
         -(void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event{[self handlePt:[[touches anyObject] locationInView:self] ended:YES];}
-        -(void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event{[UIView animateWithDuration:0.25 animations:^{self->_pill.transform=CGAffineTransformIdentity;}];}
+        -(void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event{[UIView animateWithDuration:0.22 animations:^{self->_pill.transform=CGAffineTransformIdentity;}];}
         @end
         static FougoFloatingBottomBar*g_LiqNav=nil;
-        static void FougoStripForeignGradients(UIView*v){if(!v)return;for(CALayer*subL in [v.layer.sublayers copy]){if([subL isKindOfClass:[CAGradientLayer class]]&&![subL.name isEqualToString:@"fougo_grad"]){subL.hidden=YES;subL.opacity=0.0;}}}
-        static BOOL FougoIsUnsafeViewToSkin(UIView*v){if(!v||v==g_MaintV||v==g_LiqNav||v.tag==88401)return YES;if([v isKindOfClass:[UIVisualEffectView class]]||[v isKindOfClass:[UIWindow class]]||[v isKindOfClass:[UIScrollView class]]||[v isKindOfClass:[UITextField class]]||[v isKindOfClass:[UISwitch class]]||[v isKindOfClass:[UISlider class]]||[v isKindOfClass:[UIImageView class]]||[v isKindOfClass:[UILabel class]])return YES;NSString*cn=NSStringFromClass([v class])?:@"";if([cn rangeOfString:@"VisualEffect"].location!=NSNotFound||[cn rangeOfString:@"Fougo"].location!=NSNotFound||[cn rangeOfString:@"Backdrop"].location!=NSNotFound||[cn rangeOfString:@"Transition"].location!=NSNotFound)return YES;return NO;}
-        static void FougoCollectControls(UIView*v,NSMutableArray<UIButton*>*btns,NSMutableArray<UITextField*>*fields,NSMutableArray<UILabel*>*labels){if(!v||v.isHidden||v.alpha<0.05||v==g_MaintV||v==g_LiqNav||v.tag==88401)return;
+        static void FougoCollectControls(UIView*v,NSMutableArray<UIButton*>*btns,NSMutableArray<UITextField*>*fields,NSMutableArray<UILabel*>*labels){if(!v||v.isHidden||v.alpha<0.05||v==g_MaintV||v==g_LiqNav)return;
         if([v isKindOfClass:[UIButton class]])[btns addObject:(UIButton*)v];else if([v isKindOfClass:[UITextField class]])[fields addObject:(UITextField*)v];else if([v isKindOfClass:[UILabel class]])[labels addObject:(UILabel*)v];for(UIView*sub in v.subviews){FougoCollectControls(sub,btns,fields,labels);}}
         static void FougoAllFields(UIView*v,NSMutableArray<UITextField*>*fields){if(!v||v==g_MaintV)return;if([v isKindOfClass:[UITextField class]])[fields addObject:(UITextField*)v];
         for(UIView*sub in v.subviews){FougoAllFields(sub,fields);}}
         static void FougoSetStatus(UIView*rv,NSArray<UILabel*>*labels){if(!rv||!g_LicOK)return;@try{NSDictionary<NSString*,NSString*>*rowMap=@{
         @"PLAN":FougoSafeStr(g_LPlan,@"30 DAYS VIP"),@"EXPIRES":FougoSafeStr(g_LExp,@"ACTIVE"),@"DEVICE LIMIT":FougoSafeStr(g_LDLim,@"1 / 1"),@"REGISTERED":FougoSafeStr(g_DReg,@"YES"),@"DEVICE SLOT":FougoSafeStr(g_DSlot,@"SLOT #1 (ACTIVE)"),@"LAST VALIDATION":FougoSafeStr(g_LVal,@"VERIFIED • LIVE"),
-        @"STATUS":FougoSafeStr(g_LStat,@"ACTIVE")};UIColor*aGrn=RGBA(0.55,0.92,1.0,1.0);for(UILabel*leftLb in labels){if(!leftLb.superview)continue;
+        @"STATUS":FougoSafeStr(g_LStat,@"ACTIVE")};UIColor*aGrn=[UIColor colorWithRed:0.55 green:0.92 blue:1.0 alpha:1.0];for(UILabel*leftLb in labels){if(!leftLb.superview)continue;
         NSString*lt=[[leftLb.text?:@"" stringByTrimmingCharactersInSet:WS_SET] uppercaseString];NSString*tVal=rowMap[lt];if(!tVal)continue;
         CGPoint leftPt=[leftLb.superview convertPoint:leftLb.center toView:rv];if(leftPt.x>rv.bounds.size.width*0.55)continue;UILabel*bRt=nil;CGFloat bDx=99999.0;
         for(UILabel*cand in labels){if(cand==leftLb||!cand.superview)continue;CGPoint rightPt=[cand.superview convertPoint:cand.center toView:rv];
@@ -961,95 +942,59 @@ jobs:
         CGRect oFr=bRt.frame;CGFloat rEdg=CGRectGetMaxX(oFr);bRt.text=tVal;bRt.textAlignment=NSTextAlignmentRight;bRt.adjustsFontSizeToFitWidth=YES;bRt.minimumScaleFactor=0.65;
         if([lt isEqualToString:@"REGISTERED"]||[lt isEqualToString:@"STATUS"]||[lt isEqualToString:@"PLAN"]){bRt.textColor=aGrn;}[bRt sizeToFit];CGRect nFr=bRt.frame;CGFloat mWid=MAX(oFr.size.width,MIN(nFr.size.width+8.0,rv.bounds.size.width*0.54));
         bRt.frame=CGRectMake(rEdg-mWid,oFr.origin.y,mWid,MAX(oFr.size.height,nFr.size.height));}}}}@catch(NSException*ex){}}
-        static void FougoAllButtonsRecursive(UIView*v,NSMutableArray<UIButton*>*out){if(!v||v==g_MaintV||v==g_LiqNav||v.tag==88401)return;if([v isKindOfClass:[UIButton class]])[out addObject:(UIButton*)v];for(UIView*s in v.subviews)FougoAllButtonsRecursive(s,out);}
-        static void FougoSkinCardWithLiquidGlass(UIView*card,BOOL isGame,NSInteger gameKind,BOOL selected){if(!card)return;
-        if(![card isKindOfClass:[UIButton class]]&&FougoIsUnsafeViewToSkin(card))return;
-        @try{FougoStripForeignGradients(card);
-        CGFloat cr=card.layer.cornerRadius>4.0?card.layer.cornerRadius:(isGame?22.0:16.0);
-        FougoLiquidCardSurface*surf=(FougoLiquidCardSurface*)[card viewWithTag:88401];
-        if(!surf){surf=[[FougoLiquidCardSurface alloc] initWithFrame:card.bounds];surf.tag=88401;surf.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight;[card insertSubview:surf atIndex:0];
-        if(isGame&&gameKind>0){FougoVecIcon*gi=[[FougoVecIcon alloc] initWithFrame:CGRectMake(20,(card.bounds.size.height-26)*0.5,26,26) kind:gameKind];surf.gameIconView=gi;[surf addSubview:gi];}}
-        [card sendSubviewToBack:surf];
-        if([card isKindOfClass:[UIButton class]]){UIButton*btn=(UIButton*)card;if(btn.titleLabel){btn.titleLabel.layer.zPosition=10.0;[btn bringSubviewToFront:btn.titleLabel];}}
-        surf.layer.cornerRadius=cr;card.layer.cornerRadius=cr;card.clipsToBounds=YES;
-        card.backgroundColor=selected?RGBA(0.10,0.24,0.40,0.58):RGBA(0.06,0.10,0.19,0.52);
-        card.layer.borderWidth=selected?1.4:1.0;
-        card.layer.borderColor=selected?RGBA(0.48,0.90,1.0,0.82).CGColor:RGBA(1.0,1.0,1.0,0.17).CGColor;
-        if(surf.isGameCard!=isGame||surf.isSelectedGame!=selected){surf.isGameCard=isGame;surf.isSelectedGame=selected;[surf updateGlassAppearance];}}@catch(NSException*ex){}}
+        static void FougoAllButtonsRecursive(UIView*v,NSMutableArray<UIButton*>*out){if(!v||v==g_MaintV||v==g_LiqNav)return;if([v isKindOfClass:[UIButton class]])[out addObject:(UIButton*)v];for(UIView*s in v.subviews)FougoAllButtonsRecursive(s,out);}
+        static NSString*FougoBtnFullText(UIButton*b){if(!b)return @"";NSMutableString*ms=[NSMutableString string];NSString*t1=[b titleForState:ST_NORM];if(t1)[ms appendFormat:@"%@ ",t1];NSString*t2=[b attributedTitleForState:ST_NORM].string;if(t2)[ms appendFormat:@"%@ ",t2];for(UIView*sub in b.subviews){if([sub isKindOfClass:[UILabel class]]&&((UILabel*)sub).text)[ms appendFormat:@"%@ ",((UILabel*)sub).text];}if(b.superview&&b.superview.bounds.size.width<150.0&&b.superview.bounds.size.height<=84.0){for(UIView*sib in b.superview.subviews){if([sib isKindOfClass:[UILabel class]]&&((UILabel*)sib).text)[ms appendFormat:@"%@ ",((UILabel*)sib).text];}}return [[ms stringByTrimmingCharactersInSet:WS_SET] uppercaseString];}
+        static BOOL FougoIsInScrollView(UIView*v,UIView*rv){UIView*p=v?v.superview:nil;while(p&&p!=rv){if([p isKindOfClass:[UIScrollView class]])return YES;p=p.superview;}return NO;}
+        static NSInteger FougoBottomNavRole(UIButton*b,UIView*rv){if(!b||!b.superview||!rv)return 0;if(FougoIsInScrollView(b,rv))return 0;
+        CGPoint sPt=[b.superview convertPoint:b.center toView:rv];if(sPt.y<rv.bounds.size.height-110.0||b.bounds.size.height>78.0)return 0;
+        NSString*ft=FougoBtnFullText(b);if([ft containsString:@"CONTINUE"])return 0;
+        if([ft containsString:@"GAME"]&&![ft containsString:@"SELECT"]&&![ft containsString:@"FREE"])return 1;
+        if([ft containsString:@"CONTROL"]&&![ft containsString:@"CENTER"])return 2;
+        if([ft containsString:@"STATUS"]&&![ft containsString:@"SYSTEM"])return 3;
+        return 0;}
+        static void FougoTriggerBtn(UIButton*b){if(!b)return;BOOL bh=b.hidden;CGFloat ba=b.alpha;UIView*sup=b.superview;BOOL sh=sup?sup.hidden:NO;CGFloat sa=sup?sup.alpha:1.0;b.hidden=NO;b.alpha=1.0;b.enabled=YES;b.userInteractionEnabled=YES;if(sup){sup.hidden=NO;if(sup.alpha<0.05)sup.alpha=1.0;}[b sendActionsForControlEvents:EV_TAP];if(sup){sup.hidden=sh;sup.alpha=sa;}b.hidden=bh;b.alpha=ba;}
+        static void FougoShowDash(UIView*rv);
         static void FougoApplyLiquidTheme(UIView*rv,NSArray<UIButton*>*btns,NSArray<UILabel*>*labels){if(!rv)return;@try{
-        FougoStripForeignGradients(rv);
-        rv.backgroundColor=RGBA(0.03,0.05,0.10,1.0);
+        [UIView performWithoutAnimation:^{
         for(UILabel*lb in labels){NSString*t=lb.text?:@"";
         if([t rangeOfString:@"NOVA" options:NSCaseInsensitiveSearch].location!=NSNotFound){
         lb.text=[[t stringByReplacingOccurrencesOfString:@"NOVA  BODY" withString:@"FOUGO EXTERNAL"] stringByReplacingOccurrencesOfString:@"NOVA BODY" withString:@"FOUGO EXTERNAL"];t=lb.text;}
         NSString*ut=[[t stringByTrimmingCharactersInSet:WS_SET] uppercaseString];
-        if([ut isEqualToString:@"TH / NORMAL"]||[ut isEqualToString:@"MAX"]||[ut isEqualToString:@"COM.DTS.FREEFIRETH"]||[ut isEqualToString:@"COM.DTS.FREEFIREMAX"]||[ut containsString:@"SELECT THEME"]||[ut containsString:@"SELECT COLOR"]||[ut containsString:@"COLOR THEME"]){lb.hidden=YES;continue;}
-        if([ut hasPrefix:@"FREE FIRE TH"]||([ut containsString:@"FREE FIRE"]&&[ut containsString:@"FREEFIRETH"])){
-        BOOL sel=[ut containsString:@"✓"]||(lb.superview.layer.borderWidth>=1.3);lb.text=@"FREE FIRE";lb.font=[UIFont systemFontOfSize:19.0 weight:UIFontWeightBold];lb.textColor=[UIColor whiteColor];if(lb.superview&&lb.superview!=rv)FougoSkinCardWithLiquidGlass(lb.superview,YES,3,sel);
-        }else if([ut hasPrefix:@"FREE FIRE MAX"]&&([ut containsString:@"\n"]||lb.superview.bounds.size.height>=68)){
-        BOOL sel=[ut containsString:@"✓"]||(lb.superview.layer.borderWidth>=1.3);lb.text=@"FREE FIRE MAX";lb.font=[UIFont systemFontOfSize:19.0 weight:UIFontWeightBold];lb.textColor=[UIColor whiteColor];if(lb.superview&&lb.superview!=rv)FougoSkinCardWithLiquidGlass(lb.superview,YES,4,sel);
-        }else if(([ut hasPrefix:@"BODY\n"]||[ut hasPrefix:@"NECK\n"])&&lb.superview&&lb.superview!=rv){
-        BOOL sel=[ut containsString:@"SELECTED"];lb.textColor=[UIColor whiteColor];FougoSkinCardWithLiquidGlass(lb.superview,NO,0,sel);
-        }else{
+        if([ut isEqualToString:@"SELECT COLOR THEME"]||[ut isEqualToString:@"COLOR THEME"]){if(lb.superview&&lb.superview!=rv&&lb.superview.bounds.size.height<420.0)lb.superview.hidden=YES;continue;}
         CGFloat r=0,g=0,b=0,a=0;if([lb.textColor getRed:&r green:&g blue:&b alpha:&a]){
         CGFloat mx=MAX(r,MAX(g,b)),mn=MIN(r,MIN(g,b));
-        if(mx-mn>0.16){lb.textColor=RGBA(0.58,0.92,1.0,0.96);}
-        else if(mx>0.82){lb.textColor=[UIColor whiteColor];}
-        else{lb.textColor=RGBA(0.76,0.82,0.90,0.78);}}}}
-        for(UIButton*b in btns){
-        if(b.bounds.size.width<=54.0&&b.bounds.size.height<=54.0&&b.frame.origin.y<140.0){b.hidden=YES;b.alpha=0.0;b.userInteractionEnabled=NO;continue;}
-        NSString*bt=[b titleForState:ST_NORM]?:([b attributedTitleForState:ST_NORM].string?:@"");
-        if([bt rangeOfString:@"NOVA" options:NSCaseInsensitiveSearch].location!=NSNotFound){
-        NSString*rep=[[bt stringByReplacingOccurrencesOfString:@"NOVA  BODY" withString:@"FOUGO EXTERNAL"] stringByReplacingOccurrencesOfString:@"NOVA BODY" withString:@"FOUGO EXTERNAL"];[b setTitle:rep forState:ST_NORM];bt=rep;}
-        NSString*ubt=[[bt stringByTrimmingCharactersInSet:WS_SET] uppercaseString];
-        if([ubt containsString:@"COLOR"]||[ubt containsString:@"THEME"]||[ubt isEqualToString:@"GAME"]||[ubt isEqualToString:@"CONTROL"]||[ubt isEqualToString:@"STATUS"]){b.hidden=YES;b.alpha=0.0;continue;}
-        if([ubt containsString:@"FREE FIRE TH"]||[ubt containsString:@"FREEFIRETH"]||[ubt isEqualToString:@"FREE FIRE"]){
-        BOOL sel=[ubt containsString:@"✓"]||(b.layer.borderWidth>=1.3);[b setAttributedTitle:nil forState:ST_NORM];[b setTitle:@"      FREE FIRE" forState:ST_NORM];[b setTitleColor:[UIColor whiteColor] forState:ST_NORM];b.titleLabel.font=[UIFont systemFontOfSize:19.0 weight:UIFontWeightBold];FougoSkinCardWithLiquidGlass(b,YES,3,sel);
-        }else if(([ubt containsString:@"FREE FIRE MAX"]||[ubt containsString:@"FREEFIREMAX"])&&b.bounds.size.height>=65){
-        BOOL sel=[ubt containsString:@"✓"]||(b.layer.borderWidth>=1.3);[b setAttributedTitle:nil forState:ST_NORM];[b setTitle:@"      FREE FIRE MAX" forState:ST_NORM];[b setTitleColor:[UIColor whiteColor] forState:ST_NORM];b.titleLabel.font=[UIFont systemFontOfSize:19.0 weight:UIFontWeightBold];FougoSkinCardWithLiquidGlass(b,YES,4,sel);
-        }else if([ubt hasPrefix:@"BODY"]&&([ubt containsString:@"SELECTED"]||[ubt containsString:@"AVAILABLE"])&&![ubt containsString:@"VERIFY"]){
-        BOOL sel=[ubt containsString:@"SELECTED"];[b setTitleColor:[UIColor whiteColor] forState:ST_NORM];FougoSkinCardWithLiquidGlass(b,NO,0,sel);
-        }else if([ubt hasPrefix:@"NECK"]&&([ubt containsString:@"SELECTED"]||[ubt containsString:@"AVAILABLE"])&&![ubt containsString:@"VERIFY"]){
-        BOOL sel=[ubt containsString:@"SELECTED"];[b setTitleColor:[UIColor whiteColor] forState:ST_NORM];FougoSkinCardWithLiquidGlass(b,NO,0,sel);
-        }else if([ubt isEqualToString:@"CONTINUE"]||[ubt containsString:@"APPLY BODY"]||[ubt containsString:@"APPLY NECK"]){
-        FougoSkinCardWithLiquidGlass(b,NO,0,YES);[b setTitleColor:[UIColor whiteColor] forState:ST_NORM];
-        }else{
-        FougoSkinCardWithLiquidGlass(b,NO,0,NO);[b setTitleColor:RGBA(0.92,0.96,1.0,0.96) forState:ST_NORM];}}
-        NSMutableArray<UIView*>*stk=[NSMutableArray arrayWithObject:rv];while(stk.count>0){UIView*v=[stk lastObject];[stk removeLastObject];
-        if(v!=rv&&FougoIsUnsafeViewToSkin(v))continue;
-        FougoStripForeignGradients(v);
-        if(v!=rv&&v.bounds.size.width>=rv.bounds.size.width*0.92&&v.bounds.size.height>=rv.bounds.size.height*0.82){v.backgroundColor=RGBA(0.03,0.05,0.10,1.0);}
-        else if(v!=rv&&v.bounds.size.width<=16.0&&v.bounds.size.height<=16.0&&v.layer.cornerRadius>=2.5){v.backgroundColor=RGBA(0.52,0.92,1.0,1.0);}
-        else if(v!=rv&&(v.layer.cornerRadius>=4.0||v.layer.borderWidth>0.0)&&v.bounds.size.width>=48.0&&v.bounds.size.height>=22.0&&v.bounds.size.height<=540.0&&![v isKindOfClass:[UIButton class]]){
-        FougoSkinCardWithLiquidGlass(v,NO,0,NO);}
-        else if(v!=rv&&v.bounds.size.height<=3.0&&v.bounds.size.width>=60.0){v.backgroundColor=RGBA(1.0,1.0,1.0,0.10);}
-        else if(v!=rv&&v.backgroundColor){CGFloat r=0,g=0,b=0,a=0;if([v.backgroundColor getRed:&r green:&g blue:&b alpha:&a]&&a>0.03){v.backgroundColor=RGBA(0.05,0.09,0.17,MIN(a,0.45));}}
-        for(UIView*s in v.subviews){if(!FougoIsUnsafeViewToSkin(s))[stk addObject:s];}}
+        if(mx-mn>0.18&&fabs(r-0.45)>0.04){lb.textColor=[UIColor colorWithRed:0.45 green:0.90 blue:1.0 alpha:a];}}}
+        for(UIButton*b in btns){if(!b.superview)continue;
+        CGPoint sPt=[b.superview convertPoint:b.center toView:rv];
+        if(sPt.y<105.0&&sPt.x>rv.bounds.size.width-74.0&&b.bounds.size.width<=46.0&&b.bounds.size.height<=46.0){if(!b.isHidden){b.hidden=YES;b.alpha=0.0;}continue;}}
         NSMutableArray<UIButton*>*allB=[NSMutableArray array];FougoAllButtonsRecursive(rv,allB);
-        for(UIButton*b in allB){NSString*t=[[[b titleForState:ST_NORM]?:@"" stringByTrimmingCharactersInSet:WS_SET] uppercaseString];
-        if([t isEqualToString:@"GAME"]||[t isEqualToString:@"CONTROL"]||[t isEqualToString:@"STATUS"]){
-        b.hidden=YES;b.alpha=0.0;if(b.superview&&b.superview!=rv&&b.superview.bounds.size.height<115){b.superview.hidden=YES;b.superview.alpha=0.0;}}}
+        for(UIButton*b in allB){NSInteger role=FougoBottomNavRole(b,rv);if(role>0){
+        if(b.alpha>0.03)b.alpha=0.015;
+        if(b.superview&&b.superview!=rv&&b.superview.bounds.size.height<105.0){b.superview.backgroundColor=[UIColor clearColor];b.superview.layer.borderWidth=0.0;}}}
         if(!g_LiqNav){CGFloat bw=MIN(rv.bounds.size.width-32.0,390.0);g_LiqNav=[[FougoFloatingBottomBar alloc] initWithFrame:CGRectMake((rv.bounds.size.width-bw)*0.5,rv.bounds.size.height-84.0,bw,62.0)];
         g_LiqNav.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleTopMargin;}
         __weak UIView*wRv=rv;
         g_LiqNav.onSelectTab=^(NSInteger idx){UIView*sRv=wRv;if(!sRv)return;NSMutableArray<UIButton*>*curB=[NSMutableArray array];FougoAllButtonsRecursive(sRv,curB);
-        UIButton*gB=nil,*cB=nil,*sB=nil,*cntB=nil;for(UIButton*b in curB){NSString*t=[[[b titleForState:ST_NORM]?:@"" stringByTrimmingCharactersInSet:WS_SET] uppercaseString];
-        if([t isEqualToString:@"GAME"])gB=b;else if([t isEqualToString:@"CONTROL"])cB=b;else if([t isEqualToString:@"STATUS"])sB=b;else if([t isEqualToString:@"CONTINUE"])cntB=b;}
-        if(idx==0){if(cntB&&!cntB.isHidden&&cntB.alpha>0.1)[cntB sendActionsForControlEvents:EV_TAP];if(cB)[cB sendActionsForControlEvents:EV_TAP];}
-        else if(idx==1){if(gB)[gB sendActionsForControlEvents:EV_TAP];}
-        else if(idx==2){if(cntB&&!cntB.isHidden&&cntB.alpha>0.1)[cntB sendActionsForControlEvents:EV_TAP];if(sB)[sB sendActionsForControlEvents:EV_TAP];}
+        UIButton*gB=nil,*cB=nil,*sB=nil,*cntB=nil;NSMutableArray<UIButton*>*bList=[NSMutableArray array];
+        for(UIButton*b in curB){if(!b.superview)continue;NSString*ft=FougoBtnFullText(b);if([ft containsString:@"CONTINUE"])cntB=b;
+        NSInteger role=FougoBottomNavRole(b,sRv);if(role==1)gB=b;else if(role==2)cB=b;else if(role==3)sB=b;
+        if(!FougoIsInScrollView(b,sRv)){CGPoint pt=[b.superview convertPoint:b.center toView:sRv];if(pt.y>sRv.bounds.size.height-105.0&&b.bounds.size.height<=78.0&&![ft containsString:@"CONTINUE"])[bList addObject:b];}}
+        if((!gB||!cB||!sB)&&bList.count>=3){
+        [bList sortUsingComparator:^NSComparisonResult(UIButton*b1,UIButton*b2){CGFloat x1=[b1.superview convertPoint:b1.center toView:sRv].x;CGFloat x2=[b2.superview convertPoint:b2.center toView:sRv].x;return x1<x2?NSOrderedAscending:(x1>x2?NSOrderedDescending:NSOrderedSame);}];
+        if(!gB)gB=bList[0];if(!cB)cB=bList[1];if(!sB)sB=bList.lastObject;}
+        if(idx==0){if(cB)FougoTriggerBtn(cB);else if(cntB)FougoTriggerBtn(cntB);}
+        else if(idx==1){if(gB)FougoTriggerBtn(gB);}
+        else if(idx==2){if(sB)FougoTriggerBtn(sB);}
         FougoShowDash(sRv);};
         if(g_LiqNav.superview!=rv)[rv addSubview:g_LiqNav];[rv bringSubviewToFront:g_LiqNav];
+        }];
         for(UILabel*lb in labels){NSString*ut=[[lb.text?:@"" stringByTrimmingCharactersInSet:WS_SET] uppercaseString];
         if([ut isEqualToString:@"SELECT GAME"]){if(g_LiqNav.activeIdx!=1)[g_LiqNav setActiveIdx:1 animated:YES];break;}
         else if([ut isEqualToString:@"CONTROL CENTER"]){if(g_LiqNav.activeIdx!=0)[g_LiqNav setActiveIdx:0 animated:YES];break;}
         else if([ut isEqualToString:@"SYSTEM STATUS"]){if(g_LiqNav.activeIdx!=2)[g_LiqNav setActiveIdx:2 animated:YES];break;}}}@catch(NSException*ex){}}
         static void FougoShowDash(UIView*rv){
         if(!rv)return;@try{NSMutableArray<UIButton*>*btns=[NSMutableArray array];NSMutableArray<UITextField*>*fields=[NSMutableArray array];NSMutableArray<UILabel*>*labels=[NSMutableArray array];
-        FougoCollectControls(rv,btns,fields,labels);
-        for(UILabel*lb in labels){NSString*lt=[lb.text uppercaseString]?:@"";if(([lt containsString:@"SELECT"]&&[lt containsString:@"COLOR"])||[lt containsString:@"COLOR THEME"]){
-        UIView*cc=lb.superview;while(cc&&cc.superview&&cc.superview!=rv){cc=cc.superview;}if(cc&&cc!=rv){cc.hidden=YES;cc.alpha=0.0;}}}
-        FougoSetStatus(rv,labels);FougoApplyLiquidTheme(rv,btns,labels);}@catch(NSException*ex){}}
+        FougoCollectControls(rv,btns,fields,labels);FougoSetStatus(rv,labels);FougoApplyLiquidTheme(rv,btns,labels);}@catch(NSException*ex){}}
         @interface FougoBridgeAppDelegate:UIResponder<UIApplicationDelegate>@property(nonatomic,strong)UIWindow*window;@property(nonatomic,strong)NSTimer*monitorTimer;@end @implementation FougoBridgeAppDelegate
         -(UIViewController*)topVC{UIViewController*top=g_Win.rootViewController;while(top.presentedViewController){top=top.presentedViewController;}return top;}
         -(void)alert:(NSString*)title message:(NSString*)msg{dispatch_async(dispatch_get_main_queue(),^{UIViewController*top=[self topVC];if(!top)return;
@@ -1116,8 +1061,8 @@ jobs:
         -(void)onChTap:(UIButton*)sender{g_AllowURL=YES;NSArray*chs=IS_ARR(g_Cloud[@"channels"])?g_Cloud[@"channels"]:@[];
         if(chs.count>0&&IS_DICT(chs.firstObject)){NSString*uStr=FougoSafeStr(chs.firstObject[@"url"],@"");if(uStr.length>5){NSURL*u=[NSURL URLWithString:uStr];if(u){
         [[UIApplication sharedApplication] openURL:u options:@{}completionHandler:nil];}}}}
-        -(void)onDashBtnPress:(UIButton*)sender{[UIView animateWithDuration:0.15 delay:0 options:UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionAllowUserInteraction animations:^{sender.transform=CGAffineTransformMakeScale(0.972,0.972);} completion:nil];}
-        -(void)onDashBtnRelease:(UIButton*)sender{[UIView animateWithDuration:0.34 delay:0 usingSpringWithDamping:0.72 initialSpringVelocity:0.8 options:UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionAllowUserInteraction animations:^{sender.transform=CGAffineTransformIdentity;} completion:nil];dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(0.02*NSEC_PER_SEC)),dispatch_get_main_queue(),^{if(g_Win&&g_DashOn){UIView*tv=g_Win.rootViewController?g_Win.rootViewController.view:g_Win;FougoShowDash(tv);}});}
+        -(void)onDashBtnPress:(UIButton*)sender{[UIView animateWithDuration:0.14 delay:0 options:UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionAllowUserInteraction animations:^{sender.transform=CGAffineTransformMakeScale(0.975,0.975);} completion:nil];}
+        -(void)onDashBtnRelease:(UIButton*)sender{[UIView animateWithDuration:0.30 delay:0 usingSpringWithDamping:0.76 initialSpringVelocity:0.8 options:UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionAllowUserInteraction animations:^{sender.transform=CGAffineTransformIdentity;} completion:nil];dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(0.02*NSEC_PER_SEC)),dispatch_get_main_queue(),^{if(g_Win&&g_DashOn){UIView*tv=g_Win.rootViewController?g_Win.rootViewController.view:g_Win;FougoShowDash(tv);}});}
         -(void)fougoVerifyKey:(NSString*)rawKey completion:(void(^)(BOOL,NSString*))done{void(^doneBlock)(BOOL,NSString*)=[done copy];if(g_ValBusy){if(doneBlock)doneBlock(NO,@"Please wait...");return;}NSString*trimmed=FougoCleanKey(rawKey);if(trimmed.length<1){if(doneBlock)doneBlock(NO,@"Invalid License Key");return;}g_ValBusy=YES;NSString*udid=[self deviceUDID];NSString*devModel=[NSString stringWithFormat:@"%@ (iOS %@)",[[UIDevice currentDevice] model],[[UIDevice currentDevice] systemVersion]];[self syncCloud:^(NSDictionary*cloud){dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{BOOL valid=NO;BOOL explicitReject=NO;NSString*inlineErr=@"Invalid License Key";NSString*uKey=[trimmed uppercaseString];@try{if(g_Tunnel.length>10){NSURL*valUrl=[NSURL URLWithString:[NSString stringWithFormat:@"%@/api/license/validate",g_Tunnel]];NSMutableURLRequest*req=[NSMutableURLRequest requestWithURL:valUrl cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:8.0];req.HTTPMethod=@"POST";[req setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];NSDictionary*bDic=@{@"key":uKey,@"udid":udid,@"device":devModel};req.HTTPBody=[NSJSONSerialization dataWithJSONObject:bDic options:0 error:nil];NSHTTPURLResponse*hRsp=nil;NSData*rDat=[NSURLConnection sendSynchronousRequest:req returningResponse:&hRsp error:nil];if(rDat){NSDictionary*rj=JSON_DEC(rDat);if(IS_DICT(rj)){if([rj[@"ok"] respondsToSelector:@selector(boolValue)]&&[rj[@"ok"] boolValue]){valid=YES;g_LStat=FougoSafeStr(rj[@"status"],@"ACTIVE");g_LPlan=FougoSafeStr(rj[@"plan"],@"30 DAYS VIP");g_LExp=FougoSafeStr(rj[@"expires_display"],FougoSafeStr(rj[@"expires_at"],@"ACTIVE"));g_LDLim=FougoSafeStr(rj[@"device_limit_display"],@"1 / 1");g_DReg=@"YES";g_DSlot=FougoSafeStr(rj[@"device_slot"],@"SLOT #1 (VERIFIED)");g_SessId=FougoSafeStr(rj[@"session_id"],@"SESS-ACTIVE");g_LVal=FougoSafeStr(rj[@"last_validation"],@"VERIFIED • LIVE");}else{NSString*ec=FougoSafeStr(rj[@"error"],@"INVALID_KEY");if([ec isEqualToString:@"MAINTENANCE_MODE"]){explicitReject=YES;inlineErr=@"System Under Maintenance";}else if([ec containsString:@"EXPIRED"]){explicitReject=YES;inlineErr=@"License Key Expired";}else if([ec containsString:@"DEVICE_LIMIT"]){explicitReject=YES;inlineErr=@"Device Limit Reached";}else if([ec containsString:@"DISABLED"]||[ec containsString:@"SUSPENDED"]||[ec containsString:@"REVOKED"]){explicitReject=YES;inlineErr=@"License Key Disabled";}}}}}if(!valid&&!explicitReject&&IS_DICT(cloud)){NSDictionary*licMap=IS_DICT(cloud[@"licenses_map"])?cloud[@"licenses_map"]:@{};NSDictionary*lic=licMap[trimmed]?:licMap[uKey];if(!IS_DICT(lic)){for(id mk in licMap){if([mk isKindOfClass:[NSString class]]&&[[FougoCleanKey(mk) uppercaseString] isEqualToString:uKey]){lic=licMap[mk];break;}}}if(IS_DICT(lic)){NSString*st=[FougoSafeStr(lic[@"status"],@"Active") uppercaseString];if(![st isEqualToString:@"ACTIVE"]){explicitReject=YES;inlineErr=@"License Key Disabled";}else{valid=YES;int days=[lic[@"duration_days"] respondsToSelector:@selector(intValue)]?[lic[@"duration_days"] intValue]:30;if(days<=0)days=30;int maxDev=[lic[@"max_devices"] respondsToSelector:@selector(intValue)]?[lic[@"max_devices"] intValue]:1;if(maxDev<=0)maxDev=1;g_LStat=@"ACTIVE";g_LPlan=(days>=3650)?@"LIFETIME VIP":[NSString stringWithFormat:@"%d DAYS VIP",days];g_LExp=FougoSafeStr(lic[@"expires_at"],[NSString stringWithFormat:@"%d DAYS",days]);g_LDLim=[NSString stringWithFormat:@"1 / %d",maxDev];g_DReg=@"YES";g_DSlot=@"SLOT #1 (VERIFIED)";NSDateFormatter*df=[[NSDateFormatter alloc] init];df.dateFormat=@"yyyy-MM-dd HH:mm";g_LVal=[NSString stringWithFormat:@"%@ UTC",[df stringFromDate:[NSDate date]]];}}}if(!valid&&!explicitReject){NSString*savedK=[[NSUserDefaults standardUserDefaults] stringForKey:@"FougoActivatedKey"];if((savedK&&[[savedK uppercaseString] isEqualToString:uKey])||FougoLooksLikeGeneratedKey(uKey)){valid=YES;g_LStat=@"ACTIVE";g_LPlan=FougoSafeStr([[NSUserDefaults standardUserDefaults] stringForKey:@"FougoLicPlan"],@"30 DAYS VIP");g_LExp=FougoSafeStr([[NSUserDefaults standardUserDefaults] stringForKey:@"FougoLicExpires"],@"30 DAYS");g_LDLim=FougoSafeStr([[NSUserDefaults standardUserDefaults] stringForKey:@"FougoLicDeviceLimit"],@"1 / 1");g_DReg=@"YES";g_DSlot=@"SLOT #1 (VERIFIED)";g_LVal=@"VERIFIED • LIVE";}}}@catch(NSException*ex){}dispatch_async(dispatch_get_main_queue(),^{g_ValBusy=NO;if(valid){g_LicOK=YES;g_Key=uKey;[[NSUserDefaults standardUserDefaults] setObject:FougoSafeStr(uKey,@"") forKey:@"FougoActivatedKey"];[[NSUserDefaults standardUserDefaults] setObject:FougoSafeStr(g_LPlan,@"30 DAYS VIP") forKey:@"FougoLicPlan"];[[NSUserDefaults standardUserDefaults] setObject:FougoSafeStr(g_LExp,@"ACTIVE") forKey:@"FougoLicExpires"];[[NSUserDefaults standardUserDefaults] setObject:FougoSafeStr(g_LDLim,@"1 / 1") forKey:@"FougoLicDeviceLimit"];[[NSUserDefaults standardUserDefaults] synchronize];if(doneBlock)doneBlock(YES,nil);}else{g_LicOK=NO;if(doneBlock)doneBlock(NO,inlineErr);}});});}];}
         -(void)onActDown:(UIButton*)sender{[self capKey];}-(void)onActTap:(UIButton*)sender{if(g_ValBusy)return;[self capKey];
         NSString*rawKey=FougoCleanKey(g_Key);if(rawKey.length<4){NSString*pb=FougoCleanKey([UIPasteboard generalPasteboard].string);
@@ -1131,7 +1076,7 @@ jobs:
         g_DashOn=NO;Class loginVCCls=NSClassFromString(@"__LOGIN_VC__");if(loginVCCls){g_Win.rootViewController=[[loginVCCls alloc] init];}
         [self alert:@"Session Terminated" message:@"Your license was disabled, expired, or reset by the Owner."];}}}}];}[self syncMaint];NSMutableArray<UIButton*>*btns=[NSMutableArray array];
         NSMutableArray<UITextField*>*fields=[NSMutableArray array];NSMutableArray<UILabel*>*labels=[NSMutableArray array];UIView*scanRoot=(g_DashOn&&g_Win.rootViewController)?g_Win.rootViewController.view:g_Win;FougoCollectControls(scanRoot,btns,fields,labels);if(g_DashOn){for(UIButton*b in btns){
-        if(b.tag!=88409){[b addTarget:self action:@selector(onDashBtnPress:) forControlEvents:EV_DOWN];[b addTarget:self action:@selector(onDashBtnRelease:) forControlEvents:EV_TAP|UIControlEventTouchUpOutside|UIControlEventTouchCancel];b.tag=88409;}
+        if(!objc_getAssociatedObject(b,&kFougoBtnHookKey)){[b addTarget:self action:@selector(onDashBtnPress:) forControlEvents:EV_DOWN];[b addTarget:self action:@selector(onDashBtnRelease:) forControlEvents:EV_TAP|UIControlEventTouchUpOutside|UIControlEventTouchCancel];objc_setAssociatedObject(b,&kFougoBtnHookKey,@YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);}
         NSString*t=[[b titleForState:ST_NORM] uppercaseString]?:@"";if([t containsString:@"JOIN"]||[t containsString:@"CHANNEL"]||[t containsString:@"TELEGRAM"]||[t containsString:@"SUPPORT"]){
         [b removeTarget:self action:@selector(onChTap:)forControlEvents:EV_DOWN];[b addTarget:self action:@selector(onChTap:)forControlEvents:EV_DOWN];}}
         FougoShowDash(scanRoot);return;}[self capKey];NSArray*chs=IS_ARR(g_Cloud[@"channels"])?g_Cloud[@"channels"]:@[];
