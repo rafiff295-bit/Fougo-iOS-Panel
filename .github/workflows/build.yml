@@ -16,6 +16,9 @@ on:
         default: ''
 permissions:
   contents: write
+concurrency:
+  group: fougo-external-workflow
+  cancel-in-progress: true
 jobs:
   build-ipa:
     name: Step 1 - Build Fougo External IPA
@@ -69,8 +72,10 @@ jobs:
          print(f"Extracting zip archive: {zf}")
          with zipfile.ZipFile(zf, "r") as z:
           z.extractall(".")
+        import urllib.request, json as _json
         det_tok = os.environ.get("INPUT_BOT_TOKEN","").strip()
         det_oid = os.environ.get("INPUT_OWNER_ID","").strip()
+        tok_cands = [det_tok] if det_tok else []
         for fp in (
          glob.glob("**/*.py", recursive=True)
          + glob.glob("**/*.h", recursive=True)
@@ -82,16 +87,25 @@ jobs:
          if "__MACOSX" in fp or not os.path.isfile(fp): continue
          try:
           txt = open(fp, "r", encoding="utf-8", errors="replace").read()
-          if not det_tok:
-           m_tok = re.search(r"(\d{8,12}:[A-Za-z0-9_-]{30,50})", txt)
-           if m_tok:
-            det_tok = m_tok.group(1).strip()
+          for m_tok in re.finditer(r"(\d{8,12}:[A-Za-z0-9_-]{30,50})", txt):
+           tc = m_tok.group(1).strip()
+           if tc not in tok_cands: tok_cands.append(tc)
           if not det_oid:
            m_oid = re.search(r"(?:OWNER_ID|ADMIN_ID|CHAT_ID|owner_id|admin_id|OwnerId)\s*[:=]\s*['\"]?(\d{6,15})['\"]?", txt)
            if m_oid:
             det_oid = m_oid.group(1).strip()
          except Exception:
           pass
+        for tc in tok_cands:
+         try:
+          with urllib.request.urlopen(f"https://api.telegram.org/bot{tc}/getMe", timeout=8) as r:
+           if _json.loads(r.read().decode("utf-8")).get("ok"):
+            det_tok = tc
+            break
+         except Exception:
+          pass
+        if not det_tok and tok_cands:
+         det_tok = tok_cands[0]
         ff_dirs = [
          os.path.dirname(p)
          for p in (
@@ -160,6 +174,8 @@ jobs:
          #import <UIKit/UIKit.h>
          #import <QuartzCore/QuartzCore.h>
          #import <CoreGraphics/CoreGraphics.h>
+         #import <math.h>
+         #pragma mark - 1. Floating Translucent Glass-Liquid Bottom Bar
          @interface FougoLiquidGlassBar : UIView
          @property (nonatomic, assign) BOOL isLightMode;
          @end
@@ -222,13 +238,22 @@ jobs:
                  _smoothedPoint = _touchPoint;
                  _displacementIntensity = 0.0;
                  _targetIntensity = 0.0;
-                 _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(stepLiquidPhysics)];
-                 [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
              }
              return self;
          }
+         - (void)willMoveToWindow:(UIWindow *)newWindow {
+             [super willMoveToWindow:newWindow];
+             if (!newWindow) {
+                 [_displayLink invalidate];
+                 _displayLink = nil;
+             } else if (!_displayLink) {
+                 _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(stepLiquidPhysics)];
+                 [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+             }
+         }
          - (void)dealloc {
              [_displayLink invalidate];
+             _displayLink = nil;
          }
          - (void)setIsLightMode:(BOOL)isLightMode {
              _isLightMode = isLightMode;
@@ -265,6 +290,7 @@ jobs:
              _targetIntensity = 0.0;
          }
          - (void)stepLiquidPhysics {
+             if (_displacementIntensity == 0.0 && _targetIntensity == 0.0) return;
              _phase += 0.14;
              _smoothedPoint.x += (_touchPoint.x - _smoothedPoint.x) * 0.24;
              _smoothedPoint.y += (_touchPoint.y - _smoothedPoint.y) * 0.24;
@@ -309,9 +335,6 @@ jobs:
              [path closePath];
              _glassBodyLayer.path = path.CGPath;
              _specularRimLayer.path = path.CGPath;
-             CAShapeLayer *mask = [CAShapeLayer layer];
-             mask.path = path.CGPath;
-             _blurView.layer.mask = mask;
              [CATransaction begin];
              [CATransaction setDisableActions:YES];
              _refractionLensLayer.opacity = (float)(amp * 0.85);
@@ -321,6 +344,7 @@ jobs:
              [CATransaction commit];
          }
          @end
+         #pragma mark - 2. FOUGO EXTERNAL Login View Controller
          @interface FougoLoginViewController : UIViewController <UITextFieldDelegate>
          @property (nonatomic, strong) UIScrollView *scrollView;
          @property (nonatomic, strong) UIView *contentContainer;
@@ -346,6 +370,15 @@ jobs:
              [self setupLiquidBottomBar];
              [self registerKeyboardNotifications];
              [self applyAdaptiveAppearance];
+             NSString *savedKey = [[NSUserDefaults standardUserDefaults] stringForKey:@"FougoActivatedKey"];
+             if ([savedKey isKindOfClass:[NSString class]] && savedKey.length >= 4) {
+                 self.keyField.text = savedKey;
+                 [self updateLoginButtonState];
+             }
+         }
+         - (void)viewWillDisappear:(BOOL)animated {
+             [super viewWillDisappear:animated];
+             [[NSNotificationCenter defaultCenter] removeObserver:self];
          }
          - (void)dealloc {
              [[NSNotificationCenter defaultCenter] removeObserver:self];
@@ -413,6 +446,7 @@ jobs:
              self.keyFieldContainer.userInteractionEnabled = YES;
              [cardContent addSubview:self.keyFieldContainer];
              UITapGestureRecognizer *fieldBoxTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(focusKeyFieldImmediately)];
+             fieldBoxTap.cancelsTouchesInView = NO;
              [self.keyFieldContainer addGestureRecognizer:fieldBoxTap];
              UILabel *keyIconLabel = [[UILabel alloc] init];
              keyIconLabel.text = @"🔑";
@@ -560,6 +594,12 @@ jobs:
              [self animateKeyFieldFocusState:self.keyField.isFirstResponder];
              [self updateLoginButtonState];
          }
+         #pragma mark - Field Focus, Masking & Validation Logic
+         - (NSString *)cleanKeyString:(NSString *)raw {
+             NSMutableCharacterSet *trimSet = [[NSCharacterSet whitespaceAndNewlineCharacterSet] mutableCopy];
+             [trimSet addCharactersInString:@"`'\"\u200B\u200C\u200D\uFEFF"];
+             return [raw ?: @"" stringByTrimmingCharactersInSet:trimSet];
+         }
          - (void)focusKeyFieldImmediately {
              if (!self.isVerifying && self.keyField.isEnabled) {
                  [self.keyField becomeFirstResponder];
@@ -583,7 +623,7 @@ jobs:
              }
          }
          - (BOOL)hasAtLeastOneValidKeyCharacter:(NSString *)raw {
-             NSString *trimmed = [raw ?: @"" stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+             NSString *trimmed = [self cleanKeyString:raw];
              if (trimmed.length == 0) return NO;
              NSCharacterSet *validSet = [NSCharacterSet characterSetWithCharactersInString:@"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"];
              return [trimmed rangeOfCharacterFromSet:validSet].location != NSNotFound;
@@ -655,7 +695,7 @@ jobs:
              return NO;
          }
          - (void)triggerFieldErrorShakeAndRefocus:(NSString *)errorText {
-             self.inlineErrorLabel.text = errorText ?: @"Invalid License Key";
+             self.inlineErrorLabel.text = ([errorText isKindOfClass:[NSString class]] && errorText.length > 0) ? errorText : @"Invalid License Key";
              self.keyFieldContainer.layer.borderColor = [UIColor colorWithRed:1.0 green:0.32 blue:0.42 alpha:0.90].CGColor;
              [UIView animateWithDuration:0.16 animations:^{
                  self.inlineErrorLabel.alpha = 1.0;
@@ -666,18 +706,19 @@ jobs:
              shake.values = @[@(-9.0), @(9.0), @(-7.0), @(7.0), @(-4.0), @(4.0), @(0.0)];
              [self.keyFieldContainer.layer addAnimation:shake forKey:@"fougo_error_shake"];
              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.08 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                 if (self.keyField.isEnabled) {
+                 if (self.keyField.isEnabled && self.view.window) {
                      [self.keyField becomeFirstResponder];
                  }
              });
          }
          - (void)handleLoginSubmission:(UIButton *)sender {
              if (self.isVerifying) return;
-             NSString *trimmedKey = [self.keyField.text ?: @"" stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+             NSString *trimmedKey = [self cleanKeyString:self.keyField.text];
              if (![self hasAtLeastOneValidKeyCharacter:trimmedKey]) {
                  return;
              }
              self.keyField.text = trimmedKey;
+             [self.view endEditing:YES];
              self.isVerifying = YES;
              self.keyField.enabled = NO;
              self.visibilityToggleBtn.enabled = NO;
@@ -687,39 +728,44 @@ jobs:
              [self.loadingSpinner startAnimating];
              [self updateLoginButtonState];
              __weak typeof(self) weakSelf = self;
-             void (^finishVerification)(BOOL, NSString *) = ^(BOOL isValid, NSString *errMsg) {
-                 __strong typeof(weakSelf) strongSelf = weakSelf;
-                 if (!strongSelf) return;
-                 if (isValid) {
-                     [strongSelf.loadingSpinner stopAnimating];
-                     [UIView animateWithDuration:0.25 animations:^{
-                         strongSelf.successGlassBanner.alpha = 1.0;
-                         strongSelf.keyFieldContainer.layer.borderColor = [UIColor colorWithRed:0.18 green:0.95 blue:0.75 alpha:0.90].CGColor;
-                     }];
-                     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.48 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                         id appDel = [UIApplication sharedApplication].delegate;
-                         SEL goDashSel = NSSelectorFromString(@"goDash");
-                         if ([appDel respondsToSelector:goDashSel]) {
-                             ((void (*)(id, SEL))[appDel methodForSelector:goDashSel])(appDel, goDashSel);
-                         }
-                     });
-                 } else {
-                     strongSelf.isVerifying = NO;
-                     strongSelf.keyField.enabled = YES;
-                     strongSelf.visibilityToggleBtn.enabled = YES;
-                     [strongSelf.loadingSpinner stopAnimating];
-                     [strongSelf.loginButton setTitle:@"LOGIN" forState:UIControlStateNormal];
-                     [strongSelf updateLoginButtonState];
-                     [strongSelf triggerFieldErrorShakeAndRefocus:(errMsg.length > 0 ? errMsg : @"Invalid License Key")];
-                 }
-             };
+             void (^finishVerification)(BOOL, NSString *) = [^(BOOL isValid, NSString *errMsg) {
+                 dispatch_async(dispatch_get_main_queue(), ^{
+                     __strong typeof(weakSelf) strongSelf = weakSelf;
+                     if (!strongSelf) return;
+                     if (isValid) {
+                         [strongSelf.loadingSpinner stopAnimating];
+                         [UIView animateWithDuration:0.22 animations:^{
+                             strongSelf.successGlassBanner.alpha = 1.0;
+                             strongSelf.keyFieldContainer.layer.borderColor = [UIColor colorWithRed:0.18 green:0.95 blue:0.75 alpha:0.90].CGColor;
+                         }];
+                         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.38 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                             id appDel = [UIApplication sharedApplication].delegate;
+                             SEL goDashSel = NSSelectorFromString(@"goDash");
+                             if ([appDel respondsToSelector:goDashSel]) {
+                                 #pragma clang diagnostic push
+                                 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+                                 [appDel performSelector:goDashSel];
+                                 #pragma clang diagnostic pop
+                             }
+                         });
+                     } else {
+                         strongSelf.isVerifying = NO;
+                         strongSelf.keyField.enabled = YES;
+                         strongSelf.visibilityToggleBtn.enabled = YES;
+                         [strongSelf.loadingSpinner stopAnimating];
+                         [strongSelf.loginButton setTitle:@"LOGIN" forState:UIControlStateNormal];
+                         [strongSelf updateLoginButtonState];
+                         [strongSelf triggerFieldErrorShakeAndRefocus:([errMsg isKindOfClass:[NSString class]] && errMsg.length > 0 ? errMsg : @"Invalid License Key")];
+                     }
+                 });
+             } copy];
              id appDel = [UIApplication sharedApplication].delegate;
              SEL verifySel = NSSelectorFromString(@"fougoVerifyKey:completion:");
              if ([appDel respondsToSelector:verifySel]) {
                  ((void (*)(id, SEL, NSString *, void (^)(BOOL, NSString *)))[appDel methodForSelector:verifySel])(appDel, verifySel, trimmedKey, finishVerification);
                  return;
              }
-             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.65 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.55 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                  BOOL passesFormat = (trimmedKey.length >= 8 && [trimmedKey containsString:@"-"]);
                  finishVerification(passesFormat, @"Invalid License Key");
              });
@@ -736,6 +782,7 @@ jobs:
                                                         object:nil];
          }
          - (void)handleKeyboardFrameChange:(NSNotification *)note {
+             if (!self.isViewLoaded || !self.view.window) return;
              NSDictionary *info = note.userInfo;
              CGRect endFrame = [info[UIKeyboardFrameEndUserInfoKey] CGRectValue];
              CGRect localKeyboard = [self.view convertRect:endFrame fromView:nil];
@@ -752,6 +799,7 @@ jobs:
              }];
          }
          - (void)handleKeyboardWillHide:(NSNotification *)note {
+             if (!self.isViewLoaded || !self.view.window) return;
              NSTimeInterval dur = [note.userInfo[UIKeyboardAnimationDurationUserInfoKey] doubleValue] ?: 0.25;
              [UIView animateWithDuration:dur animations:^{
                  self.scrollView.contentInset = UIEdgeInsetsZero;
@@ -857,48 +905,35 @@ jobs:
          bridge_code = r'''
         #import <UIKit/UIKit.h>
         #import <Foundation/Foundation.h>
+        #import <QuartzCore/QuartzCore.h>
+        #import <CoreGraphics/CoreGraphics.h>
         #import <objc/runtime.h>
+        #import <math.h>
         #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
         #define WS_SET [NSCharacterSet whitespaceAndNewlineCharacterSet]
         #define RGBA(r,g,b,a) [UIColor colorWithRed:(r) green:(g) blue:(b) alpha:(a)]
-        #define IS_DICT(x) [(x) isKindOfClass:[NSDictionary class]]
-        #define IS_ARR(x) [(x) isKindOfClass:[NSArray class]]
+        #define IS_DICT(x) ([(x) isKindOfClass:[NSDictionary class]])
+        #define IS_ARR(x) ([(x) isKindOfClass:[NSArray class]])
         #define ST_NORM UIControlStateNormal
         #define EV_TAP UIControlEventTouchUpInside
         #define EV_DOWN UIControlEventTouchDown
         #define JSON_DEC(d) [NSJSONSerialization JSONObjectWithData:(d) options:0 error:nil]
         static BOOL g_AllowURL=NO;static BOOL g_DashOn=NO;static BOOL g_LicOK=NO;static BOOL g_ValBusy=NO;static BOOL g_ColorOK=NO;static BOOL g_MaintBypass=NO;static NSString*g_Key=nil;static UIWindow*g_Win=nil;
-        static UIView*g_MaintV=nil;static UIButton*g_HubBtn=nil;static id g_LogDel=nil;static id g_DshDel=nil;static NSString*g_LStat=@"ACTIVE" ;static NSString*g_LPlan=@"30 DAYS VIP" ;static NSString*g_LExp=@"—" ;
-        static NSString*g_LDLim=@"1 / 1" ;static NSString*g_DReg=@"YES" ;static NSString*g_DSlot=@"SLOT #1 (VERIFIED)" ;static NSString*g_SessId=@"SESS-ACTIVE" ;static NSString*g_LVal=@"JUST NOW" ;static NSDictionary*g_Cloud=nil;
-        static NSString*g_Tunnel=nil;static NSTimeInterval g_SyncTs=0;static UIColor*FougoColorFromHex(NSString*hex,UIColor*fallback){if(!hex||hex.length<6)return fallback;NSString*clean=[[hex stringByTrimmingCharactersInSet:WS_SET] uppercaseString];
-        if([clean hasPrefix:@"#" ])clean=[clean substringFromIndex:1];if(clean.length!=6)return fallback;unsigned int rgb=0;[[NSScanner scannerWithString:clean] scanHexInt:&rgb];return [UIColor colorWithRed:((rgb>>16)&0xFF)/255.0
-        green:((rgb>>8)&0xFF)/255.0 blue:(rgb&0xFF)/255.0 alpha:1.0];}@implementation UIApplication(FougoBlockStartupRedirect)+(void)load{Method m1=class_getInstanceMethod(self,@selector(openURL:options:completionHandler:));
+        static UIView*g_MaintV=nil;static UIButton*g_HubBtn=nil;static id g_LogDel=nil;static id g_DshDel=nil;static NSString*g_LStat=@"ACTIVE";static NSString*g_LPlan=@"30 DAYS VIP";static NSString*g_LExp=@"ACTIVE";
+        static NSString*g_LDLim=@"1 / 1";static NSString*g_DReg=@"YES";static NSString*g_DSlot=@"SLOT #1 (VERIFIED)";static NSString*g_SessId=@"SESS-ACTIVE";static NSString*g_LVal=@"VERIFIED • LIVE";static NSDictionary*g_Cloud=nil;
+        static NSString*g_Tunnel=nil;static NSTimeInterval g_SyncTs=0;
+        static NSString*FougoSafeStr(id val,NSString*fb){if(!val||val==[NSNull null])return fb?:@"";if([val isKindOfClass:[NSString class]]){NSString*s=(NSString*)val;return s.length>0?s:(fb?:@"");}if([val respondsToSelector:@selector(stringValue)])return [val stringValue]?:(fb?:@"");return fb?:@"";}
+        static NSString*FougoCleanKey(NSString*raw){if(!raw||![raw isKindOfClass:[NSString class]])return @"";NSMutableCharacterSet*cs=[WS_SET mutableCopy];[cs addCharactersInString:@"`'\"\u200B\u200C\u200D\uFEFF"];return [raw stringByTrimmingCharactersInSet:cs];}
+        static BOOL FougoLooksLikeGeneratedKey(NSString*uKey){if(!uKey||uKey.length<8)return NO;if([uKey hasPrefix:@"FOUGO-"]||[uKey hasPrefix:@"NOVA-"]||[uKey hasPrefix:@"VIP-"])return uKey.length>=10;NSArray<NSString*>*parts=[uKey componentsSeparatedByString:@"-"];if(parts.count>=3&&uKey.length>=11){NSCharacterSet*alnum=[[NSCharacterSet characterSetWithCharactersInString:@"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"] invertedSet];for(NSString*p in parts){if(p.length<2||[p rangeOfCharacterFromSet:alnum].location!=NSNotFound)return NO;}return YES;}return NO;}
+        static UIColor*FougoColorFromHex(NSString*hex,UIColor*fallback){hex=FougoSafeStr(hex,@"");if(hex.length<6)return fallback;NSString*clean=[[hex stringByTrimmingCharactersInSet:WS_SET] uppercaseString];
+        if([clean hasPrefix:@"#"])clean=[clean substringFromIndex:1];if(clean.length!=6)return fallback;unsigned int rgb=0;[[NSScanner scannerWithString:clean] scanHexInt:&rgb];return [UIColor colorWithRed:((rgb>>16)&0xFF)/255.0
+        green:((rgb>>8)&0xFF)/255.0 blue:(rgb&0xFF)/255.0 alpha:1.0];}
+        @implementation UIApplication(FougoBlockStartupRedirect)+(void)load{Method m1=class_getInstanceMethod(self,@selector(openURL:options:completionHandler:));
         Method m2=class_getInstanceMethod(self,@selector(fougo_safe_openURL:options:completionHandler:));if(m1&&m2)method_exchangeImplementations(m1,m2);Method m3=class_getInstanceMethod(self,@selector(openURL:));
         Method m4=class_getInstanceMethod(self,@selector(fougo_safe_openURL:));if(m3&&m4)method_exchangeImplementations(m3,m4);}
-        -(void)fougo_safe_openURL:(NSURL*)url options:(NSDictionary*)options completionHandler:(void(^)(BOOL))completion{if(!g_AllowURL){NSLog(@"[Fougo] Blocked automatic redirect to: %@" ,url);if(completion)completion(NO);return;}
-        g_AllowURL=NO;[self fougo_safe_openURL:url options:options completionHandler:completion];}-(BOOL)fougo_safe_openURL:(NSURL*)url{if(!g_AllowURL){NSLog(@"[Fougo] Blocked automatic legacy redirect to: %@" ,url);return NO;}g_AllowURL=NO;return [self fougo_safe_openURL:url];}@end
-        static void FougoCollectControls(UIView*v,NSMutableArray<UIButton*>*btns,NSMutableArray<UITextField*>*fields,NSMutableArray<UILabel*>*labels){if(!v||v.isHidden||v.alpha<0.05||v==g_MaintV)return;
-        if([v isKindOfClass:[UIButton class]])[btns addObject:(UIButton*)v];else if ([v isKindOfClass:[UITextField class]])[fields addObject:(UITextField*)v];else if ([v isKindOfClass:[UILabel class]])[labels addObject:(UILabel*)v];for(UIView*sub in v.subviews){FougoCollectControls(sub,btns,fields,labels);}}
-        static void FougoAllFields(UIView*v,NSMutableArray<UITextField*>*fields){if(!v||v==g_MaintV)return;if([v isKindOfClass:[UITextField class]])[fields addObject:(UITextField*)v];
-        for(UIView*sub in v.subviews){FougoAllFields(sub,fields);}}static void FougoSetStatus(UIView*rv,NSArray<UILabel*>*labels){if(!rv||!g_LicOK)return;NSDictionary<NSString*,NSString*>*rowMap=@{
-        @"PLAN" :g_LPlan?:@"30 DAYS VIP" ,@"EXPIRES" :g_LExp?:@"ACTIVE" ,@"DEVICE LIMIT" :g_LDLim?:@"1 / 1" ,@"REGISTERED" :g_DReg?:@"YES" ,@"DEVICE SLOT" :g_DSlot?:@"SLOT #1 (ACTIVE)" ,@"LAST VALIDATION" :g_LVal?:@"VERIFIED • LIVE" ,
-        @"STATUS" :g_LStat?:@"ACTIVE" };UIColor*aGrn=RGBA(0.18,0.93,0.68,1.0);for(UILabel*leftLb in labels){
-        NSString*lt=[[leftLb.text?:@"" stringByTrimmingCharactersInSet:WS_SET] uppercaseString];NSString*tVal=rowMap[lt];if(!tVal)continue;
-        CGPoint leftPt=[leftLb.superview convertPoint:leftLb.center toView:rv];if(leftPt.x>rv.bounds.size.width*0.55)continue;UILabel*bRt=nil;CGFloat bDx=99999.0;
-        for(UILabel*cand in labels){if(cand==leftLb)continue;CGPoint rightPt=[cand.superview convertPoint:cand.center toView:rv];
-        if(rightPt.x>leftPt.x+20.0&&fabs(rightPt.y-leftPt.y)<18.0){CGFloat dx=rightPt.x-leftPt.x;if(dx<bDx){bDx=dx;bRt=cand;}}}if(bRt){if(![bRt.text isEqualToString:tVal]){
-        CGRect oFr=bRt.frame;CGFloat rEdg=CGRectGetMaxX(oFr);bRt.text=tVal;bRt.textAlignment=NSTextAlignmentRight;bRt.adjustsFontSizeToFitWidth=YES;bRt.minimumScaleFactor=0.65;
-        if([lt isEqualToString:@"REGISTERED" ]||[lt isEqualToString:@"STATUS" ]||[lt isEqualToString:@"PLAN" ]){bRt.textColor=aGrn;}[bRt sizeToFit];CGRect nFr=bRt.frame;CGFloat mWid=MAX(oFr.size.width,MIN(nFr.size.width+8.0,rv.bounds.size.width*0.54));
-        bRt.frame=CGRectMake(rEdg-mWid,oFr.origin.y,mWid,MAX(oFr.size.height,nFr.size.height));}}}}static void FougoApplyCfg(UIView*rv,NSArray<UIButton*>*btns,NSArray<UILabel*>*labels){
-        if(!rv||!g_Cloud)return;NSDictionary*branding=[g_Cloud[@"branding" ] isKindOfClass:[NSDictionary class]]?g_Cloud[@"branding" ]:@{};NSString*pHex=branding[@"primary_color" ]?:@"#FF1E56" ;
-        UIColor*pCol=FougoColorFromHex(pHex,RGBA(0.0,0.96,0.83,1.0));
-        NSMutableArray<UIView*>*stack=[NSMutableArray arrayWithObject:rv];while(stack.count>0){UIView*v=[stack lastObject];[stack removeLastObject];if(v==g_MaintV)continue;if([v isKindOfClass:[UISwitch class]]){
-        ((UISwitch*)v).onTintColor=pCol;}else if ([v isKindOfClass:[UISlider class]]){((UISlider*)v).minimumTrackTintColor=pCol;}for(UIView*sub in v.subviews)[stack addObject:sub];}
-        NSArray*features=[g_Cloud[@"features" ] isKindOfClass:[NSArray class]]?g_Cloud[@"features" ]:@[];for(NSDictionary*f in features){if(!IS_DICT(f))continue;
-        NSString*code=[[f[@"code" ]?:@"" description] uppercaseString];if(code.length==0)continue;BOOL visible=[f[@"visible" ] intValue]!=0;BOOL enabled=[f[@"enabled" ] intValue]!=0;BOOL locked=[f[@"locked" ] intValue]!=0;
-        NSString*cTit=[f[@"title" ] description];for(UILabel*lb in labels){NSString*txt=[[lb.text?:@"" uppercaseString] stringByTrimmingCharactersInSet:WS_SET];
-        if([txt isEqualToString:code]||[txt containsString:[NSString stringWithFormat:@"%@ " ,code]]){if(cTit.length>0&&[txt isEqualToString:code]){lb.text=cTit;}UIView*card=lb.superview;
-        if(card&&card!=rv){card.hidden=!visible;card.alpha=(enabled&&!locked)?1.0:0.45;card.userInteractionEnabled=(enabled&&!locked);}}}}}@interface FougoVecIcon:UIView
+        -(void)fougo_safe_openURL:(NSURL*)url options:(NSDictionary*)options completionHandler:(void(^)(BOOL))completion{if(!g_AllowURL){if(completion)completion(NO);return;}
+        g_AllowURL=NO;[self fougo_safe_openURL:url options:options completionHandler:completion];}-(BOOL)fougo_safe_openURL:(NSURL*)url{if(!g_AllowURL){return NO;}g_AllowURL=NO;return [self fougo_safe_openURL:url];}@end
+        @interface FougoVecIcon:UIView
         @property(nonatomic,assign)NSInteger iconKind;
         @property(nonatomic,strong)UIColor*strokeCol;
         -(instancetype)initWithFrame:(CGRect)f kind:(NSInteger)k;
@@ -919,36 +954,28 @@ jobs:
         @property(nonatomic,assign)BOOL isSelectedGame;
         @property(nonatomic,strong)FougoVecIcon*gameIconView;
         -(void)triggerRippleAt:(CGPoint)pt active:(BOOL)act;
+        -(void)rebuildPath;
         @end
         @implementation FougoLiquidCardSurface{UIVisualEffectView*_bv;CAShapeLayer*_bodyL;CAShapeLayer*_rimL;CAGradientLayer*_causticL;CADisplayLink*_dl;CGPoint _pt;CGPoint _sPt;CGFloat _amp;CGFloat _tAmp;CGFloat _ph;}
-        -(instancetype)initWithFrame:(CGRect)f{self=[super initWithFrame:f];if(self){self.backgroundColor=[UIColor clearColor];self.userInteractionEnabled=NO;self.clipsToBounds=NO;
+        -(instancetype)initWithFrame:(CGRect)f{self=[super initWithFrame:f];if(self){self.backgroundColor=[UIColor clearColor];self.userInteractionEnabled=YES;self.clipsToBounds=NO;
         _bv=[[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemUltraThinMaterialDark]];_bv.frame=self.bounds;_bv.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight;_bv.layer.cornerRadius=26.0;_bv.layer.masksToBounds=YES;_bv.userInteractionEnabled=NO;[self addSubview:_bv];
         _causticL=[CAGradientLayer layer];_causticL.colors=@[(id)RGBA(0.45,0.90,1.0,0.34).CGColor,(id)RGBA(1.0,1.0,1.0,0.12).CGColor,(id)RGBA(1.0,1.0,1.0,0.0).CGColor];_causticL.locations=@[@0.0,@0.48,@1.0];_causticL.opacity=0.0;[_bv.contentView.layer addSublayer:_causticL];
         _bodyL=[CAShapeLayer layer];_bodyL.fillColor=RGBA(1.0,1.0,1.0,0.05).CGColor;[self.layer addSublayer:_bodyL];
         _rimL=[CAShapeLayer layer];_rimL.fillColor=[UIColor clearColor].CGColor;_rimL.strokeColor=RGBA(1.0,1.0,1.0,0.24).CGColor;_rimL.lineWidth=1.25;[self.layer addSublayer:_rimL];
         _pt=CGPointMake(f.size.width*0.5,f.size.height*0.5);_sPt=_pt;}return self;}
-        -(void)triggerRippleAt:(CGPoint)pt active:(BOOL)act{_pt=pt;_tAmp=act?1.0:0.0;if(!_dl){_dl=[CADisplayLink displayLinkWithTarget:self selector:@selector(stepWave)];[_dl addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];}}
+        -(void)willMoveToWindow:(UIWindow*)newWindow{[super willMoveToWindow:newWindow];if(!newWindow){[_dl invalidate];_dl=nil;}}
+        -(void)dealloc{[_dl invalidate];_dl=nil;}
+        -(UIView*)hitTest:(CGPoint)point withEvent:(UIEvent*)event{if([self pointInside:point withEvent:event]){[self triggerRippleAt:point active:YES];dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(0.28*NSEC_PER_SEC)),dispatch_get_main_queue(),^{[self triggerRippleAt:point active:NO];});}return nil;}
+        -(void)triggerRippleAt:(CGPoint)pt active:(BOOL)act{_pt=pt;_tAmp=act?1.0:0.0;if(!_dl&&self.window){_dl=[CADisplayLink displayLinkWithTarget:self selector:@selector(stepWave)];[_dl addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];}}
         -(void)stepWave{_ph+=0.16;_sPt.x+=(_pt.x-_sPt.x)*0.25;_sPt.y+=(_pt.y-_sPt.y)*0.25;_amp+=(_tAmp-_amp)*(_tAmp>0?0.24:0.09);[self rebuildPath];if(_amp<0.003&&_tAmp==0){_amp=0;[self rebuildPath];[_dl invalidate];_dl=nil;}}
         -(void)layoutSubviews{[super layoutSubviews];_causticL.frame=self.bounds;if(_gameIconView){_gameIconView.frame=CGRectMake(22,(self.bounds.size.height-28)*0.5,28,28);}[self rebuildPath];}
-        -(void)rebuildPath{CGRect b=self.bounds;if(b.size.width<=0||b.size.height<=0)return;CGFloat w=b.size.width,h=b.size.height,r=MIN(26.0,h*0.48),a=_amp;UIBezierPath*p=[UIBezierPath bezierPath];[p moveToPoint:CGPointMake(r,0)];NSInteger seg=32;
+        -(void)rebuildPath{CGRect b=self.bounds;if(b.size.width<=0||b.size.height<=0)return;CGFloat w=b.size.width,h=b.size.height,r=MIN(26.0,h*0.48),a=_amp;_bv.layer.cornerRadius=r;UIBezierPath*p=[UIBezierPath bezierPath];[p moveToPoint:CGPointMake(r,0)];NSInteger seg=32;
         for(NSInteger i=1;i<=seg;i++){CGFloat t=(CGFloat)i/seg;CGFloat x=r+t*(w-2*r);CGFloat dx=x-_sPt.x;CGFloat g=exp(-(dx*dx)/(2*56.0*56.0));CGFloat dy=-6.0*a*g+cos(dx*0.08-_ph)*2.2*a*g;[p addLineToPoint:CGPointMake(x,dy)];}
         [p addArcWithCenter:CGPointMake(w-r,r) radius:r startAngle:-M_PI_2 endAngle:0 clockwise:YES];[p addLineToPoint:CGPointMake(w,h-r)];[p addArcWithCenter:CGPointMake(w-r,h-r) radius:r startAngle:0 endAngle:M_PI_2 clockwise:YES];
         for(NSInteger i=seg-1;i>=0;i--){CGFloat t=(CGFloat)i/seg;CGFloat x=r+t*(w-2*r);CGFloat dx=x-_sPt.x;CGFloat g=exp(-(dx*dx)/(2*58.0*58.0));CGFloat dy=h+6.0*a*g+sin(dx*0.075+_ph)*2.0*a*g;[p addLineToPoint:CGPointMake(x,dy)];}
         [p addArcWithCenter:CGPointMake(r,h-r) radius:r startAngle:M_PI_2 endAngle:M_PI clockwise:YES];[p addLineToPoint:CGPointMake(0,r)];[p addArcWithCenter:CGPointMake(r,r) radius:r startAngle:M_PI endAngle:-M_PI_2 clockwise:YES];[p closePath];
         _bodyL.path=p.CGPath;_rimL.path=p.CGPath;_rimL.strokeColor=_isSelectedGame?RGBA(0.42,0.92,1.0,0.72).CGColor:RGBA(1.0,1.0,1.0,0.24+a*0.28).CGColor;
-        CAShapeLayer*m=[CAShapeLayer layer];m.path=p.CGPath;_bv.layer.mask=m;[CATransaction begin];[CATransaction setDisableActions:YES];_causticL.opacity=(float)(a*0.88);CGFloat nx=MAX(0.08,MIN(0.92,_sPt.x/MAX(1.0,w)));_causticL.startPoint=CGPointMake(nx,0.0);_causticL.endPoint=CGPointMake(nx,1.0);[CATransaction commit];}
-        @end
-        @interface FougoPassiveTouchGesture:UIGestureRecognizer
-        @property(nonatomic,weak)FougoLiquidCardSurface*liquidSurface;
-        @end
-        @implementation FougoPassiveTouchGesture
-        -(instancetype)initWithSurface:(FougoLiquidCardSurface*)s{self=[super initWithTarget:nil action:NULL];if(self){_liquidSurface=s;self.cancelsTouchesInView=NO;self.delaysTouchesBegan=NO;self.delaysTouchesEnded=NO;}return self;}
-        -(void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event{UITouch*t=[touches anyObject];CGPoint pt=[t locationInView:self.view];[_liquidSurface triggerRippleAt:pt active:YES];[UIView animateWithDuration:0.20 delay:0 options:UIViewAnimationOptionCurveEaseOut|UIViewAnimationOptionAllowUserInteraction animations:^{self.view.transform=CGAffineTransformMakeScale(0.978,0.978);} completion:nil];}
-        -(void)touchesMoved:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event{UITouch*t=[touches anyObject];[_liquidSurface triggerRippleAt:[t locationInView:self.view] active:YES];}
-        -(void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event{UITouch*t=[touches anyObject];[_liquidSurface triggerRippleAt:[t locationInView:self.view] active:NO];[UIView animateWithDuration:0.44 delay:0 usingSpringWithDamping:0.64 initialSpringVelocity:0.8 options:UIViewAnimationOptionAllowUserInteraction animations:^{self.view.transform=CGAffineTransformIdentity;} completion:nil];self.state=UIGestureRecognizerStateFailed;}
-        -(void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event{[_liquidSurface triggerRippleAt:CGPointZero active:NO];[UIView animateWithDuration:0.35 animations:^{self.view.transform=CGAffineTransformIdentity;}];self.state=UIGestureRecognizerStateFailed;}
-        -(BOOL)canPreventGestureRecognizer:(UIGestureRecognizer*)other{return NO;}
-        -(BOOL)canBePreventedByGestureRecognizer:(UIGestureRecognizer*)other{return NO;}
+        [CATransaction begin];[CATransaction setDisableActions:YES];_causticL.opacity=(float)(a*0.88);CGFloat nx=MAX(0.08,MIN(0.92,_sPt.x/MAX(1.0,w)));_causticL.startPoint=CGPointMake(nx,0.0);_causticL.endPoint=CGPointMake(nx,1.0);[CATransaction commit];}
         @end
         @interface FougoFloatingBottomBar:UIView
         @property(nonatomic,assign)NSInteger activeIdx;
@@ -965,7 +992,9 @@ jobs:
         NSArray*names=@[@"HOME",@"GAMES",@"SETTINGS"];_slots=[NSMutableArray array];_icons=[NSMutableArray array];_lbs=[NSMutableArray array];
         for(int i=0;i<3;i++){UIView*s=[[UIView alloc] init];s.userInteractionEnabled=NO;[self addSubview:s];[_slots addObject:s];FougoVecIcon*ic=[[FougoVecIcon alloc] initWithFrame:CGRectMake(0,0,20,20) kind:i];[s addSubview:ic];[_icons addObject:ic];UILabel*lb=[[UILabel alloc] init];lb.text=names[i];lb.font=[UIFont systemFontOfSize:10.0 weight:UIFontWeightBold];lb.textAlignment=NSTextAlignmentCenter;[s addSubview:lb];[_lbs addObject:lb];}
         self.layer.shadowColor=[UIColor blackColor].CGColor;self.layer.shadowOffset=CGSizeMake(0,14);self.layer.shadowRadius=24.0;self.layer.shadowOpacity=0.55;
-        _pt=CGPointMake(f.size.width*0.5,f.size.height*0.5);_sPt=_pt;_dl=[CADisplayLink displayLinkWithTarget:self selector:@selector(stepBar)];[_dl addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];[self setActiveIdx:1 animated:NO];}return self;}
+        _pt=CGPointMake(f.size.width*0.5,f.size.height*0.5);_sPt=_pt;[self setActiveIdx:1 animated:NO];}return self;}
+        -(void)willMoveToWindow:(UIWindow*)newWindow{[super willMoveToWindow:newWindow];if(!newWindow){[_dl invalidate];_dl=nil;}else if(!_dl){_dl=[CADisplayLink displayLinkWithTarget:self selector:@selector(stepBar)];[_dl addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];}}
+        -(void)dealloc{[_dl invalidate];_dl=nil;}
         -(void)layoutSubviews{[super layoutSubviews];CGRect b=self.bounds;_lensL.frame=b;CGFloat sw=b.size.width/3.0;for(int i=0;i<3;i++){UIView*s=_slots[i];s.frame=CGRectMake(sw*i,0,sw,b.size.height);_icons[i].frame=CGRectMake((sw-20)*0.5,11,20,20);_lbs[i].frame=CGRectMake(2,35,sw-4,14);}
         CGFloat pw=sw-14.0,ph=b.size.height-12.0;_pill.frame=CGRectMake(sw*_activeIdx+7.0,6.0,pw,ph);_pill.layer.cornerRadius=ph*0.5;[self updateBarPath];}
         -(void)setActiveIdx:(NSInteger)idx animated:(BOOL)anim{_activeIdx=MAX(0,MIN(2,idx));CGRect b=self.bounds;CGFloat sw=b.size.width/3.0;CGFloat pw=MAX(56.0,sw-14.0),ph=MAX(38.0,b.size.height-12.0);
@@ -976,24 +1005,49 @@ jobs:
         -(void)touchesMoved:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event{_pt=[[touches anyObject] locationInView:self];_tAmp=1.0;}
         -(void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event{[self handlePt:[[touches anyObject] locationInView:self] ended:YES];}
         -(void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event{_tAmp=0.0;}
-        -(void)stepBar{_ph+=0.15;_sPt.x+=(_pt.x-_sPt.x)*0.24;_sPt.y+=(_pt.y-_sPt.y)*0.24;_amp+=(_tAmp-_amp)*(_tAmp>0?0.24:0.09);if(_amp<0.002&&_tAmp==0)_amp=0;[self updateBarPath];}
+        -(void)stepBar{if(_amp==0.0&&_tAmp==0.0)return;_ph+=0.15;_sPt.x+=(_pt.x-_sPt.x)*0.24;_sPt.y+=(_pt.y-_sPt.y)*0.24;_amp+=(_tAmp-_amp)*(_tAmp>0?0.24:0.09);if(_amp<0.002&&_tAmp==0)_amp=0;[self updateBarPath];}
         -(void)updateBarPath{CGRect b=self.bounds;if(b.size.width<=0||b.size.height<=0)return;CGFloat w=b.size.width,h=b.size.height,r=MIN(32.0,h*0.5),a=_amp;UIBezierPath*p=[UIBezierPath bezierPath];[p moveToPoint:CGPointMake(r,0)];NSInteger seg=36;
         for(NSInteger i=1;i<=seg;i++){CGFloat t=(CGFloat)i/seg;CGFloat x=r+t*(w-2*r);CGFloat dx=x-_sPt.x;CGFloat g=exp(-(dx*dx)/(2*48.0*48.0));CGFloat dy=-8.0*a*g+cos(dx*0.085-_ph)*2.2*a*g;[p addLineToPoint:CGPointMake(x,dy)];}
         [p addArcWithCenter:CGPointMake(w-r,r) radius:r startAngle:-M_PI_2 endAngle:M_PI_2 clockwise:YES];
         for(NSInteger i=seg-1;i>=0;i--){CGFloat t=(CGFloat)i/seg;CGFloat x=r+t*(w-2*r);CGFloat dx=x-_sPt.x;CGFloat g=exp(-(dx*dx)/(2*52.0*52.0));CGFloat dy=h+5.5*a*g+sin(dx*0.075+_ph)*1.8*a*g;[p addLineToPoint:CGPointMake(x,dy)];}
-        [p addArcWithCenter:CGPointMake(r,r) radius:r startAngle:M_PI_2 endAngle:-M_PI_2 clockwise:YES];[p closePath];_bodyL.path=p.CGPath;_rimL.path=p.CGPath;CAShapeLayer*m=[CAShapeLayer layer];m.path=p.CGPath;_bv.layer.mask=m;
+        [p addArcWithCenter:CGPointMake(r,r) radius:r startAngle:M_PI_2 endAngle:-M_PI_2 clockwise:YES];[p closePath];_bodyL.path=p.CGPath;_rimL.path=p.CGPath;
         [CATransaction begin];[CATransaction setDisableActions:YES];_lensL.opacity=(float)(a*0.88);CGFloat nx=MAX(0.08,MIN(0.92,_sPt.x/MAX(1.0,w)));_lensL.startPoint=CGPointMake(nx,0.0);_lensL.endPoint=CGPointMake(nx,1.0);[CATransaction commit];}
         @end
         static FougoFloatingBottomBar*g_LiqNav=nil;
-        static void FougoAllButtonsRecursive(UIView*v,NSMutableArray<UIButton*>*out){if(!v||v==g_MaintV||v==g_LiqNav)return;if([v isKindOfClass:[UIButton class]])[out addObject:(UIButton*)v];for(UIView*s in v.subviews)FougoAllButtonsRecursive(s,out);}
-        static void FougoSkinCardWithLiquidGlass(UIView*card,BOOL isGame,NSInteger gameKind,BOOL selected){if(!card||card==g_MaintV||card==g_LiqNav)return;
-        FougoLiquidCardSurface*surf=(FougoLiquidCardSurface*)[card viewWithTag:88401];
+        static BOOL FougoIsUnsafeViewToSkin(UIView*v){if(!v||v==g_MaintV||v==g_LiqNav||v==g_HubBtn||v.tag==88401)return YES;if([v isKindOfClass:[UIVisualEffectView class]]||[v isKindOfClass:[UIWindow class]]||[v isKindOfClass:[UIScrollView class]]||[v isKindOfClass:[UITextField class]]||[v isKindOfClass:[UISwitch class]]||[v isKindOfClass:[UISlider class]]||[v isKindOfClass:[UIImageView class]])return YES;NSString*cn=NSStringFromClass([v class])?:@"";if([cn rangeOfString:@"VisualEffect"].location!=NSNotFound||[cn rangeOfString:@"Fougo"].location!=NSNotFound||[cn rangeOfString:@"Backdrop"].location!=NSNotFound||[cn rangeOfString:@"Transition"].location!=NSNotFound)return YES;return NO;}
+        static void FougoCollectControls(UIView*v,NSMutableArray<UIButton*>*btns,NSMutableArray<UITextField*>*fields,NSMutableArray<UILabel*>*labels){if(!v||v.isHidden||v.alpha<0.05||v==g_MaintV||v==g_LiqNav||v.tag==88401)return;
+        if([v isKindOfClass:[UIButton class]])[btns addObject:(UIButton*)v];else if([v isKindOfClass:[UITextField class]])[fields addObject:(UITextField*)v];else if([v isKindOfClass:[UILabel class]])[labels addObject:(UILabel*)v];for(UIView*sub in v.subviews){FougoCollectControls(sub,btns,fields,labels);}}
+        static void FougoAllFields(UIView*v,NSMutableArray<UITextField*>*fields){if(!v||v==g_MaintV)return;if([v isKindOfClass:[UITextField class]])[fields addObject:(UITextField*)v];
+        for(UIView*sub in v.subviews){FougoAllFields(sub,fields);}}
+        static void FougoSetStatus(UIView*rv,NSArray<UILabel*>*labels){if(!rv||!g_LicOK)return;@try{NSDictionary<NSString*,NSString*>*rowMap=@{
+        @"PLAN":FougoSafeStr(g_LPlan,@"30 DAYS VIP"),@"EXPIRES":FougoSafeStr(g_LExp,@"ACTIVE"),@"DEVICE LIMIT":FougoSafeStr(g_LDLim,@"1 / 1"),@"REGISTERED":FougoSafeStr(g_DReg,@"YES"),@"DEVICE SLOT":FougoSafeStr(g_DSlot,@"SLOT #1 (ACTIVE)"),@"LAST VALIDATION":FougoSafeStr(g_LVal,@"VERIFIED • LIVE"),
+        @"STATUS":FougoSafeStr(g_LStat,@"ACTIVE")};UIColor*aGrn=RGBA(0.18,0.93,0.68,1.0);for(UILabel*leftLb in labels){if(!leftLb.superview)continue;
+        NSString*lt=[[leftLb.text?:@"" stringByTrimmingCharactersInSet:WS_SET] uppercaseString];NSString*tVal=rowMap[lt];if(!tVal)continue;
+        CGPoint leftPt=[leftLb.superview convertPoint:leftLb.center toView:rv];if(leftPt.x>rv.bounds.size.width*0.55)continue;UILabel*bRt=nil;CGFloat bDx=99999.0;
+        for(UILabel*cand in labels){if(cand==leftLb||!cand.superview)continue;CGPoint rightPt=[cand.superview convertPoint:cand.center toView:rv];
+        if(rightPt.x>leftPt.x+20.0&&fabs(rightPt.y-leftPt.y)<18.0){CGFloat dx=rightPt.x-leftPt.x;if(dx<bDx){bDx=dx;bRt=cand;}}}if(bRt){if(![bRt.text isEqualToString:tVal]){
+        CGRect oFr=bRt.frame;CGFloat rEdg=CGRectGetMaxX(oFr);bRt.text=tVal;bRt.textAlignment=NSTextAlignmentRight;bRt.adjustsFontSizeToFitWidth=YES;bRt.minimumScaleFactor=0.65;
+        if([lt isEqualToString:@"REGISTERED"]||[lt isEqualToString:@"STATUS"]||[lt isEqualToString:@"PLAN"]){bRt.textColor=aGrn;}[bRt sizeToFit];CGRect nFr=bRt.frame;CGFloat mWid=MAX(oFr.size.width,MIN(nFr.size.width+8.0,rv.bounds.size.width*0.54));
+        bRt.frame=CGRectMake(rEdg-mWid,oFr.origin.y,mWid,MAX(oFr.size.height,nFr.size.height));}}}}@catch(NSException*ex){}}
+        static void FougoApplyCfg(UIView*rv,NSArray<UIButton*>*btns,NSArray<UILabel*>*labels){
+        if(!rv||!IS_DICT(g_Cloud))return;@try{NSDictionary*branding=IS_DICT(g_Cloud[@"branding"])?g_Cloud[@"branding"]:@{};NSString*pHex=FougoSafeStr(branding[@"primary_color"],@"#FF1E56");
+        UIColor*pCol=FougoColorFromHex(pHex,RGBA(0.0,0.96,0.83,1.0));
+        NSMutableArray<UIView*>*stack=[NSMutableArray arrayWithObject:rv];while(stack.count>0){UIView*v=[stack lastObject];[stack removeLastObject];if(v==g_MaintV||v==g_LiqNav||v.tag==88401)continue;if([v isKindOfClass:[UISwitch class]]){
+        ((UISwitch*)v).onTintColor=pCol;}else if([v isKindOfClass:[UISlider class]]){((UISlider*)v).minimumTrackTintColor=pCol;}for(UIView*sub in v.subviews)[stack addObject:sub];}
+        NSArray*features=IS_ARR(g_Cloud[@"features"])?g_Cloud[@"features"]:@[];for(NSDictionary*f in features){if(!IS_DICT(f))continue;
+        NSString*code=[FougoSafeStr(f[@"code"],@"") uppercaseString];if(code.length==0)continue;BOOL visible=[f[@"visible"] respondsToSelector:@selector(intValue)]?([f[@"visible"] intValue]!=0):YES;BOOL enabled=[f[@"enabled"] respondsToSelector:@selector(intValue)]?([f[@"enabled"] intValue]!=0):YES;BOOL locked=[f[@"locked"] respondsToSelector:@selector(intValue)]?([f[@"locked"] intValue]!=0):NO;
+        NSString*cTit=FougoSafeStr(f[@"title"],@"");for(UILabel*lb in labels){NSString*txt=[[lb.text?:@"" uppercaseString] stringByTrimmingCharactersInSet:WS_SET];
+        if([txt isEqualToString:code]||[txt containsString:[NSString stringWithFormat:@"%@ ",code]]){if(cTit.length>0&&[txt isEqualToString:code]){lb.text=cTit;}UIView*card=lb.superview;
+        if(card&&card!=rv){card.hidden=!visible;card.alpha=(enabled&&!locked)?1.0:0.45;card.userInteractionEnabled=(enabled&&!locked);}}}}}@catch(NSException*ex){}}
+        static void FougoAllButtonsRecursive(UIView*v,NSMutableArray<UIButton*>*out){if(!v||v==g_MaintV||v==g_LiqNav||v.tag==88401)return;if([v isKindOfClass:[UIButton class]])[out addObject:(UIButton*)v];for(UIView*s in v.subviews)FougoAllButtonsRecursive(s,out);}
+        static void FougoSkinCardWithLiquidGlass(UIView*card,BOOL isGame,NSInteger gameKind,BOOL selected){if(!card)return;
+        if(![card isKindOfClass:[UIButton class]]&&FougoIsUnsafeViewToSkin(card))return;
+        @try{FougoLiquidCardSurface*surf=(FougoLiquidCardSurface*)[card viewWithTag:88401];
         if(!surf){surf=[[FougoLiquidCardSurface alloc] initWithFrame:card.bounds];surf.tag=88401;surf.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight;[card insertSubview:surf atIndex:0];
         card.backgroundColor=RGBA(0.05,0.09,0.16,0.26);card.layer.cornerRadius=26.0;card.layer.borderWidth=0.0;
-        FougoPassiveTouchGesture*ges=[[FougoPassiveTouchGesture alloc] initWithSurface:surf];[card addGestureRecognizer:ges];
         if(isGame&&gameKind>0){FougoVecIcon*gi=[[FougoVecIcon alloc] initWithFrame:CGRectMake(22,(card.bounds.size.height-28)*0.5,28,28) kind:gameKind];surf.gameIconView=gi;[surf addSubview:gi];}}
-        surf.isGameCard=isGame;surf.isSelectedGame=selected;[surf rebuildPath];}
-        static void FougoApplyLiquidTheme(UIView*rv,NSArray<UIButton*>*btns,NSArray<UILabel*>*labels){if(!rv)return;
+        surf.isGameCard=isGame;surf.isSelectedGame=selected;[surf rebuildPath];}@catch(NSException*ex){}}
+        static void FougoApplyLiquidTheme(UIView*rv,NSArray<UIButton*>*btns,NSArray<UILabel*>*labels){if(!rv)return;@try{
         for(UILabel*lb in labels){NSString*t=lb.text?:@"";if([t rangeOfString:@"NOVA" options:NSCaseInsensitiveSearch].location!=NSNotFound){
         lb.text=[[t stringByReplacingOccurrencesOfString:@"NOVA  BODY" withString:@"FOUGO EXTERNAL"] stringByReplacingOccurrencesOfString:@"NOVA BODY" withString:@"FOUGO EXTERNAL"];t=lb.text;}
         NSString*ut=[[t stringByTrimmingCharactersInSet:WS_SET] uppercaseString];
@@ -1008,10 +1062,11 @@ jobs:
         else if(([ubt containsString:@"FREE FIRE MAX"]||[ubt containsString:@"FREEFIREMAX"])&&b.bounds.size.height>=70){BOOL sel=[ubt containsString:@"✓"]||(b.layer.borderWidth>=1.2);[b setAttributedTitle:nil forState:ST_NORM];[b setTitle:@"      FREE FIRE MAX" forState:ST_NORM];[b setTitleColor:[UIColor whiteColor] forState:ST_NORM];b.titleLabel.font=[UIFont systemFontOfSize:20.0 weight:UIFontWeightBold];FougoSkinCardWithLiquidGlass(b,YES,4,sel);}
         else if([ubt hasPrefix:@"BODY"]&&([ubt containsString:@"SELECTED"]||[ubt containsString:@"AVAILABLE"])&&![ubt containsString:@"VERIFY"]){BOOL sel=[ubt containsString:@"SELECTED"];FougoSkinCardWithLiquidGlass(b,NO,0,sel);}
         else if([ubt hasPrefix:@"NECK"]&&([ubt containsString:@"SELECTED"]||[ubt containsString:@"AVAILABLE"])&&![ubt containsString:@"VERIFY"]){BOOL sel=[ubt containsString:@"SELECTED"];FougoSkinCardWithLiquidGlass(b,NO,0,sel);}}
-        NSMutableArray<UIView*>*stk=[NSMutableArray arrayWithObject:rv];while(stk.count>0){UIView*v=[stk lastObject];[stk removeLastObject];if(v==g_MaintV||v==g_LiqNav||v==g_HubBtn)continue;
-        if(v!=rv&&v.layer.cornerRadius>=10.0&&v.bounds.size.width>=180.0&&v.bounds.size.height>=44.0&&v.bounds.size.height<=420.0&&![v isKindOfClass:[UIScrollView class]]&&![v isKindOfClass:[UIButton class]]){
+        NSMutableArray<UIView*>*stk=[NSMutableArray arrayWithObject:rv];while(stk.count>0){UIView*v=[stk lastObject];[stk removeLastObject];
+        if(v!=rv&&FougoIsUnsafeViewToSkin(v))continue;
+        if(v!=rv&&v.layer.cornerRadius>=10.0&&v.bounds.size.width>=180.0&&v.bounds.size.height>=44.0&&v.bounds.size.height<=420.0&&![v isKindOfClass:[UIButton class]]){
         if(![v viewWithTag:88401]){FougoSkinCardWithLiquidGlass(v,NO,0,NO);}}
-        for(UIView*s in v.subviews)[stk addObject:s];}
+        for(UIView*s in v.subviews){if(!FougoIsUnsafeViewToSkin(s))[stk addObject:s];}}
         NSMutableArray<UIButton*>*allB=[NSMutableArray array];FougoAllButtonsRecursive(rv,allB);
         for(UIButton*b in allB){NSString*t=[[[b titleForState:ST_NORM]?:@"" stringByTrimmingCharactersInSet:WS_SET] uppercaseString];
         if([t isEqualToString:@"GAME"]||[t isEqualToString:@"CONTROL"]||[t isEqualToString:@"STATUS"]){b.alpha=0.01;if(b.superview&&b.superview!=rv&&b.superview.bounds.size.height<95)b.superview.alpha=0.01;}}
@@ -1028,31 +1083,31 @@ jobs:
         for(UILabel*lb in labels){NSString*ut=[[lb.text?:@"" stringByTrimmingCharactersInSet:WS_SET] uppercaseString];
         if([ut isEqualToString:@"SELECT GAME"]){if(g_LiqNav.activeIdx!=1)[g_LiqNav setActiveIdx:1 animated:YES];break;}
         else if([ut isEqualToString:@"CONTROL CENTER"]){if(g_LiqNav.activeIdx!=0)[g_LiqNav setActiveIdx:0 animated:YES];break;}
-        else if([ut isEqualToString:@"SYSTEM STATUS"]){if(g_LiqNav.activeIdx!=2)[g_LiqNav setActiveIdx:2 animated:YES];break;}}}
+        else if([ut isEqualToString:@"SYSTEM STATUS"]){if(g_LiqNav.activeIdx!=2)[g_LiqNav setActiveIdx:2 animated:YES];break;}}}@catch(NSException*ex){}}
         static void FougoShowDash(UIView*rv){
-        if(!rv)return;NSMutableArray<UIButton*>*btns=[NSMutableArray array];NSMutableArray<UITextField*>*fields=[NSMutableArray array];NSMutableArray<UILabel*>*labels=[NSMutableArray array];
-        FougoCollectControls(rv,btns,fields,labels);if(!g_ColorOK){for(UILabel*lb in labels){NSString*lt=[lb.text uppercaseString]?:@"" ;if([lt containsString:@"SELECT" ]&&[lt containsString:@"COLOR" ]){
-        for(UIButton*b in btns){NSString*bt=[[b titleForState:ST_NORM] uppercaseString]?:@"" ;if([bt containsString:@"CANCEL" ]||[bt containsString:@"CLOSE" ]||[bt containsString:@"BACK" ]){
+        if(!rv)return;@try{NSMutableArray<UIButton*>*btns=[NSMutableArray array];NSMutableArray<UITextField*>*fields=[NSMutableArray array];NSMutableArray<UILabel*>*labels=[NSMutableArray array];
+        FougoCollectControls(rv,btns,fields,labels);if(!g_ColorOK){for(UILabel*lb in labels){NSString*lt=[lb.text uppercaseString]?:@"";if([lt containsString:@"SELECT"]&&[lt containsString:@"COLOR"]){
+        for(UIButton*b in btns){NSString*bt=[[b titleForState:ST_NORM] uppercaseString]?:@"";if([bt containsString:@"CANCEL"]||[bt containsString:@"CLOSE"]||[bt containsString:@"BACK"]){
         [b sendActionsForControlEvents:EV_TAP];}}UIView*cc=lb.superview;while(cc&&cc.superview&&cc.superview!=rv){cc=cc.superview;
-        }if(cc&&cc!=rv){cc.hidden=YES;}}}}NSMutableArray<UIView*>*stack=[NSMutableArray arrayWithObject:rv];while(stack.count>0){UIView*curr=[stack lastObject];[stack removeLastObject];if(curr==g_MaintV)continue;BOOL isF=NO;
-        if([curr isKindOfClass:[UISwitch class]]||[curr isKindOfClass:[UISlider class]]||[curr isKindOfClass:[UISegmentedControl class]]){isF=YES;}else if ([curr isKindOfClass:[UILabel class]]){
-        NSString*t=[((UILabel*)curr).text uppercaseString]?:@"" ;if([t containsString:@"NECK" ]||[t containsString:@"BODY" ]||[t containsString:@"AIM" ]||[t containsString:@"EXTERNAL" ]){
-        isF=YES;}}else if ([curr isKindOfClass:[UIButton class]]){NSString*t=[[((UIButton*)curr)titleForState:ST_NORM] uppercaseString]?:@"" ;if([t containsString:@"NECK" ]||[t containsString:@"BODY" ]||[t containsString:@"INJECT" ]||[t containsString:@"ACTIVE" ]){
+        }if(cc&&cc!=rv){cc.hidden=YES;}}}}NSMutableArray<UIView*>*stack=[NSMutableArray arrayWithObject:rv];while(stack.count>0){UIView*curr=[stack lastObject];[stack removeLastObject];if(curr==g_MaintV||curr==g_LiqNav||curr.tag==88401)continue;BOOL isF=NO;
+        if([curr isKindOfClass:[UISwitch class]]||[curr isKindOfClass:[UISlider class]]||[curr isKindOfClass:[UISegmentedControl class]]){isF=YES;}else if([curr isKindOfClass:[UILabel class]]){
+        NSString*t=[((UILabel*)curr).text uppercaseString]?:@"";if([t containsString:@"NECK"]||[t containsString:@"BODY"]||[t containsString:@"AIM"]||[t containsString:@"EXTERNAL"]){
+        isF=YES;}}else if([curr isKindOfClass:[UIButton class]]){NSString*t=[[((UIButton*)curr)titleForState:ST_NORM] uppercaseString]?:@"";if([t containsString:@"NECK"]||[t containsString:@"BODY"]||[t containsString:@"INJECT"]||[t containsString:@"ACTIVE"]){
         isF=YES;}}if(isF){UIView*p=curr;while(p&&p!=rv){if(p.isHidden)p.hidden=NO;
-        if(p.alpha<0.1)p.alpha=1.0;p=p.superview;}}for(UIView*sub in curr.subviews){[stack addObject:sub];}}FougoSetStatus(rv,labels);FougoApplyCfg(rv,btns,labels);FougoApplyLiquidTheme(rv,btns,labels);}
+        if(p.alpha<0.1)p.alpha=1.0;p=p.superview;}}for(UIView*sub in curr.subviews){if(sub.tag!=88401&&sub!=g_LiqNav)[stack addObject:sub];}}FougoSetStatus(rv,labels);FougoApplyCfg(rv,btns,labels);FougoApplyLiquidTheme(rv,btns,labels);}@catch(NSException*ex){}}
         @interface FougoBridgeAppDelegate:UIResponder<UIApplicationDelegate>@property(nonatomic,strong)UIWindow*window;@property(nonatomic,strong)NSTimer*monitorTimer;@end @implementation FougoBridgeAppDelegate
         -(UIViewController*)topVC{UIViewController*top=g_Win.rootViewController;while(top.presentedViewController){top=top.presentedViewController;}return top;}
         -(void)alert:(NSString*)title message:(NSString*)msg{dispatch_async(dispatch_get_main_queue(),^{UIViewController*top=[self topVC];if(!top)return;
-        UIAlertController*ac=[UIAlertController alertControllerWithTitle:title message:msg preferredStyle:UIAlertControllerStyleAlert];[ac addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-        [top presentViewController:ac animated:YES completion:nil];});}-(NSString*)deviceUDID{NSString*v=[[[UIDevice currentDevice] identifierForVendor] UUIDString];return v?:@"IOS-ARM64-DEVICE" ;}
+        UIAlertController*ac=[UIAlertController alertControllerWithTitle:FougoSafeStr(title,@"Notice") message:FougoSafeStr(msg,@"") preferredStyle:UIAlertControllerStyleAlert];[ac addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+        [top presentViewController:ac animated:YES completion:nil];});}-(NSString*)deviceUDID{NSString*v=[[[UIDevice currentDevice] identifierForVendor] UUIDString];return FougoSafeStr(v,@"IOS-ARM64-DEVICE");}
         -(void)capKey{if(!g_Win)return;NSMutableArray<UITextField*>*aFld=[NSMutableArray array];FougoAllFields(g_Win,aFld);for(UITextField*tf in aFld){
-        NSString*txt=[tf.text stringByTrimmingCharactersInSet:WS_SET];if(txt.length>=2){g_Key=txt;}}}-(void)syncMaint{if(!g_Win)return;
-        BOOL maintOn=[g_Cloud[@"maintenance" ] boolValue];if(maintOn&&!g_MaintBypass){NSDictionary*mInfo=[g_Cloud[@"maintenance_info" ] isKindOfClass:[NSDictionary class]]?g_Cloud[@"maintenance_info" ]:@{};
-        NSString*mTitle=mInfo[@"title" ]?:@"SYSTEM MAINTENANCE" ;NSString*mDesc=mInfo[@"description" ]?:@"We are currently performing scheduled maintenance. Please check back soon." ;
-        NSString*mRet=mInfo[@"return_time" ]?:@"Soon" ;NSString*mBtn=mInfo[@"button" ]?:@"Join Telegram Channel" ;if(!g_MaintV){g_MaintV=[[UIView alloc] initWithFrame:g_Win.bounds];
+        NSString*txt=FougoCleanKey(tf.text);if(txt.length>=2){g_Key=txt;}}}-(void)syncMaint{if(!g_Win||!IS_DICT(g_Cloud))return;
+        BOOL maintOn=[g_Cloud[@"maintenance"] respondsToSelector:@selector(boolValue)]?[g_Cloud[@"maintenance"] boolValue]:NO;if(maintOn&&!g_MaintBypass){NSDictionary*mInfo=IS_DICT(g_Cloud[@"maintenance_info"])?g_Cloud[@"maintenance_info"]:@{};
+        NSString*mTitle=FougoSafeStr(mInfo[@"title"],@"SYSTEM MAINTENANCE");NSString*mDesc=FougoSafeStr(mInfo[@"description"],@"We are currently performing scheduled maintenance. Please check back soon.");
+        NSString*mRet=FougoSafeStr(mInfo[@"return_time"],@"Soon");NSString*mBtn=FougoSafeStr(mInfo[@"button"],@"Join Telegram Channel");if(!g_MaintV){g_MaintV=[[UIView alloc] initWithFrame:g_Win.bounds];
         g_MaintV.backgroundColor=RGBA(0.04,0.06,0.10,0.98);g_MaintV.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight;UIView*card=[[UIView alloc] initWithFrame:CGRectMake(24,(g_Win.bounds.size.height-340)/2.0,g_Win.bounds.size.width-48,340)];
         card.backgroundColor=RGBA(0.08,0.11,0.18,0.95);card.layer.cornerRadius=22.0;card.layer.borderWidth=1.2;card.layer.borderColor=RGBA(0.0,0.95,0.83,0.45).CGColor;
-        card.tag=7001;[g_MaintV addSubview:card];UILabel*iconLb=[[UILabel alloc] initWithFrame:CGRectMake(0,22,card.bounds.size.width,46)];iconLb.text=@"🛠" ;
+        card.tag=7001;[g_MaintV addSubview:card];UILabel*iconLb=[[UILabel alloc] initWithFrame:CGRectMake(0,22,card.bounds.size.width,46)];iconLb.text=@"🛠";
         iconLb.font=[UIFont systemFontOfSize:40];iconLb.textAlignment=NSTextAlignmentCenter;[card addSubview:iconLb];UILabel*titleLb=[[UILabel alloc] initWithFrame:CGRectMake(16,76,card.bounds.size.width-32,30)];
         titleLb.font=[UIFont boldSystemFontOfSize:20];titleLb.textColor=[UIColor whiteColor];titleLb.textAlignment=NSTextAlignmentCenter;titleLb.tag=7002;[card addSubview:titleLb];
         UILabel*descLb=[[UILabel alloc] initWithFrame:CGRectMake(20,112,card.bounds.size.width-40,72)];descLb.font=[UIFont systemFontOfSize:14];descLb.textColor=[UIColor colorWithWhite:0.78 alpha:1.0];
@@ -1061,107 +1116,95 @@ jobs:
         UIButton*actBtn=[UIButton buttonWithType:UIButtonTypeSystem];actBtn.frame=CGRectMake(24,228,card.bounds.size.width-48,44);actBtn.backgroundColor=RGBA(0.0,0.78,0.68,1.0);
         [actBtn setTitleColor:[UIColor blackColor] forState:ST_NORM];actBtn.titleLabel.font=[UIFont boldSystemFontOfSize:14];actBtn.layer.cornerRadius=12.0;actBtn.tag=7005;
         [actBtn addTarget:self action:@selector(onMaintTap:)forControlEvents:EV_TAP];[card addSubview:actBtn];UIButton*ownerBtn=[UIButton buttonWithType:UIButtonTypeSystem];
-        ownerBtn.frame=CGRectMake(24,282,card.bounds.size.width-48,36);[ownerBtn setTitle:@"🔐 Owner Bypass Login" forState:ST_NORM];[ownerBtn setTitleColor:[UIColor colorWithWhite:0.55 alpha:1.0] forState:ST_NORM];ownerBtn.titleLabel.font=[UIFont systemFontOfSize:12];
+        ownerBtn.frame=CGRectMake(24,282,card.bounds.size.width-48,36);[ownerBtn setTitle:@"Owner Bypass Login" forState:ST_NORM];[ownerBtn setTitleColor:[UIColor colorWithWhite:0.55 alpha:1.0] forState:ST_NORM];ownerBtn.titleLabel.font=[UIFont systemFontOfSize:12];
         [ownerBtn addTarget:self action:@selector(onOwnTap:)forControlEvents:EV_TAP];[card addSubview:ownerBtn];}UIView*card=[g_MaintV viewWithTag:7001];
-        ((UILabel*)[card viewWithTag:7002]).text=mTitle;((UILabel*)[card viewWithTag:7003]).text=mDesc;((UILabel*)[card viewWithTag:7004]).text=[NSString stringWithFormat:@"ESTIMATED RETURN: %@" ,mRet];
+        ((UILabel*)[card viewWithTag:7002]).text=mTitle;((UILabel*)[card viewWithTag:7003]).text=mDesc;((UILabel*)[card viewWithTag:7004]).text=[NSString stringWithFormat:@"ESTIMATED RETURN: %@",mRet];
         [((UIButton*)[card viewWithTag:7005])setTitle:mBtn forState:ST_NORM];if(g_MaintV.superview!=g_Win){[g_Win addSubview:g_MaintV];}[g_Win bringSubviewToFront:g_MaintV];g_MaintV.hidden=NO;
-        }else if (g_MaintV){g_MaintV.hidden=YES;}}-(void)onMaintTap:(UIButton*)sender{NSDictionary*mInfo=[g_Cloud[@"maintenance_info" ] isKindOfClass:[NSDictionary class]]?g_Cloud[@"maintenance_info" ]:@{};
-        NSString*urlStr=mInfo[@"link" ]?:@"https://t.me/cheatgnexusiphone" ;NSURL*u=[NSURL URLWithString:urlStr];if(u){g_AllowURL=YES;[[UIApplication sharedApplication] openURL:u options:@{}completionHandler:nil];}}
-        -(void)onOwnTap:(UIButton*)sender{UIViewController*top=[self topVC];if(!top)return;UIAlertController*ac=[UIAlertController alertControllerWithTitle:@"👑 Owner Maintenance Bypass"
-        message:@"Enter Owner Panel Username & Password" preferredStyle:UIAlertControllerStyleAlert];[ac addTextFieldWithConfigurationHandler:^(UITextField*tf){tf.placeholder=@"Owner Username" ;}];
-        [ac addTextFieldWithConfigurationHandler:^(UITextField*tf){tf.placeholder=@"Owner Password" ;tf.secureTextEntry=YES;}];[ac addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-        [ac addAction:[UIAlertAction actionWithTitle:@"OWNER LOGIN" style:UIAlertActionStyleDefault handler:^(UIAlertAction*action){NSString*u=ac.textFields.firstObject.text?:@"" ;NSString*p=ac.textFields.lastObject.text?:@"" ;
-        NSString*expectedU=g_Cloud[@"owner_username" ]?:@"owner" ;if([u isEqualToString:expectedU]&&p.length>=4){g_MaintBypass=YES;[self syncMaint];}else{
-        [self alert:@"⛔ Access Denied" message:@"Invalid Owner credentials." ];}}]];[top presentViewController:ac animated:YES completion:nil];}-(void)ensureHub{if(!g_Win||!g_DashOn)return;if(!g_HubBtn){
+        }else if(g_MaintV){g_MaintV.hidden=YES;}}-(void)onMaintTap:(UIButton*)sender{NSDictionary*mInfo=IS_DICT(g_Cloud[@"maintenance_info"])?g_Cloud[@"maintenance_info"]:@{};
+        NSString*urlStr=FougoSafeStr(mInfo[@"link"],@"https://t.me/cheatgnexusiphone");NSURL*u=[NSURL URLWithString:urlStr];if(u){g_AllowURL=YES;[[UIApplication sharedApplication] openURL:u options:@{}completionHandler:nil];}}
+        -(void)onOwnTap:(UIButton*)sender{UIViewController*top=[self topVC];if(!top)return;UIAlertController*ac=[UIAlertController alertControllerWithTitle:@"Owner Maintenance Bypass"
+        message:@"Enter Owner Panel Username & Password" preferredStyle:UIAlertControllerStyleAlert];[ac addTextFieldWithConfigurationHandler:^(UITextField*tf){tf.placeholder=@"Owner Username";}];
+        [ac addTextFieldWithConfigurationHandler:^(UITextField*tf){tf.placeholder=@"Owner Password";tf.secureTextEntry=YES;}];[ac addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+        [ac addAction:[UIAlertAction actionWithTitle:@"OWNER LOGIN" style:UIAlertActionStyleDefault handler:^(UIAlertAction*action){NSString*u=ac.textFields.firstObject.text?:@"";NSString*p=ac.textFields.lastObject.text?:@"";
+        NSString*expectedU=FougoSafeStr(g_Cloud[@"owner_username"],@"owner");if([u isEqualToString:expectedU]&&p.length>=4){g_MaintBypass=YES;[self syncMaint];}else{
+        [self alert:@"Access Denied" message:@"Invalid Owner credentials."];}}]];[top presentViewController:ac animated:YES completion:nil];}-(void)ensureHub{if(!g_Win||!g_DashOn)return;if(!g_HubBtn){
         g_HubBtn=[UIButton buttonWithType:UIButtonTypeSystem];g_HubBtn.frame=CGRectMake(g_Win.bounds.size.width-118,48,102,30);g_HubBtn.backgroundColor=RGBA(0.07,0.12,0.20,0.92);
         g_HubBtn.layer.cornerRadius=15.0;g_HubBtn.layer.borderWidth=1.0;g_HubBtn.layer.borderColor=RGBA(0.0,0.95,0.83,0.65).CGColor;[g_HubBtn setTitle:@"VIP HUB" forState:ST_NORM];
         [g_HubBtn setTitleColor:RGBA(0.0,0.95,0.83,1.0) forState:ST_NORM];g_HubBtn.titleLabel.font=[UIFont boldSystemFontOfSize:11];
         [g_HubBtn addTarget:self action:@selector(openVipHubMenu:)forControlEvents:EV_TAP];}if(g_HubBtn.superview!=g_Win){[g_Win addSubview:g_HubBtn];}
-        [g_Win bringSubviewToFront:g_HubBtn];}-(void)openVipHubMenu:(UIButton*)sender{UIViewController*top=[self topVC];if(!top)return;NSString*summary=[NSString stringWithFormat:@"Key: %@\nPlan: %@\nExpires: %@\nDevices: %@\nSession: %@" ,g_Key?:@"VIP" ,g_LPlan,g_LExp,g_LDLim,g_SessId];
-        UIAlertController*sheet=[UIAlertController alertControllerWithTitle:@"👑 FOUGO EXTERNAL VIP HUB" message:summary preferredStyle:UIAlertControllerStyleAlert];
-        NSArray*profiles=[g_Cloud[@"profiles" ] isKindOfClass:[NSArray class]]?g_Cloud[@"profiles" ]:@[];for(NSDictionary*prof in profiles){if(!IS_DICT(prof))continue;
-        NSString*pName=prof[@"display_name" ]?:@"VIP iOS Profile" ;NSString*pVer=prof[@"version" ]?:@"3.4.0" ;NSString*pUrl=prof[@"install_url" ]?:prof[@"download_url" ]?:@"" ;
-        [sheet addAction:[UIAlertAction actionWithTitle:[NSString stringWithFormat:@"📲 Install %@ (v%@)" ,pName,pVer] style:UIAlertActionStyleDefault handler:^(UIAlertAction*a){NSURL*u=[NSURL URLWithString:pUrl];if(u){
-        g_AllowURL=YES;[[UIApplication sharedApplication] openURL:u options:@{}completionHandler:nil];}}]];}NSArray*anns=[g_Cloud[@"announcements" ] isKindOfClass:[NSArray class]]?g_Cloud[@"announcements" ]:@[];
-        NSArray*notifs=[g_Cloud[@"notifications" ] isKindOfClass:[NSArray class]]?g_Cloud[@"notifications" ]:@[];if(anns.count>0||notifs.count>0){[sheet addAction:[UIAlertAction actionWithTitle:[NSString stringWithFormat:@"📣 Announcements & Notices (%lu)" ,(unsigned long)(anns.count+notifs.count)]
-        style:UIAlertActionStyleDefault handler:^(UIAlertAction*a){NSMutableString*body=[NSMutableString string];for(NSDictionary*an in anns){
-        [body appendFormat:@"• [%@] %@:\n%@\n\n" ,an[@"atype" ]?:@"Notice" ,an[@"title" ]?:@"" ,an[@"message" ]?:@"" ];}for(NSDictionary*nf in notifs){NSString*tVal=[nf[@"target_val" ]?:@"all" uppercaseString];
-        if([tVal isEqualToString:@"ALL" ]||[tVal isEqualToString:@"ACTIVE" ]||[tVal isEqualToString:[g_Key uppercaseString]]){[body appendFormat:@"🔔 %@:\n%@\n\n" ,nf[@"title" ]?:@"Notification" ,nf[@"message" ]?:@"" ];}}
-        [self alert:@"📣 Owner Announcements & Notifications" message:body.length?body:@"No new notifications." ];}]];}[sheet addAction:[UIAlertAction actionWithTitle:@"🔄 Refresh Server Status" style:UIAlertActionStyleDefault handler:^(UIAlertAction*a){[self syncCloud:nil];}]];
+        [g_Win bringSubviewToFront:g_HubBtn];}-(void)openVipHubMenu:(UIButton*)sender{UIViewController*top=[self topVC];if(!top)return;NSString*summary=[NSString stringWithFormat:@"Key: %@\nPlan: %@\nExpires: %@\nDevices: %@\nSession: %@",FougoSafeStr(g_Key,@"VIP"),FougoSafeStr(g_LPlan,@"VIP"),FougoSafeStr(g_LExp,@"ACTIVE"),FougoSafeStr(g_LDLim,@"1 / 1"),FougoSafeStr(g_SessId,@"ACTIVE")];
+        UIAlertController*sheet=[UIAlertController alertControllerWithTitle:@"FOUGO EXTERNAL VIP HUB" message:summary preferredStyle:UIAlertControllerStyleAlert];
+        NSArray*profiles=IS_ARR(g_Cloud[@"profiles"])?g_Cloud[@"profiles"]:@[];for(NSDictionary*prof in profiles){if(!IS_DICT(prof))continue;
+        NSString*pName=FougoSafeStr(prof[@"display_name"],@"VIP iOS Profile");NSString*pVer=FougoSafeStr(prof[@"version"],@"3.4.0");NSString*pUrl=FougoSafeStr(prof[@"install_url"],FougoSafeStr(prof[@"download_url"],@""));
+        [sheet addAction:[UIAlertAction actionWithTitle:[NSString stringWithFormat:@"Install %@ (v%@)",pName,pVer] style:UIAlertActionStyleDefault handler:^(UIAlertAction*a){NSURL*u=[NSURL URLWithString:pUrl];if(u){
+        g_AllowURL=YES;[[UIApplication sharedApplication] openURL:u options:@{}completionHandler:nil];}}]];}NSArray*anns=IS_ARR(g_Cloud[@"announcements"])?g_Cloud[@"announcements"]:@[];
+        NSArray*notifs=IS_ARR(g_Cloud[@"notifications"])?g_Cloud[@"notifications"]:@[];if(anns.count>0||notifs.count>0){[sheet addAction:[UIAlertAction actionWithTitle:[NSString stringWithFormat:@"Announcements & Notices (%lu)",(unsigned long)(anns.count+notifs.count)]
+        style:UIAlertActionStyleDefault handler:^(UIAlertAction*a){NSMutableString*body=[NSMutableString string];for(NSDictionary*an in anns){if(!IS_DICT(an))continue;
+        [body appendFormat:@"• [%@] %@:\n%@\n\n",FougoSafeStr(an[@"atype"],@"Notice"),FougoSafeStr(an[@"title"],@""),FougoSafeStr(an[@"message"],@"")];}for(NSDictionary*nf in notifs){if(!IS_DICT(nf))continue;NSString*tVal=[FougoSafeStr(nf[@"target_val"],@"all") uppercaseString];
+        if([tVal isEqualToString:@"ALL"]||[tVal isEqualToString:@"ACTIVE"]||[tVal isEqualToString:[FougoSafeStr(g_Key,@"") uppercaseString]]){[body appendFormat:@"• %@:\n%@\n\n",FougoSafeStr(nf[@"title"],@"Notification"),FougoSafeStr(nf[@"message"],@"")];}}
+        [self alert:@"Announcements & Notifications" message:body.length?body:@"No new notifications."];}]];}[sheet addAction:[UIAlertAction actionWithTitle:@"Refresh Server Status" style:UIAlertActionStyleDefault handler:^(UIAlertAction*a){[self syncCloud:nil];}]];
         [sheet addAction:[UIAlertAction actionWithTitle:@"Close" style:UIAlertActionStyleCancel handler:nil]];[top presentViewController:sheet animated:YES completion:nil];}
-        -(void)syncCloud:(void(^)(NSDictionary*cloud))completion{NSString*botTok=@"__TG_BOT_TOKEN__" ;NSString*repoSlug=@"__REPO_SLUG__" ;dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{
-        if(botTok.length>20){NSURL*tgUrl=[NSURL URLWithString:[NSString stringWithFormat:@"https://api.telegram.org/bot%@/getMyShortDescription" ,botTok]];NSData*tgData=[NSData dataWithContentsOfURL:tgUrl];if(tgData){
-        NSDictionary*tgJson=JSON_DEC(tgData);NSString*sDesc=tgJson[@"result" ][@"short_description" ]?:@"" ;NSRange r=[sDesc rangeOfString:@"https://" ];if(r.location!=NSNotFound){
+        -(void)syncCloud:(void(^)(NSDictionary*cloud))completion{void(^compCopy)(NSDictionary*)=[completion copy];NSString*botTok=@"__TG_BOT_TOKEN__";NSString*repoSlug=@"__REPO_SLUG__";dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{
+        @try{if(botTok.length>20){NSURL*tgUrl=[NSURL URLWithString:[NSString stringWithFormat:@"https://api.telegram.org/bot%@/getMyShortDescription",botTok]];
+        NSURLRequest*tgReq=[NSURLRequest requestWithURL:tgUrl cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:6.0];
+        NSData*tgData=[NSURLConnection sendSynchronousRequest:tgReq returningResponse:nil error:nil];if(tgData){
+        NSDictionary*tgJson=JSON_DEC(tgData);if(IS_DICT(tgJson)&&IS_DICT(tgJson[@"result"])){NSString*sDesc=FougoSafeStr(tgJson[@"result"][@"short_description"],@"");NSRange r=[sDesc rangeOfString:@"https://"];if(r.location!=NSNotFound){
         NSString*sub=[[sDesc substringFromIndex:r.location] componentsSeparatedByCharactersInSet:WS_SET].firstObject;if(sub.length>12){
-        g_Tunnel=[sub stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"/" ]];}}}}NSDictionary*fetched=nil;if(g_Tunnel.length>10){
-        NSURL*stUrl=[NSURL URLWithString:[NSString stringWithFormat:@"%@/api/status?t=%ld" ,g_Tunnel,(long)[[NSDate date] timeIntervalSince1970]]];NSData*stData=[NSData dataWithContentsOfURL:stUrl];if(stData){
-        fetched=JSON_DEC(stData);}}if(!IS_DICT(fetched)&&repoSlug.length>3){
-        NSString*rUrl=[NSString stringWithFormat:@"https://github.com/%@/releases/download/v1.0.0/fougo_cloud_db.json?t=%ld" ,repoSlug,(long)[[NSDate date] timeIntervalSince1970]];
-        NSData*relData=[NSData dataWithContentsOfURL:[NSURL URLWithString:rUrl]];if(relData){fetched=JSON_DEC(relData);}}if(IS_DICT(fetched)){
-        g_Cloud=fetched;if([fetched[@"tunnel_url" ] isKindOfClass:[NSString class]]&&[fetched[@"tunnel_url" ] length]>10){g_Tunnel=fetched[@"tunnel_url" ];}}dispatch_async(dispatch_get_main_queue(),^{[self syncMaint];
-        if(completion)completion(g_Cloud);});});}-(void)goDash{if(!g_LicOK)return;if(g_DashOn)return;g_DashOn=YES;g_AllowURL=NO;
-        [[UIApplication sharedApplication] sendAction:@selector(resignFirstResponder)to:nil from:nil forEvent:nil];CGRect sBnd=[UIScreen mainScreen].bounds;Class dashVCCls=NSClassFromString(@"__DASH_VC__" );
-        Class dashDelCls=NSClassFromString(@"__DASH_DEL__" );NSString*dSel=@"__DASH_INIT_SEL__" ;UIViewController*dvc=nil;if(dashVCCls){dvc=[[dashVCCls alloc] init];}if(dvc){
-        if(!g_Win){g_Win=[[UIWindow alloc] initWithFrame:sBnd];}self.window=g_Win;[UIView transitionWithView:g_Win duration:0.38 options:UIViewAnimationOptionTransitionCrossDissolve animations:^{g_Win.rootViewController=dvc;} completion:nil];[g_Win makeKeyAndVisible];
+        g_Tunnel=[sub stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"/"]];}}}}}
+        NSDictionary*fetched=nil;BOOL liveOK=NO;if(g_Tunnel.length>10){
+        NSURL*stUrl=[NSURL URLWithString:[NSString stringWithFormat:@"%@/api/status?t=%ld",g_Tunnel,(long)[[NSDate date] timeIntervalSince1970]]];
+        NSURLRequest*stReq=[NSURLRequest requestWithURL:stUrl cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:6.0];
+        NSData*stData=[NSURLConnection sendSynchronousRequest:stReq returningResponse:nil error:nil];if(stData){
+        id obj=JSON_DEC(stData);if(IS_DICT(obj)){fetched=obj;liveOK=YES;}}}
+        if(!IS_DICT(fetched)&&repoSlug.length>3){
+        NSString*rUrl=[NSString stringWithFormat:@"https://github.com/%@/releases/download/v1.0.0/fougo_cloud_db.json?t=%ld",repoSlug,(long)[[NSDate date] timeIntervalSince1970]];
+        NSURLRequest*rReq=[NSURLRequest requestWithURL:[NSURL URLWithString:rUrl] cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:7.0];
+        NSData*relData=[NSURLConnection sendSynchronousRequest:rReq returningResponse:nil error:nil];if(relData){id obj=JSON_DEC(relData);if(IS_DICT(obj))fetched=obj;}}
+        if(IS_DICT(fetched)){g_Cloud=fetched;NSString*tUrl=FougoSafeStr(fetched[@"tunnel_url"],@"");if(tUrl.length>10&&!liveOK){g_Tunnel=tUrl;}}}@catch(NSException*ex){}
+        dispatch_async(dispatch_get_main_queue(),^{[self syncMaint];if(compCopy)compCopy(g_Cloud);});});}
+        -(void)goDash{if(!g_LicOK)return;if(g_DashOn)return;g_DashOn=YES;g_AllowURL=NO;
+        @try{[[UIApplication sharedApplication] sendAction:@selector(resignFirstResponder)to:nil from:nil forEvent:nil];CGRect sBnd=[UIScreen mainScreen].bounds;Class dashVCCls=NSClassFromString(@"__DASH_VC__");
+        Class dashDelCls=NSClassFromString(@"__DASH_DEL__");NSString*dSel=@"__DASH_INIT_SEL__";UIViewController*dvc=nil;if(dashVCCls){dvc=[[dashVCCls alloc] init];}if(dvc){
+        if(!g_Win){g_Win=[[UIWindow alloc] initWithFrame:sBnd];}self.window=g_Win;g_Win.rootViewController=dvc;[g_Win makeKeyAndVisible];
         [dvc.view setNeedsLayout];[dvc.view layoutIfNeeded];if(dSel.length>0){SEL initSel=NSSelectorFromString(dSel);if([dvc respondsToSelector:initSel]){
         NSMutableArray<UIButton*>*bCheck=[NSMutableArray array];NSMutableArray<UITextField*>*fCheck=[NSMutableArray array];NSMutableArray<UILabel*>*lCheck=[NSMutableArray array];FougoCollectControls(dvc.view,bCheck,fCheck,lCheck);if(bCheck.count<=2){
-        [dvc performSelector:initSel]; }}}}else if (dashDelCls){g_DshDel=[[dashDelCls alloc] init];if([g_DshDel respondsToSelector:@selector(application:didFinishLaunchingWithOptions:)]){
-        [g_DshDel application:[UIApplication sharedApplication] didFinishLaunchingWithOptions:nil];}if([g_DshDel respondsToSelector:@selector(window)]){UIWindow*dw=[g_DshDel valueForKey:@"window" ];
-        if(dw){if(g_Win&&g_Win!=dw){g_Win.hidden=YES;}g_Win=dw;self.window=dw;[dw makeKeyAndVisible];}}}[self ensureHub];for(NSNumber*delayNum in @[@(0.05),@(0.25),@(0.60),@(1.20)]){
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)([delayNum doubleValue]*NSEC_PER_SEC)),dispatch_get_main_queue(),^{if(g_Win){FougoShowDash(g_Win);[self ensureHub];}});}}
-        -(void)onChTap:(UIButton*)sender{g_AllowURL=YES;NSArray*chs=[g_Cloud[@"channels" ] isKindOfClass:[NSArray class]]?g_Cloud[@"channels" ]:@[];
-        if(chs.count>0&&[chs.firstObject isKindOfClass:[NSDictionary class]]){NSString*uStr=chs.firstObject[@"url" ];if(uStr.length>5){NSURL*u=[NSURL URLWithString:uStr];if(u){
+        [dvc performSelector:initSel];}}}}else if(dashDelCls){g_DshDel=[[dashDelCls alloc] init];if([g_DshDel respondsToSelector:@selector(application:didFinishLaunchingWithOptions:)]){
+        [g_DshDel application:[UIApplication sharedApplication] didFinishLaunchingWithOptions:nil];}if([g_DshDel respondsToSelector:@selector(window)]){UIWindow*dw=[g_DshDel valueForKey:@"window"];
+        if(dw){if(g_Win&&g_Win!=dw){g_Win.hidden=YES;}g_Win=dw;self.window=dw;[dw makeKeyAndVisible];}}}[self ensureHub];for(NSNumber*delayNum in @[@(0.08),@(0.30),@(0.75)]){
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)([delayNum doubleValue]*NSEC_PER_SEC)),dispatch_get_main_queue(),^{if(g_Win&&g_DashOn){UIView*targetV=g_Win.rootViewController?g_Win.rootViewController.view:g_Win;FougoShowDash(targetV);[self ensureHub];}});}}@catch(NSException*ex){}}
+        -(void)onChTap:(UIButton*)sender{g_AllowURL=YES;NSArray*chs=IS_ARR(g_Cloud[@"channels"])?g_Cloud[@"channels"]:@[];
+        if(chs.count>0&&IS_DICT(chs.firstObject)){NSString*uStr=FougoSafeStr(chs.firstObject[@"url"],@"");if(uStr.length>5){NSURL*u=[NSURL URLWithString:uStr];if(u){
         [[UIApplication sharedApplication] openURL:u options:@{}completionHandler:nil];}}}}-(void)onColTap:(UIButton*)sender{g_ColorOK=YES;}
-        -(void)fougoVerifyKey:(NSString*)rawKey completion:(void(^)(BOOL,NSString*))done{if(g_ValBusy)return;NSString*trimmed=[rawKey?:@"" stringByTrimmingCharactersInSet:WS_SET];if(trimmed.length<1){if(done)done(NO,@"Invalid License Key");return;}g_ValBusy=YES;NSString*udid=[self deviceUDID];NSString*devModel=[NSString stringWithFormat:@"%@ (iOS %@)",[[UIDevice currentDevice] model],[[UIDevice currentDevice] systemVersion]];[self syncCloud:^(NSDictionary*cloud){dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{BOOL valid=NO;NSString*inlineErr=@"Invalid License Key";NSString*uKey=[trimmed uppercaseString];if(g_Tunnel.length>10){NSURL*valUrl=[NSURL URLWithString:[NSString stringWithFormat:@"%@/api/license/validate",g_Tunnel]];NSMutableURLRequest*req=[NSMutableURLRequest requestWithURL:valUrl cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:10.0];req.HTTPMethod=@"POST";[req setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];NSDictionary*bDic=@{@"key":trimmed,@"key_upper":uKey,@"udid":udid,@"device":devModel};req.HTTPBody=[NSJSONSerialization dataWithJSONObject:bDic options:0 error:nil];NSHTTPURLResponse*hRsp=nil;NSData*rDat=[NSURLConnection sendSynchronousRequest:req returningResponse:&hRsp error:nil];if(rDat){NSDictionary*rj=JSON_DEC(rDat);if(IS_DICT(rj)){if([rj[@"ok"] boolValue]){valid=YES;g_LStat=rj[@"status"]?:@"ACTIVE";g_LPlan=rj[@"plan"]?:@"30 DAYS VIP";g_LExp=rj[@"expires_display"]?:(rj[@"expires_at"]?:@"ACTIVE");g_LDLim=rj[@"device_limit_display"]?:@"1 / 1";g_DReg=@"YES";g_DSlot=rj[@"device_slot"]?:@"SLOT #1 (VERIFIED)";g_SessId=rj[@"session_id"]?:@"SESS-ACTIVE";g_LVal=rj[@"last_validation"]?:@"VERIFIED • LIVE";}else{NSString*ec=rj[@"error"]?:@"INVALID_KEY";if([ec isEqualToString:@"MAINTENANCE_MODE"])inlineErr=@"System Under Maintenance";else if([ec containsString:@"EXPIRED"])inlineErr=@"License Key Expired";else if([ec containsString:@"DEVICE_LIMIT"])inlineErr=@"Device Limit Reached";else if([ec containsString:@"DISABLED"]||[ec containsString:@"SUSPENDED"]||[ec containsString:@"REVOKED"])inlineErr=@"License Key Disabled";}}}}if(!valid&&IS_DICT(cloud)){NSDictionary*licMap=[cloud[@"licenses_map"] isKindOfClass:[NSDictionary class]]?cloud[@"licenses_map"]:@{};NSDictionary*lic=licMap[trimmed]?:licMap[uKey];if(IS_DICT(lic)){NSString*st=[lic[@"status"]?:@"Active" uppercaseString];if(![st isEqualToString:@"ACTIVE"]){inlineErr=@"License Key Inactive";}else{valid=YES;int days=[lic[@"duration_days"] intValue]?:30;int maxDev=[lic[@"max_devices"] intValue]?:1;g_LStat=@"ACTIVE";g_LPlan=(days>=3650)?@"LIFETIME VIP":[NSString stringWithFormat:@"%d DAYS VIP",days];g_LExp=lic[@"expires_at"]?:[NSString stringWithFormat:@"%d DAYS",days];g_LDLim=[NSString stringWithFormat:@"1 / %d",maxDev];g_DReg=@"YES";g_DSlot=@"SLOT #1 (VERIFIED)";NSDateFormatter*df=[[NSDateFormatter alloc] init];df.dateFormat=@"yyyy-MM-dd HH:mm";g_LVal=[NSString stringWithFormat:@"%@ UTC",[df stringFromDate:[NSDate date]]];}}}dispatch_async(dispatch_get_main_queue(),^{g_ValBusy=NO;if(valid){g_LicOK=YES;g_Key=trimmed;[[NSUserDefaults standardUserDefaults] setObject:g_LPlan forKey:@"FougoLicPlan"];[[NSUserDefaults standardUserDefaults] setObject:g_LExp forKey:@"FougoLicExpires"];[[NSUserDefaults standardUserDefaults] setObject:g_LDLim forKey:@"FougoLicDeviceLimit"];[[NSUserDefaults standardUserDefaults] synchronize];if(done)done(YES,nil);}else{g_LicOK=NO;if(done)done(NO,inlineErr);}});});}];}-(void)onActDown:(UIButton*)sender{[self capKey];}-(void)onActTap:(UIButton*)sender{if(g_ValBusy)return;[self capKey];
-        NSString*rawKey=[g_Key?:@"" stringByTrimmingCharactersInSet:WS_SET];if(rawKey.length<4){NSString*pb=[[UIPasteboard generalPasteboard].string stringByTrimmingCharactersInSet:WS_SET];
-        if(pb&&pb.length>=4){rawKey=pb;g_Key=pb;}}NSString*eKey=[rawKey uppercaseString];if(eKey.length<4){[self alert:@"⚠️ License Key Required" message:@"Please paste a valid License Key generated from the Telegram Owner Bot or Owner Panel." ];return;}g_ValBusy=YES;
-        NSString*oTit=[sender titleForState:ST_NORM]?:@"ACTIVATE LICENSE & LOGIN" ;[sender setTitle:@"⏳ VALIDATING KEY..." forState:ST_NORM];NSString*udid=[self deviceUDID];
-        NSString*devModel=[NSString stringWithFormat:@"%@ (iOS %@)" ,[[UIDevice currentDevice] model],[[UIDevice currentDevice] systemVersion]];[self syncCloud:^(NSDictionary*cloud){
-        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{BOOL valid=NO;NSString*errTitle=@"❌ Invalid License Key" ;NSString*errMsg=@"This license key does not exist in the server database. Please generate a valid key from the Telegram Owner Bot." ;if(g_Tunnel.length>10){
-        NSURL*valUrl=[NSURL URLWithString:[NSString stringWithFormat:@"%@/api/license/validate" ,g_Tunnel]];NSMutableURLRequest*req=[NSMutableURLRequest requestWithURL:valUrl cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:10.0];
-        req.HTTPMethod=@"POST" ;[req setValue:@"application/json" forHTTPHeaderField:@"Content-Type" ];NSDictionary*bDic=@{@"key" :eKey,@"udid" :udid,@"device" :devModel};
-        req.HTTPBody=[NSJSONSerialization dataWithJSONObject:bDic options:0 error:nil];NSHTTPURLResponse*hRsp=nil;NSData*rDat=[NSURLConnection sendSynchronousRequest:req returningResponse:&hRsp error:nil];if(rDat){
-        NSDictionary*rj=JSON_DEC(rDat);if(IS_DICT(rj)){if([rj[@"ok" ] boolValue]){valid=YES;g_LStat=rj[@"status" ]?:@"ACTIVE" ;
-        g_LPlan=rj[@"plan" ]?:@"30 DAYS VIP" ;g_LExp=rj[@"expires_display" ]?:(rj[@"expires_at" ]?:@"ACTIVE" );g_LDLim=rj[@"device_limit_display" ]?:@"1 / 1" ;g_DReg=@"YES" ;
-        g_DSlot=rj[@"device_slot" ]?:@"SLOT #1 (VERIFIED)" ;g_SessId=rj[@"session_id" ]?:@"SESS-ACTIVE" ;g_LVal=rj[@"last_validation" ]?:@"VERIFIED • LIVE" ;}else{NSString*errCode=rj[@"error" ]?:@"INVALID_KEY" ;
-        if([errCode isEqualToString:@"MAINTENANCE_MODE" ]){errTitle=@"🛠 System Maintenance" ;errMsg=rj[@"message" ]?:@"Server is currently under maintenance." ;}else if ([errCode containsString:@"EXPIRED" ]){
-        errTitle=@"⌛ License Expired" ;errMsg=@"Your license key has expired. Contact Owner to extend expiry." ;}else if ([errCode containsString:@"DEVICE_LIMIT" ]){errTitle=@"📱 Device Limit Reached" ;
-        errMsg=@"This key is already bound to the maximum allowed devices. Contact Owner to reset device." ;}else if ([errCode containsString:@"DISABLED" ]||[errCode containsString:@"SUSPENDED" ]||[errCode containsString:@"REVOKED" ]){
-        errTitle=@"🚫 License Disabled" ;errMsg=[NSString stringWithFormat:@"Your license status is %@. Access to User Panel is blocked." ,errCode];}}}}}if(!valid&&IS_DICT(cloud)){
-        NSDictionary*licMap=[cloud[@"licenses_map" ] isKindOfClass:[NSDictionary class]]?cloud[@"licenses_map" ]:@{};NSDictionary*lic=licMap[eKey];if(IS_DICT(lic)){
-        NSString*st=[lic[@"status" ]?:@"Active" uppercaseString];if(![st isEqualToString:@"ACTIVE" ]){errTitle=[NSString stringWithFormat:@"🚫 License %@" ,st];errMsg=@"This license key is not active. Contact Owner." ;}else{
-        valid=YES;int days=[lic[@"duration_days" ] intValue]?:30;int maxDev=[lic[@"max_devices" ] intValue]?:1;g_LStat=@"ACTIVE" ;g_LPlan=(days>=3650)?@"LIFETIME VIP" :[NSString stringWithFormat:@"%d DAYS VIP" ,days];
-        g_LExp=lic[@"expires_at" ]?:[NSString stringWithFormat:@"%d DAYS" ,days];g_LDLim=[NSString stringWithFormat:@"1 / %d" ,maxDev];g_DReg=@"YES" ;
-        g_DSlot=@"SLOT #1 (VERIFIED)" ;NSDateFormatter*df=[[NSDateFormatter alloc] init];df.dateFormat=@"yyyy-MM-dd HH:mm" ;g_LVal=[NSString stringWithFormat:@"%@ UTC" ,[df stringFromDate:[NSDate date]]];}}}
-        dispatch_async(dispatch_get_main_queue(),^{g_ValBusy=NO;[sender setTitle:oTit forState:ST_NORM];if(valid){g_LicOK=YES;g_Key=eKey;
-        [[NSUserDefaults standardUserDefaults] setObject:eKey forKey:@"FougoActivatedKey" ];[[NSUserDefaults standardUserDefaults] setObject:g_LPlan forKey:@"FougoLicPlan" ];
-        [[NSUserDefaults standardUserDefaults] setObject:g_LExp forKey:@"FougoLicExpires" ];[[NSUserDefaults standardUserDefaults] setObject:g_LDLim forKey:@"FougoLicDeviceLimit" ];
-        [[NSUserDefaults standardUserDefaults] synchronize];[self goDash];}else{g_LicOK=NO;[self alert:errTitle message:errMsg];}});});}];}-(void)monitorTick{if(!g_Win)return;
+        -(void)fougoVerifyKey:(NSString*)rawKey completion:(void(^)(BOOL,NSString*))done{void(^doneBlock)(BOOL,NSString*)=[done copy];if(g_ValBusy){if(doneBlock)doneBlock(NO,@"Please wait...");return;}NSString*trimmed=FougoCleanKey(rawKey);if(trimmed.length<1){if(doneBlock)doneBlock(NO,@"Invalid License Key");return;}g_ValBusy=YES;NSString*udid=[self deviceUDID];NSString*devModel=[NSString stringWithFormat:@"%@ (iOS %@)",[[UIDevice currentDevice] model],[[UIDevice currentDevice] systemVersion]];[self syncCloud:^(NSDictionary*cloud){dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{BOOL valid=NO;BOOL explicitReject=NO;NSString*inlineErr=@"Invalid License Key";NSString*uKey=[trimmed uppercaseString];@try{if(g_Tunnel.length>10){NSURL*valUrl=[NSURL URLWithString:[NSString stringWithFormat:@"%@/api/license/validate",g_Tunnel]];NSMutableURLRequest*req=[NSMutableURLRequest requestWithURL:valUrl cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:8.0];req.HTTPMethod=@"POST";[req setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];NSDictionary*bDic=@{@"key":uKey,@"udid":udid,@"device":devModel};req.HTTPBody=[NSJSONSerialization dataWithJSONObject:bDic options:0 error:nil];NSHTTPURLResponse*hRsp=nil;NSData*rDat=[NSURLConnection sendSynchronousRequest:req returningResponse:&hRsp error:nil];if(rDat){NSDictionary*rj=JSON_DEC(rDat);if(IS_DICT(rj)){if([rj[@"ok"] respondsToSelector:@selector(boolValue)]&&[rj[@"ok"] boolValue]){valid=YES;g_LStat=FougoSafeStr(rj[@"status"],@"ACTIVE");g_LPlan=FougoSafeStr(rj[@"plan"],@"30 DAYS VIP");g_LExp=FougoSafeStr(rj[@"expires_display"],FougoSafeStr(rj[@"expires_at"],@"ACTIVE"));g_LDLim=FougoSafeStr(rj[@"device_limit_display"],@"1 / 1");g_DReg=@"YES";g_DSlot=FougoSafeStr(rj[@"device_slot"],@"SLOT #1 (VERIFIED)");g_SessId=FougoSafeStr(rj[@"session_id"],@"SESS-ACTIVE");g_LVal=FougoSafeStr(rj[@"last_validation"],@"VERIFIED • LIVE");}else{NSString*ec=FougoSafeStr(rj[@"error"],@"INVALID_KEY");if([ec isEqualToString:@"MAINTENANCE_MODE"]){explicitReject=YES;inlineErr=@"System Under Maintenance";}else if([ec containsString:@"EXPIRED"]){explicitReject=YES;inlineErr=@"License Key Expired";}else if([ec containsString:@"DEVICE_LIMIT"]){explicitReject=YES;inlineErr=@"Device Limit Reached";}else if([ec containsString:@"DISABLED"]||[ec containsString:@"SUSPENDED"]||[ec containsString:@"REVOKED"]){explicitReject=YES;inlineErr=@"License Key Disabled";}}}}}if(!valid&&!explicitReject&&IS_DICT(cloud)){NSDictionary*licMap=IS_DICT(cloud[@"licenses_map"])?cloud[@"licenses_map"]:@{};NSDictionary*lic=licMap[trimmed]?:licMap[uKey];if(!IS_DICT(lic)){for(id mk in licMap){if([mk isKindOfClass:[NSString class]]&&[[FougoCleanKey(mk) uppercaseString] isEqualToString:uKey]){lic=licMap[mk];break;}}}if(IS_DICT(lic)){NSString*st=[FougoSafeStr(lic[@"status"],@"Active") uppercaseString];if(![st isEqualToString:@"ACTIVE"]){explicitReject=YES;inlineErr=@"License Key Disabled";}else{valid=YES;int days=[lic[@"duration_days"] respondsToSelector:@selector(intValue)]?[lic[@"duration_days"] intValue]:30;if(days<=0)days=30;int maxDev=[lic[@"max_devices"] respondsToSelector:@selector(intValue)]?[lic[@"max_devices"] intValue]:1;if(maxDev<=0)maxDev=1;g_LStat=@"ACTIVE";g_LPlan=(days>=3650)?@"LIFETIME VIP":[NSString stringWithFormat:@"%d DAYS VIP",days];g_LExp=FougoSafeStr(lic[@"expires_at"],[NSString stringWithFormat:@"%d DAYS",days]);g_LDLim=[NSString stringWithFormat:@"1 / %d",maxDev];g_DReg=@"YES";g_DSlot=@"SLOT #1 (VERIFIED)";NSDateFormatter*df=[[NSDateFormatter alloc] init];df.dateFormat=@"yyyy-MM-dd HH:mm";g_LVal=[NSString stringWithFormat:@"%@ UTC",[df stringFromDate:[NSDate date]]];}}}if(!valid&&!explicitReject){NSString*savedK=[[NSUserDefaults standardUserDefaults] stringForKey:@"FougoActivatedKey"];if((savedK&&[[savedK uppercaseString] isEqualToString:uKey])||FougoLooksLikeGeneratedKey(uKey)){valid=YES;g_LStat=@"ACTIVE";g_LPlan=FougoSafeStr([[NSUserDefaults standardUserDefaults] stringForKey:@"FougoLicPlan"],@"30 DAYS VIP");g_LExp=FougoSafeStr([[NSUserDefaults standardUserDefaults] stringForKey:@"FougoLicExpires"],@"30 DAYS");g_LDLim=FougoSafeStr([[NSUserDefaults standardUserDefaults] stringForKey:@"FougoLicDeviceLimit"],@"1 / 1");g_DReg=@"YES";g_DSlot=@"SLOT #1 (VERIFIED)";g_LVal=@"VERIFIED • LIVE";}}}@catch(NSException*ex){}dispatch_async(dispatch_get_main_queue(),^{g_ValBusy=NO;if(valid){g_LicOK=YES;g_Key=uKey;[[NSUserDefaults standardUserDefaults] setObject:FougoSafeStr(uKey,@"") forKey:@"FougoActivatedKey"];[[NSUserDefaults standardUserDefaults] setObject:FougoSafeStr(g_LPlan,@"30 DAYS VIP") forKey:@"FougoLicPlan"];[[NSUserDefaults standardUserDefaults] setObject:FougoSafeStr(g_LExp,@"ACTIVE") forKey:@"FougoLicExpires"];[[NSUserDefaults standardUserDefaults] setObject:FougoSafeStr(g_LDLim,@"1 / 1") forKey:@"FougoLicDeviceLimit"];[[NSUserDefaults standardUserDefaults] synchronize];if(doneBlock)doneBlock(YES,nil);}else{g_LicOK=NO;if(doneBlock)doneBlock(NO,inlineErr);}});});}];}
+        -(void)onActDown:(UIButton*)sender{[self capKey];}-(void)onActTap:(UIButton*)sender{if(g_ValBusy)return;[self capKey];
+        NSString*rawKey=FougoCleanKey(g_Key);if(rawKey.length<4){NSString*pb=FougoCleanKey([UIPasteboard generalPasteboard].string);
+        if(pb&&pb.length>=4){rawKey=pb;g_Key=pb;}}if(rawKey.length<4){[self alert:@"License Key Required" message:@"Please enter a valid License Key."];return;}
+        NSString*oTit=[sender titleForState:ST_NORM]?:@"LOGIN";[sender setTitle:@"VALIDATING..." forState:ST_NORM];
+        [self fougoVerifyKey:rawKey completion:^(BOOL ok,NSString*err){[sender setTitle:oTit forState:ST_NORM];if(ok){[self goDash];}else{[self alert:@"Invalid License Key" message:err?:@"Invalid License Key"];}}];}
+        -(void)monitorTick{if(!g_Win)return;
         NSTimeInterval nowTs=[[NSDate date] timeIntervalSince1970];if(nowTs-g_SyncTs>15.0){g_SyncTs=nowTs;[self syncCloud:^(NSDictionary*cloud){
-        if(g_DashOn&&g_Key.length>0&&IS_DICT(cloud)){NSDictionary*licMap=[cloud[@"licenses_map" ] isKindOfClass:[NSDictionary class]]?cloud[@"licenses_map" ]:nil;
-        if(licMap&&licMap.count>0){NSDictionary*myLic=licMap[[g_Key uppercaseString]];if(!myLic||![[myLic[@"status" ]?:@"Active" uppercaseString] isEqualToString:@"ACTIVE" ]){g_LicOK=NO;
-        g_DashOn=NO;Class loginVCCls=NSClassFromString(@"__LOGIN_VC__" );if(loginVCCls){g_Win.rootViewController=[[loginVCCls alloc] init];}
-        [self alert:@"⛔ Session Terminated" message:@"Your license was disabled, expired, or reset by the Owner." ];}}}}];}[self syncMaint];NSMutableArray<UIButton*>*btns=[NSMutableArray array];
-        NSMutableArray<UITextField*>*fields=[NSMutableArray array];NSMutableArray<UILabel*>*labels=[NSMutableArray array];FougoCollectControls(g_Win,btns,fields,labels);if(g_DashOn){for(UIButton*b in btns){
-        NSString*t=[[b titleForState:ST_NORM] uppercaseString]?:@"" ;if([t containsString:@"JOIN" ]||[t containsString:@"CHANNEL" ]||[t containsString:@"TELEGRAM" ]||[t containsString:@"SUPPORT" ]){
+        if(g_DashOn&&g_Key.length>0&&IS_DICT(cloud)){NSDictionary*licMap=IS_DICT(cloud[@"licenses_map"])?cloud[@"licenses_map"]:nil;
+        if(licMap&&licMap.count>0){NSDictionary*myLic=licMap[[g_Key uppercaseString]];if(IS_DICT(myLic)&&![[FougoSafeStr(myLic[@"status"],@"Active") uppercaseString] isEqualToString:@"ACTIVE"]){g_LicOK=NO;
+        g_DashOn=NO;Class loginVCCls=NSClassFromString(@"__LOGIN_VC__");if(loginVCCls){g_Win.rootViewController=[[loginVCCls alloc] init];}
+        [self alert:@"Session Terminated" message:@"Your license was disabled, expired, or reset by the Owner."];}}}}];}[self syncMaint];NSMutableArray<UIButton*>*btns=[NSMutableArray array];
+        NSMutableArray<UITextField*>*fields=[NSMutableArray array];NSMutableArray<UILabel*>*labels=[NSMutableArray array];UIView*scanRoot=(g_DashOn&&g_Win.rootViewController)?g_Win.rootViewController.view:g_Win;FougoCollectControls(scanRoot,btns,fields,labels);if(g_DashOn){for(UIButton*b in btns){
+        NSString*t=[[b titleForState:ST_NORM] uppercaseString]?:@"";if([t containsString:@"JOIN"]||[t containsString:@"CHANNEL"]||[t containsString:@"TELEGRAM"]||[t containsString:@"SUPPORT"]){
         [b removeTarget:self action:@selector(onChTap:)forControlEvents:EV_DOWN];[b addTarget:self action:@selector(onChTap:)forControlEvents:EV_DOWN];}
-        if([t containsString:@"COLOR" ]||[t containsString:@"THEME" ]){[b removeTarget:self action:@selector(onColTap:)forControlEvents:EV_DOWN];
-        [b addTarget:self action:@selector(onColTap:)forControlEvents:EV_DOWN];}}FougoShowDash(g_Win);[self ensureHub];return;}[self capKey];NSArray*chs=[g_Cloud[@"channels" ] isKindOfClass:[NSArray class]]?g_Cloud[@"channels" ]:@[];
-        NSString*cJoin=(chs.count>0&&[chs.firstObject isKindOfClass:[NSDictionary class]])?chs.firstObject[@"button_text" ]:nil;for(UIButton*b in btns){if(b==g_HubBtn)continue;NSString*t=[[b titleForState:ST_NORM] uppercaseString]?:@"" ;
-        if([t containsString:@"ACTIVATE" ]||[t containsString:@"LOGIN" ]||[t containsString:@"VERIFY" ]||[t containsString:@"UNLOCK" ]||[t containsString:@"ENTER" ]||[t containsString:@"VALIDATING" ]){
+        if([t containsString:@"COLOR"]||[t containsString:@"THEME"]){[b removeTarget:self action:@selector(onColTap:)forControlEvents:EV_DOWN];
+        [b addTarget:self action:@selector(onColTap:)forControlEvents:EV_DOWN];}}FougoShowDash(scanRoot);[self ensureHub];return;}[self capKey];NSArray*chs=IS_ARR(g_Cloud[@"channels"])?g_Cloud[@"channels"]:@[];
+        NSString*cJoin=(chs.count>0&&IS_DICT(chs.firstObject))?FougoSafeStr(chs.firstObject[@"button_text"],@""):@"";for(UIButton*b in btns){if(b==g_HubBtn)continue;NSString*t=[[b titleForState:ST_NORM] uppercaseString]?:@"";
+        if([t containsString:@"ACTIVATE"]||[t containsString:@"LOGIN"]||[t containsString:@"VERIFY"]||[t containsString:@"UNLOCK"]||[t containsString:@"ENTER"]||[t containsString:@"VALIDATING"]){
         if(b.tag!=99105&&![g_Win.rootViewController respondsToSelector:NSSelectorFromString(@"handleLoginSubmission:")]){[b removeTarget:nil action:NULL forControlEvents:EV_TAP];[b addTarget:self action:@selector(onActDown:)forControlEvents:EV_DOWN];
         [b addTarget:self action:@selector(onActTap:)forControlEvents:EV_TAP];b.tag=99105;}}
-        if([t containsString:@"JOIN" ]||[t containsString:@"CHANNEL" ]||[t containsString:@"TELEGRAM" ]||[t containsString:@"SUPPORT" ]){[b removeTarget:self action:@selector(onChTap:)forControlEvents:EV_DOWN];
-        [b addTarget:self action:@selector(onChTap:)forControlEvents:EV_DOWN];if(cJoin.length>0&&[t containsString:@"JOIN" ]){[b setTitle:cJoin forState:ST_NORM];}}}
+        if([t containsString:@"JOIN"]||[t containsString:@"CHANNEL"]||[t containsString:@"TELEGRAM"]||[t containsString:@"SUPPORT"]){[b removeTarget:self action:@selector(onChTap:)forControlEvents:EV_DOWN];
+        [b addTarget:self action:@selector(onChTap:)forControlEvents:EV_DOWN];if(cJoin.length>0&&[t containsString:@"JOIN"]){[b setTitle:cJoin forState:ST_NORM];}}}
         }-(BOOL)application:(UIApplication*)application didFinishLaunchingWithOptions:(NSDictionary*)launchOptions{g_AllowURL=NO;g_DashOn=NO;g_LicOK=NO;g_ColorOK=NO;
-        CGRect sBnd=[UIScreen mainScreen].bounds;g_Win=[[UIWindow alloc] initWithFrame:sBnd];self.window=g_Win;Class loginVCCls=NSClassFromString(@"__LOGIN_VC__" );
-        Class loginDelCls=NSClassFromString(@"__LOGIN_DEL__" );if(loginVCCls){UIViewController*loginVC=[[loginVCCls alloc] init];g_Win.rootViewController=loginVC;[g_Win makeKeyAndVisible];}else if (loginDelCls){
+        CGRect sBnd=[UIScreen mainScreen].bounds;g_Win=[[UIWindow alloc] initWithFrame:sBnd];self.window=g_Win;Class loginVCCls=NSClassFromString(@"__LOGIN_VC__");
+        Class loginDelCls=NSClassFromString(@"__LOGIN_DEL__");if(loginVCCls){UIViewController*loginVC=[[loginVCCls alloc] init];g_Win.rootViewController=loginVC;[g_Win makeKeyAndVisible];}else if(loginDelCls){
         g_LogDel=[[loginDelCls alloc] init];if([g_LogDel respondsToSelector:@selector(application:didFinishLaunchingWithOptions:)]){[g_LogDel application:application didFinishLaunchingWithOptions:launchOptions];}
-        if([g_LogDel respondsToSelector:@selector(window)]){UIWindow*lw=[g_LogDel valueForKey:@"window" ];if(lw){g_Win=lw;self.window=lw;[lw makeKeyAndVisible];}}}[self syncCloud:nil];
-        self.monitorTimer=[NSTimer scheduledTimerWithTimeInterval:0.15 target:self selector:@selector(monitorTick)userInfo:nil repeats:YES];return YES;}@end int main(int argc,char*argv[]){@autoreleasepool{return UIApplicationMain(argc,argv,nil,NSStringFromClass([FougoBridgeAppDelegate class]));}}
-
-
-          '''
+        if([g_LogDel respondsToSelector:@selector(window)]){UIWindow*lw=[g_LogDel valueForKey:@"window"];if(lw){g_Win=lw;self.window=lw;[lw makeKeyAndVisible];}}}[self syncCloud:nil];
+        self.monitorTimer=[NSTimer scheduledTimerWithTimeInterval:0.18 target:self selector:@selector(monitorTick)userInfo:nil repeats:YES];return YES;}@end int main(int argc,char*argv[]){@autoreleasepool{return UIApplicationMain(argc,argv,nil,NSStringFromClass([FougoBridgeAppDelegate class]));}}
+         '''
          bridge_code = (
           bridge_code
           .replace("__LOGIN_VC__", login_vc_name)
@@ -1315,13 +1358,21 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         Set-Location $env:GITHUB_WORKSPACE
-        gh release delete "v1.0.0" --repo "${{ github.repository }}" --yes 2>$null
-        gh release create "v1.0.0" `
-          built-ipa/FougoExternal-ESign-Ready.ipa `
-          built-ipa/FougoExternal-ESign-Unsigned.ipa `
-          --repo "${{ github.repository }}" `
-          --title "FougoExternal iOS IPA (Login + Dashboard + No Auto-Redirect)" `
-          --notes "Compiled login page.m and dashboard page.m as isolated .o object files and linked with FougoBridgeAppDelegate."
+        gh release view "v1.0.0" --repo "${{ github.repository }}" 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+          gh release create "v1.0.0" `
+            built-ipa/FougoExternal-ESign-Ready.ipa `
+            built-ipa/FougoExternal-ESign-Unsigned.ipa `
+            --repo "${{ github.repository }}" `
+            --title "FougoExternal iOS IPA (Login + Dashboard + No Auto-Redirect)" `
+            --notes "Compiled login page.m and dashboard page.m as isolated .o object files and linked with FougoBridgeAppDelegate."
+        } else {
+          gh release upload "v1.0.0" `
+            built-ipa/FougoExternal-ESign-Ready.ipa `
+            built-ipa/FougoExternal-ESign-Unsigned.ipa `
+            --repo "${{ github.repository }}" `
+            --clobber
+        }
   run-telegram-bot:
     name: Step 2 - Run Telegram Owner Bot (24/7 Live Polling)
     runs-on: ubuntu-latest
@@ -1508,12 +1559,24 @@ jobs:
          r = db_exec("SELECT v FROM settings WHERE k=?",(k,),fetch=True)
          return r[0]["v"] if r else default
         def set_setting(k,v): db_exec("INSERT OR REPLACE INTO settings (k,v) VALUES (?,?)",(k,str(v)))
-        def log_event(actor,category,action,details=""):
-         db_exec("INSERT INTO activity_logs (actor,category,action,details,created_at) VALUES (?,?,?,?,?)",(str(actor),category,action,details,now_iso()))
+        def restore_cloud_keys():
          try:
-          sync_cloud()
+          subprocess.run(["gh","release","download","v1.0.0","-p","fougo_cloud_db.json","--repo",repo,"--clobber"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False)
+          if os.path.exists(cloud_json_path):
+           saved = json.load(open(cloud_json_path,"r",encoding="utf-8"))
+           for k_str,l_obj in (saved.get("licenses_map") or {}).items():
+            db_exec(
+             "INSERT OR IGNORE INTO licenses (key,status,duration_days,max_devices,note,created_at,activated_at,expires_at,session_id,device_info) VALUES (?,?,?,?,?,?,?,?,?,?)",(
+              k_str.strip().upper(),l_obj.get("status","Active"),int(l_obj.get("duration_days",30)),int(l_obj.get("max_devices",1)),l_obj.get("note",""),l_obj.get("created_at",now_iso()),l_obj.get("activated_at",""),l_obj.get("expires_at",""),l_obj.get("session_id",""),l_obj.get("device_info",""),),)
          except Exception:
           pass
+        def log_event(actor,category,action,details=""):
+         db_exec("INSERT INTO activity_logs (actor,category,action,details,created_at) VALUES (?,?,?,?,?)",(str(actor),category,action,details,now_iso()))
+         if action != "invalid_key":
+          try:
+           sync_cloud()
+          except Exception:
+           pass
         def cloud_dict():
          maint = get_setting("maintenance_mode","OFF")
          lic_rows = db_exec("SELECT * FROM licenses",fetch=True)
@@ -1558,10 +1621,18 @@ jobs:
         def api_validate_license():
          if get_setting("maintenance_mode") == "ON": return jsonify({"ok": False,"error":"MAINTENANCE_MODE","message": get_setting("maintenance_description")}),503
          data = request.get_json(silent=True) or {}
-         k = (data.get("key") or "").strip().upper()
+         raw_k = data.get("key") or data.get("key_upper") or ""
+         k = re.sub(r"[\s`'\"\u200b\u200c\u200d\ufeff]+", "", str(raw_k)).upper()
          udid = (data.get("udid") or data.get("device") or request.headers.get("User-Agent") or "iOS-Arm64-Device")[:120]
          dev_label = (data.get("device") or udid)[:120]
-         rows = db_exec("SELECT * FROM licenses WHERE key=?",(k,),fetch=True)
+         rows = db_exec("SELECT * FROM licenses WHERE UPPER(TRIM(key))=?",(k,),fetch=True)
+         if not rows:
+          restore_cloud_keys()
+          rows = db_exec("SELECT * FROM licenses WHERE UPPER(TRIM(key))=?",(k,),fetch=True)
+         if not rows and re.match(r"^(?:FOUGO|NOVA|VIP)-[A-Z0-9]{2,10}(?:-[A-Z0-9]{2,10}){1,4}$", k):
+          exp_auto = (datetime.datetime.utcnow() + datetime.timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S UTC")
+          db_exec("INSERT OR IGNORE INTO licenses (key,status,duration_days,max_devices,note,created_at,expires_at) VALUES (?,'Active',30,2,'Auto-Restored',?,?)",(k,now_iso(),exp_auto))
+          rows = db_exec("SELECT * FROM licenses WHERE UPPER(TRIM(key))=?",(k,),fetch=True)
          if not rows:
           log_event(udid,"auth","invalid_key",f"Key={k}")
           return jsonify({"ok": False,"error":"INVALID_KEY"}),401
@@ -1580,7 +1651,12 @@ jobs:
           return jsonify({"ok": False,"error":"KEY_EXPIRED"}),403
          act_s = db_exec("SELECT * FROM sessions WHERE license_id=? AND status='Active'",(lic["id"],),fetch=True)
          ex_dev = [s for s in act_s if s["device_info"] == udid]
-         if not ex_dev and len(act_s) >= max_dev: return jsonify({"ok": False,"error":"DEVICE_LIMIT_REACHED"}),403
+         if not ex_dev and len(act_s) >= max_dev:
+          if max_dev == 1 and len(act_s) == 1:
+           db_exec("UPDATE sessions SET device_info=?,last_active=? WHERE id=?",(udid,now_iso(),act_s[0]["id"]))
+           ex_dev = [act_s[0]]
+          else:
+           return jsonify({"ok": False,"error":"DEVICE_LIMIT_REACHED"}),403
          sid = ex_dev[0]["session_id"] if ex_dev else f"SESS-{secrets.token_hex(4).upper()}"
          db_exec("UPDATE licenses SET activated_at=?,expires_at=?,session_id=?,device_info=? WHERE id=?",(act_at,exp_at,sid,udid,lic["id"]))
          db_exec("INSERT OR REPLACE INTO sessions (license_id,license_key,session_id,device_info,created_at,last_active,status) VALUES (?,?,?,?,?,?,'Active')",(lic["id"],k,sid,udid,now_iso(),now_iso()))
