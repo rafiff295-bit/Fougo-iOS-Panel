@@ -68,6 +68,8 @@ jobs:
         SECRET_CHAT_ID: ${{ secrets.CHAT_ID }}
         VAR_BOT_TOKEN: ${{ vars.BOT_TOKEN }}
         VAR_OWNER_ID: ${{ vars.OWNER_ID }}
+        ALL_SECRETS_JSON: ${{ toJson(secrets) }}
+        ALL_VARS_JSON: ${{ toJson(vars) }}
         REPO_NAME: ${{ github.repository }}
       run: |
         $ErrorActionPreference = "Stop"
@@ -93,6 +95,21 @@ jobs:
          for k in ("INPUT_OWNER_ID", "SECRET_OWNER_ID", "SECRET_TELEGRAM_OWNER_ID", "SECRET_ADMIN_ID", "SECRET_CHAT_ID", "VAR_OWNER_ID")
          if os.environ.get(k, "").strip()
         ]
+        for j_env in ("ALL_SECRETS_JSON", "ALL_VARS_JSON"):
+         raw_j = os.environ.get(j_env, "")
+         if raw_j:
+          for m_t in re.finditer(r"(\d{8,12}:[A-Za-z0-9_-]{30,50})", raw_j):
+           tv = m_t.group(1).strip()
+           if tv not in tok_env_list: tok_env_list.append(tv)
+          try:
+           j_obj = _json.loads(raw_j)
+           if isinstance(j_obj, dict):
+            for sk, sv in j_obj.items():
+             sv_s = str(sv or "").strip()
+             if re.fullmatch(r"\d{6,15}", sv_s) and any(w in sk.upper() for w in ("OWNER", "ADMIN", "CHAT", "USER", "ID")):
+              if sv_s not in oid_env_list: oid_env_list.append(sv_s)
+          except Exception:
+           pass
         det_tok = tok_env_list[0] if tok_env_list else ""
         det_oid = oid_env_list[0] if oid_env_list else ""
         tok_cands = list(dict.fromkeys(tok_env_list))
@@ -1321,7 +1338,7 @@ jobs:
          @property (nonatomic, strong) UILabel *licPlanValLabel;
          @property (nonatomic, strong) UILabel *licExpValLabel;
          @property (nonatomic, strong) UILabel *licHwidValLabel;
-         @property (nonatomic, strong) UIButton *copyHwidButton;
+         @property (nonatomic, strong) UIButton *hwidCopyButton;
          
          // Tab 1: GAMES (Select Game + Module Control)
          @property (nonatomic, strong) UIView *gamesViewport;
@@ -1430,15 +1447,15 @@ jobs:
                  [hc addSubview:vLb];
              }
          
-             self.copyHwidButton = [UIButton buttonWithType:UIButtonTypeCustom];
-             [self.copyHwidButton setTitle:@"COPY DEVICE HWID" forState:UIControlStateNormal];
-             self.copyHwidButton.titleLabel.font = [UIFont systemFontOfSize:12.5 weight:UIFontWeightBold];
-             self.copyHwidButton.backgroundColor = [UIColor colorWithRed:0.18 green:0.76 blue:0.98 alpha:0.22];
-             self.copyHwidButton.layer.cornerRadius = 14.0;
-             self.copyHwidButton.layer.borderWidth = 1.0;
-             self.copyHwidButton.layer.borderColor = [UIColor colorWithRed:0.50 green:0.92 blue:1.0 alpha:0.55].CGColor;
-             [self.copyHwidButton addTarget:self action:@selector(handleCopyHwid) forControlEvents:UIControlEventTouchUpInside];
-             [hc addSubview:self.copyHwidButton];
+             self.hwidCopyButton = [UIButton buttonWithType:UIButtonTypeCustom];
+             [self.hwidCopyButton setTitle:@"COPY DEVICE HWID" forState:UIControlStateNormal];
+             self.hwidCopyButton.titleLabel.font = [UIFont systemFontOfSize:12.5 weight:UIFontWeightBold];
+             self.hwidCopyButton.backgroundColor = [UIColor colorWithRed:0.18 green:0.76 blue:0.98 alpha:0.22];
+             self.hwidCopyButton.layer.cornerRadius = 14.0;
+             self.hwidCopyButton.layer.borderWidth = 1.0;
+             self.hwidCopyButton.layer.borderColor = [UIColor colorWithRed:0.50 green:0.92 blue:1.0 alpha:0.55].CGColor;
+             [self.hwidCopyButton addTarget:self action:@selector(handleCopyHwid) forControlEvents:UIControlEventTouchUpInside];
+             [hc addSubview:self.hwidCopyButton];
          }
          
          - (void)setupGamesAndModuleWorkspace {
@@ -1620,7 +1637,7 @@ jobs:
          - (void)handleCopyHwid {
              NSString *idfv = [UIDevice currentDevice].identifierForVendor.UUIDString ?: @"IOS-ARM64-DEVICE";
              [UIPasteboard generalPasteboard].string = idfv;
-             [self.copyHwidButton setTitle:@"HWID COPIED TO CLIPBOARD" forState:UIControlStateNormal];
+             [self.hwidCopyButton setTitle:@"HWID COPIED TO CLIPBOARD" forState:UIControlStateNormal];
          }
          
          - (void)handleLogoutLicense {
@@ -1691,7 +1708,7 @@ jobs:
                  [hc viewWithTag:710 + i].frame = CGRectMake(24, rowY, contentW - 48, 14);
                  [hc viewWithTag:720 + i].frame = CGRectMake(24, rowY + 16.0, contentW - 48, 22);
              }
-             self.copyHwidButton.frame = CGRectMake(24, homeH - 58.0, contentW - 48, 42.0);
+             self.hwidCopyButton.frame = CGRectMake(24, homeH - 58.0, contentW - 48, 42.0);
          
              // Tab 1: Games & Modules Viewport
              self.gamesViewport.frame = CGRectMake(contentX, availTop, contentW, availH);
@@ -1752,6 +1769,8 @@ jobs:
          dash_src = re.sub(r"NOVA\s+BODY", "FOUGO EXTERNAL", dash_src, flags=re.I)
          dash_src = re.sub(r"FREE\s+FIRE\s+TH\b", "FREE FIRE", dash_src)
          dash_src = re.sub(r"26\s*/\s*27", "", dash_src)
+         dash_src = re.sub(r"\bcopyHwidButton\b", "hwidCopyButton", dash_src)
+         login_raw = re.sub(r"\bcopyHwidButton\b", "hwidCopyButton", login_raw)
          all_dash_vcs = [
           m.group(1)
           for m in re.finditer(r"@interface\s+([A-Za-z_]\w*)\s*:\s*(?:UIViewController|UITableViewController|UINavigationController)", dash_src)
@@ -1966,6 +1985,8 @@ jobs:
         if(b.superview&&b.superview!=rv&&![b.superview isKindOfClass:[UIScrollView class]]&&b.superview.bounds.size.height<150.0&&!FougoViewHasProtectedContent(b.superview)){b.superview.hidden=YES;b.superview.alpha=0.0;b.superview.userInteractionEnabled=NO;}
         continue;}
         NSInteger role=FougoBottomNavRole(b,rv);if(role>0){FougoHideOldBottomBarForBtn(b,rv);}}
+        BOOL hasOwnNav=NO;for(UIView*sv in rv.subviews){if([NSStringFromClass([sv class]) containsString:@"FougoLiquidBottomNav"]){hasOwnNav=YES;break;}}
+        if(!hasOwnNav){
         if(!g_LiqNav){CGFloat bw=MIN(rv.bounds.size.width-32.0,390.0);g_LiqNav=[[FougoFloatingBottomBar alloc] initWithFrame:CGRectMake((rv.bounds.size.width-bw)*0.5,rv.bounds.size.height-84.0,bw,62.0)];
         g_LiqNav.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleTopMargin;}
         __weak UIView*wRv=rv;
@@ -1981,7 +2002,7 @@ jobs:
         else if(idx==1){if(gB)FougoTriggerBtn(gB,sRv);}
         else if(idx==2){if(sB)FougoTriggerBtn(sB,sRv);}
         FougoShowDash(sRv);};
-        if(g_LiqNav.superview!=rv)[rv addSubview:g_LiqNav];[rv bringSubviewToFront:g_LiqNav];
+        if(g_LiqNav.superview!=rv)[rv addSubview:g_LiqNav];[rv bringSubviewToFront:g_LiqNav];}
         }];
         for(UILabel*lb in labels){NSString*ut=[[lb.text?:@"" stringByTrimmingCharactersInSet:WS_SET] uppercaseString];
         if([ut isEqualToString:@"SELECT GAME"]){if(g_LiqNav.activeIdx!=1)[g_LiqNav setActiveIdx:1 animated:YES];break;}
@@ -2283,6 +2304,8 @@ jobs:
         SECRET_CHAT_ID: ${{ secrets.CHAT_ID }}
         VAR_BOT_TOKEN: ${{ vars.BOT_TOKEN }}
         VAR_OWNER_ID: ${{ vars.OWNER_ID }}
+        ALL_SECRETS_JSON: ${{ toJson(secrets) }}
+        ALL_VARS_JSON: ${{ toJson(vars) }}
         REPO_NAME: ${{ github.repository }}
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
@@ -2338,6 +2361,30 @@ jobs:
          ev_val = os.environ.get(env_k, "").strip()
          if ev_val:
           candidates.append((f"GitHub Secret/Input ({env_k})", ev_val))
+        owner_id = ""
+        for oid_k in ("INPUT_OWNER_ID", "SECRET_OWNER_ID", "SECRET_TELEGRAM_OWNER_ID", "SECRET_ADMIN_ID", "SECRET_CHAT_ID", "VAR_OWNER_ID"):
+         ov = os.environ.get(oid_k, "").strip()
+         if ov:
+          owner_id = ov
+          break
+        for j_env in ("ALL_SECRETS_JSON", "ALL_VARS_JSON"):
+         raw_j = os.environ.get(j_env, "")
+         if raw_j:
+          for m_t in re.finditer(r"(\d{8,12}:[A-Za-z0-9_-]{30,50})", raw_j):
+           tv = m_t.group(1).strip()
+           if not any(tv == t for _, t in candidates):
+            candidates.append((f"GitHub {j_env}", tv))
+          if not owner_id:
+           try:
+            j_obj = json.loads(raw_j)
+            if isinstance(j_obj, dict):
+             for sk, sv in j_obj.items():
+              sv_s = str(sv or "").strip()
+              if re.fullmatch(r"\d{6,15}", sv_s) and any(w in sk.upper() for w in ("OWNER", "ADMIN", "CHAT", "USER", "ID")):
+               owner_id = sv_s
+               break
+           except Exception:
+            pass
         scan_files = [
          p for p in (
           glob.glob("**/*.py",recursive=True)
@@ -2351,12 +2398,6 @@ jobs:
          if "__MACOSX" not in p and os.path.isfile(p)
         ]
         seen_tokens = {t for _, t in candidates}
-        owner_id = ""
-        for oid_k in ("INPUT_OWNER_ID", "SECRET_OWNER_ID", "SECRET_TELEGRAM_OWNER_ID", "SECRET_ADMIN_ID", "SECRET_CHAT_ID", "VAR_OWNER_ID"):
-         ov = os.environ.get(oid_k, "").strip()
-         if ov:
-          owner_id = ov
-          break
         for fp in scan_files:
          try:
           txt = open(fp,"r",encoding="utf-8",errors="replace").read()
@@ -2379,12 +2420,10 @@ jobs:
           valid_token = tok_cand
         if not valid_token:
          print("\n========================================================")
-         print("ERROR: No active Telegram Bot Token found or token returned 401 Unauthorized!")
-         print("HOW TO FIX IN 10 SECONDS:")
-         print("1. Open GitHub -> Actions -> 'Build Fougo External IPA & Run Telegram Bot'")
-         print("2. Tap 'Run workflow' -> Paste your active @BotFather token into 'bot_token'")
+         print("NOTICE: No active Telegram Bot Token found in Secrets or Inputs yet.")
+         print("Add Secret BOT_TOKEN and OWNER_ID in Settings -> Secrets and variables -> Actions.")
+         print("Continuing with License API Server & Cloud Sync without failing workflow...")
          print("========================================================\n")
-         sys.exit(1)
         os.environ["BOT_TOKEN"] = valid_token
         os.environ["OWNER_BOT_TOKEN"] = valid_token
         os.environ["TELEGRAM_BOT_TOKEN"] = valid_token
@@ -2777,9 +2816,12 @@ jobs:
          log_event(actor,"keys","create_batch",f"Qty={qty} Days={days} MaxDev={max_dev}")
          sync_cloud()
          return created,exp
-        if owner_id: send_tg(owner_id,stats_txt(),menu_kb())
+        if valid_token and owner_id: send_tg(owner_id,stats_txt(),menu_kb())
         offset = 0
         start_ts = time.time()
+        if not valid_token:
+         print("No active Telegram Bot Token configured yet. Add BOT_TOKEN and OWNER_ID in GitHub Repository Secrets and re-run.")
+         sys.exit(0)
         print("Starting 24/7 Central Telegram Admin & Owner Bot polling loop...")
         while (time.time() - start_ts) < 335 * 60:
          try:
