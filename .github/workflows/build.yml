@@ -37,7 +37,7 @@ jobs:
       shell: pwsh
       run: |
         python -m pip install --upgrade pip
-        pip install Pillow
+        pip install Pillow lief
     - name: Download & Extract iPhoneOS 16.5 SDK
       shell: pwsh
       run: |
@@ -163,6 +163,11 @@ jobs:
          os.makedirs(auto_ff, exist_ok=True)
          open(os.path.join(auto_ff, "ProtectedConfig.h"), "w", encoding="utf-8").write("#import <Foundation/Foundation.h>\n")
          ff_dirs = [auto_ff]
+        ff_dirs.sort(key=lambda d: (
+         0 if os.path.exists(os.path.join(d, "resources")) else 1,
+         0 if "fougo external ios project" in d.lower() else 1,
+         0 if "ff_manager" in d.lower() else 1,
+        ))
         ff_dir = os.path.abspath(ff_dirs[0])
         print(f"Found ff_manager directory: {ff_dir}")
         p1_h = os.path.join(ff_dir, "ProtectedConfig 1.h")
@@ -206,14 +211,26 @@ jobs:
         common_flags = [
          "-target","arm64-apple-ios14.0","-isysroot", sdk_path,
          f"-F{sdk_path}/System/Library/Frameworks",
-         f"-L{sdk_path}/usr/lib","-ObjC","-fobjc-arc","-Wno-everything",
+         f"-L{sdk_path}/usr/lib","-ObjC","-fobjc-arc","-DFM_OFFLINE_BUILD=1","-DFM_RELEASE_BUILD=1","-Wno-everything",
          f"-I{ff_dir}",
         ]
         link_flags = [
-         "-fuse-ld=lld","-Wl,-adhoc_codesign","-framework","Foundation","-framework","UIKit","-framework","QuartzCore","-framework","CoreGraphics","-framework","CoreText","-framework","CoreImage","-framework","Security","-framework","WebKit","-framework","AVFoundation","-framework","AudioToolbox","-framework","SystemConfiguration","-framework","Metal","-framework","MetalKit","-framework","ImageIO","-framework","CoreFoundation","-framework","UniformTypeIdentifiers","-lobjc","-lsqlite3","-lz","-lc++",
+         "-fuse-ld=lld","-Wl,-adhoc_codesign","-Wl,-rpath,@executable_path/Frameworks","-framework","Foundation","-framework","UIKit","-framework","QuartzCore","-framework","CoreGraphics","-framework","CoreText","-framework","CoreImage","-framework","Security","-framework","WebKit","-framework","AVFoundation","-framework","AudioToolbox","-framework","SystemConfiguration","-framework","Metal","-framework","MetalKit","-framework","ImageIO","-framework","CoreFoundation","-framework","UniformTypeIdentifiers","-lobjc","-lsqlite3","-lz","-lc++",
         ]
         dash_p = os.path.join(ff_dir, "dashboard page.m")
+        main_p = os.path.join(ff_dir, "main.m")
         login_p = os.path.join(ff_dir, "login page.m")
+        if os.path.exists(main_p):
+         if not os.path.exists(dash_p):
+          shutil.copy2(main_p, dash_p)
+         else:
+          try:
+           d_txt = open(dash_p, "r", encoding="utf-8", errors="ignore").read()
+           m_txt = open(main_p, "r", encoding="utf-8", errors="ignore").read()
+           if "FougoDashboardViewController" in d_txt and "FougoDashboardViewController" not in m_txt:
+            shutil.copy2(main_p, dash_p)
+          except Exception:
+           pass
         ios26_login_code = r'''
          #import <UIKit/UIKit.h>
          #import <QuartzCore/QuartzCore.h>
@@ -807,972 +824,620 @@ jobs:
          }
         '''
         open(login_p, "w", encoding="utf-8").write(ios26_login_code.strip() + "\n")
-        if not os.path.exists(dash_p):
-         ios_dash_code = r'''
-         #import <UIKit/UIKit.h>
-         #import <QuartzCore/QuartzCore.h>
-         #import <CoreGraphics/CoreGraphics.h>
-         #import <math.h>
-         #import "ProtectedConfig.h"
-         
-         // ============================================================================
-         // FOUGO EXTERNAL — Frosted Liquid-Glass Workspace & License Dashboard
-         // ============================================================================
-         
-         typedef NS_ENUM(NSInteger, FougoVectorIconType) {
-             FougoVectorIconHome = 0,
-             FougoVectorIconGames = 1,
-             FougoVectorIconSettings = 2,
-             FougoVectorIconCrosshair = 3,
-             FougoVectorIconLayers = 4,
-             FougoVectorIconChevronRight = 5,
-             FougoVectorIconSliders = 6,
-             FougoVectorIconShield = 7
-         };
-         
-         @interface FougoVectorIconView : UIView
-         @property (nonatomic, assign) FougoVectorIconType iconType;
-         @property (nonatomic, strong) UIColor *strokeColor;
-         @property (nonatomic, assign) CGFloat lineWidth;
-         - (instancetype)initWithFrame:(CGRect)frame iconType:(FougoVectorIconType)type;
-         @end
-         
-         @implementation FougoVectorIconView {
-             CAShapeLayer *_shapeLayer;
+        import lzma, base64, struct, hashlib
+        ORIG_DASH_LZMA_B85 = (
+         '{Wp48S^xk9=GL@E0stWa8~^|S5YJf5<Az3;J6!+~nFywWnYhJ<^D%=<;zuSOk3y)wT{4J_`v|MBgUNLhqpxXopPH2Ga2S#JoA^?oUC-$s12EbW5xd;D3Ff#C'
+         '=)eJF>&;G23$7(x)MY?Dmi)O5<!1ZV`kP=JQSre%Apn}Zw~h>v3S*7&765ewS3NMBuC?C9%-#dN6f8Wi6z9>=G{f^p&sz?XLS_hwZeQ?qN+%0;*31yf&AIh_'
+         'M5B_)OBMSKc=*#BD1*CXCdUQ%w)NPHR&6BN3=KRLszGEuaDF#ol-UXSkcwbeA0HGoYKIJpVVYan@?&do3K?Ru1_2px<Zt%c73gC+D5n*2*lb%i#+x{s+{JG+'
+         'GA#}fMnm=;T7vF1%o(gX7IJXfvhIy5?|1<@JCk_2&-&Tt4s}H5P(wtZG;f(IUu0wsND&YAGZDCKSHdF!4F-&clL>_TaJejaGFv<@0XBU>4I6ch_m^JUoj>?P'
+         'Kq!wxkp?_;7zVfuhrE1J;aYnxmo#L_L6xzJY;Rh~<nmmB6F(V0B-d3^nwnJQ{AFrLe_Oq`Og-$m{NGo-A`#`;K3@~bl>(B05$n4JA<d_PHGA#alkE*TqYae#'
+         'Y5H|mdBBniZ#F-<uIHvDZob-wSR)N~|C~7YP_;&}fiyzBJgIJ#%&gpQaZ+wr!7lWOiW3wL3?pE@A*Ft5bDl(1gFQWy8K%!C%k0Zy!P6i6Z%~|+1(t3K*-}Ks'
+         '4e&|Ru@MQm$i@Gp---p~5)`IfwU4YEmn07$`;;V-tNcJ~xL5+UVPs>f<M(bju@6LdoAlHb0G~nu<mo%Axx#JcZ0p|7fVR!oZ*IvB$+M8ajm)Rm>%3zqz_d`!'
+         'w+D-!vI3@IeJ)ETB*7@smaho<uw;1ii-i`utN2w-Y4IaycUB|y($p{izZ`KW=~3>0K_I0Mqhq8}jOYSsjQo{wWtjX3(9T+(K%k9`Z?u~_T9VI075*$BgF3A_'
+         '1>s@^Qyv@`CXr9SGO}iEsXKmoVKfaqrk9i@`HNz@5v1ub`c;j8^%xpd+6v4Q^`UJ=aRlM)ix&MZoc((Z5YIaQchXus#aP#(&^i~APxlShRUO*%5WtjNa#Xq?'
+         'y4?Ld_|4Q&WD=Z`zvb#1y}HX{&MjhaP$?ROd85^BY~pn|-y-mtvnH?^aL90m=qfx)2L`?^Q~Mj=q0<k0ppm$YMtaveFVx%vT~a3FT#;1c9q#BMo0G&mX>!du'
+         'FU)=JnD$3HqkOU+H_g=cnwexhPXV)5Tee#o^9E;YTZxQUUauTy!=o%C&!aR5vLsIBV67o&uLrc!`Q1uT8ACy5WzeF3SlzDf4ld4Y<X^KPW*N)+Bjwx89DCT>'
+         '0%{@{{8T7F{YenpJ^kka$aZZW0}c~AWD)cC|Abmx4@mrPx}H(v=m61U5$C_8L`<LHP<Ll^NX)inT>LcgU9!UD3;jDBa?mt;6ud?f8S+s{AvxV`eiDrZoJ&Q8'
+         '4;WCs+!L}k_N<ed*F42MwN$S;IHG|+mf*4M=p?*t#MxpCSJS4D7uqk)Dc>lsf@fAR0D;nc=ETl=Nxft#K3~)=eE*09WnQfdl#S~J4H4B(!Fw#{yeWM5!KpgG'
+         'rFXr<pf-^!>i!02A2y+X162Y|sF}T6tntb)WKr)sL0{qpga4=P=T69I2>VME_-#R8!{F5_aoTrar@;GA68Rclpm=P3@qV@aJakds6O9hsmqo|#t7fWmc6n%5'
+         '`E_cYf5T~O4SV<`a4O!v42b~aUZIF;4Twfp{#51!6JLmiZ6l3u2NkNl+7nP>{81>Uk0>w)S(%EG;IZ)yDXw`W$6ed!#F0r9uB5U}uJ4r6h>a_5tEffv%lFR1'
+         'Q=YQnv0~+>f{o$vdpdNQWuPNDwT3YjizKX%9!4{*i=BQ+YdtpRc?Ec3W>rm6w1_d_I6FQd3U#G`nhhBSyT5Dg>6aBgz|R9%zc~@fLzJ_7z$^FX8rYrRooX&l'
+         'Bu9CFN?%wLp>Fm)3^@$g-?stcU~$?*>=ioJfm~M5sA}WQ-k%}*sDR;6m#a#l!tqF7Z59L-`hMBDM}3)=yh`xPI6Hm3zS)iTC3cyOMxMmQn5dUhT%FZ_qalM@'
+         'R)jcM6R#_Hn?gg0N0ZI+8k?Dc@?rw_Vuwks26;nsndkKU`o~QHs)MH8D&QJdzd?pk0O+6)?ki19@z2@yPuy{EAQaJK>#yVybRdB#xFXoRg7S-=4T4T)0{!EP'
+         'f>UMM^Dz@J8h!aAcZ~=>^s>;t!?yy>&=B6^Ao~7SA>9<yntp__<9FeWo0I<R7h+4~iTCPVM<Azc(Kxu+9!exB0hPr*m|SKfRayGOt8{M5e%wqDSi6NBiuxx$'
+         '<sJ_Ap%nE%&hm}NLzV-lZt6$s^Ej#OktCSd-T(dqgTZVbzicPu8SZ2J0s;1lxPY}r0B;{Q!-D)*QjHus%OoeESqe?<U>f{E%<8)})p6hwE<n~(-!?Eb=6?)_'
+         'Q5kRgnFyWOr9F#Kk|19F?!8__JpaH6iI3;(y;SNRM-h#A06MX&H>YN%ED>`bi79NKZNin|C;d4urrK=5ZxfWxsrVX}K6kNNm4blA&VotbGRX2NHp4Y2aTv>='
+         'w&2VmNI1XMND?n;df=NLc>hDJFeyNj++NK{fztr|b3QM`v~P<ofsWe#rF*{L*^??~Lilc}jAN{dh*<?9rsTYMg?sYz=~byIUcoh|$OAr<b3*3Kv9++j@x{pq'
+         'HBuLec2V6WZo}Q#-yWl5#DBkecP$o6`8;@u<l;fYg=mjh7m~eGp>y9Yfp>ZNZly!48(8_Z;+b3ReXeD8YeyPwB&K5>h;+Pm+p307MlxJ;7wxzl6|GE%{os5G'
+         '(uRTQ+mmw?7$<gWZl5Ez6BkxG;s@eYxzM#oTzWK~!u~f9DOJTC_<Yr0HF!u_9hl;znx?@F(Q3QjAeursNQY}I-l}yKw(dCXNL)C3GpxEt9l@1sjI(>d;~-!6'
+         'Q7uJEQ?CzxOTL<s9Xfz4QFBARyX6V$aoj15^gEO0-1Q@?LRP-iT1J-lknpnp;N#Zvv3-)(Tae+NgSen}WMx$;+qzBwl~Ha&s@+b0QaU}_pi>@OS)d2hL#XNB'
+         '&8+zch46Aen#hvhc7wxRcIjmT8Xnet1q&B2{O_;cQoX-rd1_lgN0nu5Td1@_LJ?rdeP%oIi9#<k2-x!N&O2>#f!Wv?Q<ztS^|W>+-wpd!-PG51W6fda(>V0>'
+         'V%cCJWDe-l-4}CV7wQ=n{K9<7HSo<QfwuBL8GTLk<7Jg2*@Z^nJKBO&UT?5;!`6M5_U>ECsMFHx5QHF3Kwh0b=zi$?c^J!-pz*|gL62z+IS0(R65!zGLPku0'
+         'Ny~iyb+W?S{GfvSKi<my7pl*{;#1UpXI?QPn*S7l<L@(!528M;f$*B7Un_`v#T%2e5l#v!DdY5rkSZsOt4Pl~zWxM<y~_L((Kyr8w>wQxTz?q-;PVTyQ}1x7'
+         'KQt6-Z*LGlN?Gxv8j=~IsiP6Ec@a^>9H?|9NX=L%2Qa93x~}7laF)Lu5X@lEDbBY$F$>jTo%rL%0kPFmn`Z;8w1r0wzLE=E(Fh*$=fUE+Essp-Iy*6#pN1Rz'
+         '<+Vv0jEG~`O_|LY^e(@y19WzCY%M=uW`1F|+m|-?8NiGp0CMmp=^DvPP`^K%NQsB&h1UEV`ZE@RUevWLKfYO!5xa=OWWEb27>GAY@@Z!v9H&HEJWL&BK4Y<2'
+         'b)hoZY5JMs-(`XD^x>c!UAW9<VYMEsSv=(U+Z;HR@h`H2s5A4IFj5NNI^;vpbe?yHn{k%N#>BzL^0u<cer2Uh`>_Z)4jk2K{f<+^sULf$M1&M`gj((QNL1eJ'
+         'mhHTMrifH}MM8lYN=k)-eTqFcgA(MdjrFZd#FiLACCq}?tGQREuHNznGS6{~DZMSaoxQiBjYIm7LKsUYUq%)pcS(I=VNNdiNZIo}7^MqPPmH)GM7D|_r}*9X'
+         'S&!Arn}Mmb2)X|7@D6keR&vZ~moq}e02|k9APC;&y6^L0rNbi)#Zg2f;!gN6C`*`8MIL;P%;aHgB0i4z5XZ)yn$lK9T`}&6*&Q^FHJ5>3!aeD5v8*{6Nt~qO'
+         'VTesg&4CG=$R0}`T*bh0>cqLZE|BkNJJBIuO6JqZ!_?@xoCR2S1Al!_pBx7T@RST^$clZ+Io|HRxT_A69?6?0LPbjIl|qtoR8*Z(u0s*+#^kN8Y?I{^uc#BJ'
+         '1U>!YuDd$`CE<V1z|E*kRgDbB)b(uZEUH86pO>tO--&$$IKjX*=j8Y#lK#ppU(m%hF5s$bVeAQAZV|w=6(n=T$*F<c=s!Gt^mqnTgJWuz9|bgYFrLgU_8<=z'
+         'I)7Kx+6*=K;<4+Q__;7*{uFX}@P-RQsE9u)=kB>|b2l77OecNn{Pz8%W>2n2q4oP?#~>y6y@|vq!TyeBk{ktG#a4!@4Hx_KN%37NaAY4-B-phNN*+FQtE+~%'
+         'S30INr;{3XD<_rsB?EbIAMq%{3dsHOrNh_)og{N*LXjh36o_c8%tCm}HH@ov^O=TtThxD45VgqTG7LG%)VcmDO!kI9uY~<xIW9*Mso_wPCF;`hT(KqcjLcTa'
+         'Om-idC&A)*a+lvvs=oKJJ1U(ec^%Od7$t(2N!@2ODa~GtAEYeppADaxA<}c96%e~L@RdHpHIJT!wOaOB3DT2W$LYPRmZ3(~`eMV%<k!xR0=p)t9>}Y_)mdDH'
+         'Q*4-}P4B;;QRu!HRer&-qH?90@)u~Bt$lDIKNYm4ugRhi$mG$BF*^Z5-o~w9_l7=npiXi~VnPqil80^^z4(zUKifY{TcSTAugi;aWAR06G7?AGhL^YR<Yx(@'
+         'pv*R0#nYKi6X>F7`@B^lAno&%xZqKWBZSAxC{<)>fR3-HK)Jj+6Tx);+{{7_O?~j}@u%AOcPR&D$FzjQ=0VTw1WVL=fyvM0`@DxM!an8%2zH2&8A!7x7wa?s'
+         '2{*Ts+)27O8n?9}y(&4_eL(7DvQTi9;q-gKLihQS>Xy>X%|VysNo!URA%uS98w?IzdcUEIFzO8~#7uGjw-$)KQl^r(6J2r-3gLBHsVf!uCk-0DPWd=cd%{#v'
+         '{(mIay(9Aeu06qY5xeWI_zP4=z@4DhC@wYxyMIRu6x1piI}uEQq~O3!qAHc~LpE|>G5f!kh1anbEA=n{q7&ci3EB--4&+O+Wwm{DN$I3de*ViLrb$x;F4Hv-'
+         'x63X8*KgM<`U^PRwHgd5dm6T15N%UW(A57X0TV#MI-wl@UbR*XvKER>`9c{7f;0b-e|Mb7uyKMIh<`#0lUf&gDzAAvn@^bF3Bg!K$?Q$nPGTrD+Meb>HL%K~'
+         'chFC565y-x86dLo83pkzj^Yef6eCsXdD?Vq5k4njK;w8>wK2?;w@F%@cvr_;lx6j_U7hRYRTWe1vslt1XQElF5Qq}Z#>0c1dFe97VKLh*fL8G#Mxmo>87w1q'
+         'Z4r|cO}j{~N(J3uHoSVGoMDT(w@e=qP$$mKe}n=ujJz0$O#j|Jj`efe)i?G|t{1+E7fTm*oG;lPPBvORQ7W=90529dgxwIeo2J!ecT)Jt=RYKxDN0<LGZ@wr'
+         'O?}E4m_-=OSe@j&K5S8BL7hLK1PM9r(~bY5K3NVepW_x_KL?~A2-1W^%m}bdf-wGTp7FVq#ZO_d9J@YR9FWo^OMB9CBQc^<h8{I<`8V2bzzcoioBQd$<x5Ib'
+         '`DFGbOBb!IxDGXwJwr)+BXV@5Ac%pP7=po&{0k4nsOj()<7Dy!j!$!f8zMl)y&QBZB)eOEYlOyW#(u%dSYFw24YpDa=Onom_PBQ4drH+fMcv`GB=zIeuq3He'
+         'g@#q(Un<_poGnvYotnY`@p>bPt~iHJSHP&6O*q}n3uvc-YZRGk8y~j)$G4Ca0Cu7e%dlkcAwKZLpnZre`&JOt=a-;TaI{(vIFP@4EBA#;vk*Oz>DYYet5z+8'
+         'gse#`kFE5u#8CmG{E_L3PnTiTuDv){QmbLNO9~4ZK0YXoN!MCV`Bg#DT?H7TxHd`_Vh{nL`<2^e+LeQfZV`xy=E;#*LM^)|M`_4zN@xv4)@)Bh<D=cfrqj3c'
+         'em(D&l2ZV6x|T_18wRwX!N#BAna@!2@}3i;2v@7fubt<5XE2iQPp+3UltJ@Pn^<99S<4oSe~tPc_Y*a`_4nHq;J5!JpBG|!axl4`HkQwFU1Hc?_SQg&_mwsq'
+         'j;*P%^Szr{9L6L0+7L<8=)IP#XxS+ZhTGq1UDgu1MiWt}ql%!RNXgFh4opjkyzP3&@_C=y1j*UEN1K6(!`pjbQ7?0lt6%;(gIi~%V}%wsliO8TS%NjkuFcQ2'
+         'lXd5rC85=cKKixS8lO(a(l0vmHTW5us><1e@Ca<QvE#+h-1Q{<wX+9^&Tdm^<B4wwP_6J(gi#Sd`$y-iniBZpVIo*X?%+oL4?6-Tok=KLZ9uY5+4x%VRil|E'
+         '7A$!%-F;!l<{nrzAqV=o!a(542?-tx5mE{`4Cv)-X0iyrPww$ISJ<FOb|94@`ZCJS?M<39(KA*}%p)1D0i&!@;EQH+<}^(VrjTrT{w3r+VKv;Yt#)#(p)_3G'
+         'c&8qw5IO{FN=B*~%${JOBEM*2CAovhhw;u>F~nqYi*ohRup}jrMQ&Edl`(-ds@T3;g_{a6-~P6F)(ElBL$c5U)(gV_9t6&qpv0c<g0czKQj@Y3ZVCW_G~q?+'
+         'xn{1*q_4ZCxqlP%+6qs$mDqC0HpFsZ?7~2I`IugTSXmW46TtW1iTRX&rG+R5VLHZHUh`$AkJElS*t^eZ#}G1*d!pZ7EzzTna+=i_*1Z`|40spc!#bbsZmI?('
+         'G9IzUvi>geQDUZ{esQ3P2RKsL^R0j;$r1l7c2aizcy<%`@j@pPOcJ~>k9SHcrQXYEFTb{8mQCs2?5GxMt~S@66XYtTx*I_5-zy4T|Fueixr#hW5BeR0%0xwN'
+         '0dQ#UMebe)n70;1>rf!RJGS&1{p#<|(h^svwEl5&@86tltsUUtmVsb4w1KJORS-yO7hU^`bswdlIqP3c_~?;Y3tqGm;Mz1t)lQL9xx9GqmU<%ewe|b7&7+ZU'
+         'L4S$iH>CjCTRV_lO{2DQZfDbb-G6*GUtu*HHJ!vXIA_eiF#ZoYa|05sg8P#6D()uyyyUlv*_Hd?ePjc&_wEPJHt1*gjc&XJPJLo+WCA!+!U-ApuLU*{1qRy7'
+         '>~Vy~cdMvgY|*)12vkzGR&UWL$sDLm$WT2_&oyN^Ci(+v$JuR4ZK?2VTN+Hp%M!Q?pX3iGSIs(d^>xD9-rb!5o4^rmt-7W|C+^R5w6OTl?DlxDQ3v$e%b#Yq'
+         'ioonR{9X}IpCoZ6$HFyX%`u7^sp85tZ%v8hisTGvGIP2Sf~JBcXAk;+YNhq2)}CLCZ?D5AJ%3v4{Bx;~2LE9$m4ZhEcpXrIi)xdZp<y^HSIVFTzANIKgD-jf'
+         'wvTV;is67}Mjz~|v3<4jL$t@6)ttAXw6UzFy=&s*JtUmIJDG-i<+3>WZ#kQ-Ka}L$L-qcPEbe1|)b?~WhE01}%}x74M+esUKFCPdtx&q<hW==ogF=xqdK$GB'
+         '{#w3|!I0ZmQ+%;*dGmrt`M>~HAx-oDyE_<vgOdC}f)(u6jayEGOb5FR_jASxe%4_JUkgpq89sL@B;0I}62v~is`r%_VfES~qk)ruWLABOfHQxWo_sojN;FGs'
+         '-I#eU1J-G<R5?w<bW`79wQjhHh7?o);{`OcN`>s=tm@hNFyn-6b%24%Zt5`uDu!)D(}&}l@9)OpmDfu<2a^|-`Jm_8;CT4<@Pi6^G@1V^-?DnMS;I?vRx459'
+         'nwqlt!YUB!|CUOaTmJHhp(7x1+|VH??T<BM8R_rVHD@;Js3NOO3gY4t1`f)F;4`sC2%bdcwXXXsVRpu9<J-E^kFP}6Lv3GX4G(_2Y>38NQ0`TQF)~K=8Z~^|'
+         '$+c?HS*}ZxjeI?&j^bAsr7cf&Jy9T?KATOz+l##augK*+diky9Xjs!8wJ<zFPfjA%cIzaJU~B`;LyFN~J&L<Rf=-L23{RYvXDYAEdhN7xuu8hb>(9P#VL}Gy'
+         'YvEFuenofGpRPJ>otzDmru$2pribHf13SmH8CEV$p2_2wa5xCC!9ToormN|0LJ35d0$!5#y^A0^H<}8>#VHFumreF^hsQ{IWwF1y>nIxpK!!J@OH0?Mm%qZ_'
+         'RVp}Iy-Rl<Q$G!I&n7^;-AE|KLH<v}du^#9J085K$F9mJxR@>OVGGzE4f!sUQ|_9NzF(ikdxn5wTjq>f#TsD(I#|Iw-FoVt-Al2i7z}P7QGakqZ)p!(cwph`'
+         'dkuyyWMJmcREJqPwz&emVk(`zwjFico;Yt?e?0)(0@r1FpE8<0(Eit#7KEPrW=@mO`blRX&1dVvoWW&3q5{`{zQ^|%vThm^{T{5Z`@8%Wa<0dabFUd9Ho-qp'
+         'h!dh0jR!4vmDx|tH3HL2i-4+l#Tz<*wGhgskxP<mr&%<ZNY%^ddwXT=E-(Ht*M+~55lD#Ww^kG!W7@^{@|3cVzelracG9-~P~lyxZ=T+4*Ll5i`GuDoRf!@l'
+         'UJzNM;ceXki1~>Qz3SF^gKRnQ4{Mh{%dWMx+^MB8`ba$(G$KjLE-0bXT?$p@Xl<dTKZhHIQe$?9$`>VYl4YuA$Q1$>%MD(#rD{eU9FQ>QO6{sMd)PEo8<0KQ'
+         'F->t>t36%+RaBh$DiECohG3f?6&oYDCWJl=lS8C30%=pTLTtr&_E$C`u2jzY1E)L7mFddnh`|^2N?Eq2-SL|1?Q*oSQy$<7p7z57+I;2*ub%#MYqrF}Q^Uly'
+         'tzS`Ql*=ijt#2)J7E`v*c$bN6B_={&3fZcEme^RxkfpZTQH^MjK#lb$u1CpD2j5y-88iXL6hUjuF<<(_6TSkntzu<}n{9X6HSXdW=7i2*a(psNVPn&x`GGWm'
+         '*|@6%jtj|jZ>W1ICFR#w+_8}t|MF*KXw}Z|CyV@v6~>TFaQ-IhDpj)mHal>*4hZYJvJz0rwbf~je@z_N&)=8Vni9AwWEM~u^m2h&rlLq;%`ODo2rbjCxndRO'
+         'SiCreH|g8>j}=2u76q&QpGwdIj}^SEOu-IjyfRNE8fc6!g6xO~tfzj!Qc9J1-9yRpZ+px^lwF+)60f!o+Q|ZvGK}O`;&?-+jG$RIaEMt<#G39q;l;#sw~Vxg'
+         'bh*SK$f@LB-MYRz4Pf!oc{so~^B4zhftEBErku>jV0&bAF5n2@Fb*}z$vJXO>RmXk=6kFj>5*>MKS%ySs`0P@Ew&E3`kU)9*`{Rik)5-=Wt!5S01v;_eqdJM'
+         'cc)n0+zLZ>G?<F2`jb(Vc3_~BDcACO<y%|sUh{Q80vsUmP!HfNj8}oP$co_=)>?3M=DkP!>alC;7T7V)>RWy@1}gG830gdjLD$)CZz}b%T>tWpA4KG`XIFr&'
+         's4|$Hc1swrf8Qr>?`OY{wIOnda!rp*I-RlRN^Pe$=x*YHK2VrPTKCMy0rmIfXi8d{Yy>3zC5=C@N;HWn2rzN2+ltY^vvi>3^Kj|G6Z<cqLUb0zA)zS0(>l!R'
+         '(f%U&uc&;GB3R$N-C{5<Ms*Idhvrs_KZwFxih<M1g{-p2bU~+be>v(hL#O1dF~k{D;SN@)a8fBn#b3MOcvf#BjiMuSEdija5d9Fo1l~PCL?evJP{}v~K-$iY'
+         '=H8La0m!6?08nYa#wwou`|)*-S@t#u2&hN{wd3-nMN}Amb*pJn6J5u|#X0*}aiEH`6b&P}#q38@D$oR2CaFtKvPLoc)@0htAtAic?KF<x*f(VJ5h0V+x)ZwI'
+         'a2tx~g{UzNXslgvbLEybh@BJqpT$=cEHzPfOlI&m(nmCP=260Iw7K)DqhZjc@pIOP94M~&d#k>2K!oDnSYzU8kso<vcg89&&Hpk0V@uZyI9x|BiwE<;DY>mg'
+         '3mA4|(;Q4LC`oKfY}*lYq@Sbbbv>Lada?xxj`zoeRKiQSrhBUxkfmk%vFylg&Rcp(Sz?`B*xWpzJt^zngAc8x92~DQtxA_q*>6}y{hh?1a1+xg<sU917UpRS'
+         'Q$7fdeOBNXji5H;7vlg6fB_Tg7h@$8he!>+H8&Tf<Wvrc!peSey+PV^kICAi0dH>SDd64!DN8W|axc9n)&e5z7w5zR>#ieKY*-BAf(wGnyz!ijspy1$m7?3e'
+         's(dw}lA`h(%Aa(8VMp!aNM6Xg<u7fSH~LbXqP;hazzm^Z4{0?=4wUm1cL_Sirud}*Edz695|f#hr^C-3=at{Cw+3sZ^D$64E*}PK;QR8c*{C@DrJ_W`{c)BW'
+         'qm7O#mZbr$L)Q{~A2n8CJklJP-#+-eac!w^Z3S>%;_$G6UV%}?lQeQs=gsLMGN_4{S_`vWRsZ%V%-z(hdGMv23CL~8JtCo}C4k!JK&bvZpN{96$-p(Dcl@qa'
+         '!P|y?5o8Nmx%TLdXv!T&x{al-c|=Rpk?o5rKgf$d!<~cTSQZB_RkKgoZSojG&Xp&C5cC`?Wx`3KV=QigWPF(ndZ(YLPJdO!H}&A{Gq{o@yLs5QSBD{m6^gvJ'
+         '^(rY)9F-?MH83Q+QSS$7dF_dq$0*>3@+Z_d`CRfvq%08pzSFv9ZSP0LAhAPaeNu{OcoxVck#%k$9|hAonwNFzO;MI$VQww=q56AAol2}v8rLBb-!T{LAQ+ib'
+         'B_qY7#b+jHbzhrVdNAqAqlpkRvIFM`b6lAx@7-}c1_KV`n$+mF)jOzvhK+0+8fe2H$f=k1{~emz^vdr@;wsiEy!SMg=jXyVo<LY%DSCP0RvR;qEm~I##6%?^'
+         'ypOm2(RL^5I676&F_zYAu`O)n_j{BYb<{~B)u=-9`U*g7Ks$p8uSuj*Fva*?C&!FL9Z_&k^X(k|H$5Q$jIY$U%86heBjleYBYy{9Ru98BgrXUsEZuNyF`Byy'
+         'oWg0Dt%z_v#Ha5!37qpcDJ!2nRJfbA4B6X)QQ!$Qs8Mec{a+Z${XQg!5g(O*3}N0Lj!vl1JWr4E(HXrBwP-`w&haW!HO~c}A3WmosH3#*vd5Wtn47ep`SYr='
+         '&B!?<^c$~dG6(n?r!`e8i#seV!tfy;OU^0y^ZW}IIp_>YDq4#UTv$%h4?G05f*)u<Pa)(38GTUjr-B1RpRmEX-q;xI8i&^>fne2T&t7r|3=ug@W^<uYA(<J*'
+         'qa7vczG?L_0IhttYB5?DmFSttG(RIj?fltRYK{Y`V{(3>XU1C-fgo2Eex+mfCK+j2X+d5GU6TOw3INVFX9M1d^fz4`%E-8{hHbce)nL;i8s_hR4U-JW=>1d8'
+         '@`ZVaatS*{9_N!eX2V~{V5~sQGH3EgSiIKi+Kmazf;?L2tUsb+gn&c-HbJB;&PwKO%*)huU0syRRYkj9>~m8tp1Vw_*zEzXighdqw(F^B$mHgydEPmPf0b+Y'
+         'S49r3feKu_5A-xcO)DYNp`USoF!Vm&p!4Re`H;wlj1kOmKT4-Z{0=m{K0E=PJKt0(Y9g}-9rjs4EGtPVK$otAydtE;=A7DiXYf8&7|yb6%b|A;IAy)Uc)9)$'
+         '1!I0!2&42mvqZ4zcT!+NirZOv=oIE)T=ya3gX61yzr%-I*uUwf1D4^N7&LJmmS4%ZvFDS4yWMO|Kjw=?*U=K{t?KZMF+y>^Fc*coxCQ;NyDm&%)HjoH3?<@#'
+         'b;DyrBQV_!f|;$vo5Q51l^S}RI0$|VR%u~0q|D)%a7?9v^$^XHRZdNe+*%BRL_~|c+57Lf1b3Hes>Kcgj{v3udW{y-oOJRsY2;*jS>bp3)$SDDS$`koz55wX'
+         '<b>}y+0FA)dcaD@a^s_*aFIHZ2wb|$CDnc4{f9O?)KBB+=d2HJ_f$q~{LD!F4^isA>n-wGLdmfqu|o1$;Em$sX|9jwOb>i=wij|Ca^(gVt~Ssg6K%LFMI^V2'
+         'f1fdsWWinciBq{)FHtYQ95o#RAtat_v}~=p>hn#){T2pR1rT&%#_#R&?Jke!Wy!RrTZs952!l8Wf?I=gLeV%nu|Vm$@3XR<v<wN`yK0beFgg}c4Xd)e(jwNu'
+         'hG$Y)6xY`C<cwE?j1!myVDP<&Ryt~TGb$+w1^-;pUL~Cvx{rG&x~SnRKIQBqV<$IZ_TLq9+LONT8tTg)hrwozdAgV<=3USaTnIe<oWep3+LW^;CV8+7As7L6'
+         '$4u^9Hc->^y|8I_`cfS}J0L()!<EKEFt;a`p}>XN0RrCjM<my_O%P6f1lruS^T|3~yK;O|b##mi6RyU|lL{Q2>oEa7Q-(b0J8eE`JyBhmP<qd`#63bw2;}vQ'
+         'I!(cO%9{bGyf?H#VcK;b#HB6uQ&?0Ti|t8}dUlcu&F&x9P!L2JRx}!VR~db<t<#xDbNIQmbV(K!%2SovuF0&m?vQfMv!DCN<IQ}mg75cz0sn$I5eYYf(?eo('
+         'k5bCP)c7CLQD)L=OvX~&u6PxuF>9byum+>Y(+Yw+OM7wz^+c9|BdtHjJ{?VhEP5X5$z)XeL*83vPsypgd$clE#YBi{o8RKje|xQ94$Gyi8~|&vye%e@kDFv}'
+         'iClyn2;D80Q#Ej%P4K5BIlwA44=~{y`<kg~#qE%D>!jYtk?|r3q(t*o6!iZuap~$w5x=BAOSJoK5C0%V!IK?yG9!n{e$?S)z5z*((s0J<D@>FinKXvYTPVd4'
+         ';nmsOHE!ehrIpd9n6J*+h++L=I&!n;lQ};OP5|T;Iu3|VqTXwl0rtxSH)5KSnr#-mPe7(6$!Xqp|4e2r8HX4V(<`!+r5?}nRl=+DE=VUbTKSS&T2F9U#?hC!'
+         '1hDYjnI*zhttv;}X{Il(_yPvhXbz+Mm+3nvbT^Vm1BUed@dENQv5~i-^L|*r`R{<!ai4}I>{)%q<H36{zKw1}s7&)S-rtrkALW7nFl)<TUE9BtyNQ?u`gP_n'
+         'S-HveUzKa&bC79Bhr_(fE98x#E6QLBj0z)xi_TiGJo~j1U@x|pt6Vk}eL-%LpYZIh`cbw(TBAKm(G$}MC}kbb6nBoM#{iPu;5kBGtDf(G$zQn~z?cwzN3k2_'
+         'h0%x9R&)va?#_MiZ^T1%iY<gO=LEVS_ZopyyJv@%eT5+0EubCh>{dt7ww7=p@|q6xs+VH{)GR%)ioWFX9FCk?_kePOgt6*?{V!@A&{L$V@!GpsWqTG5(sp$t'
+         'hvsal+G5}w|8@0&m|!#~knD!h1EWClN1E-(@CAM3lHMWU3Rw_+Bw$XsUU{`x3pKV6#TMoKf|uvY>Bo~P&t3b6au3EH0x|NJ+R*#z>&Ktv|DV7u_!IdsYE2bF'
+         'r^odVt5Xrr1M$d`ZX<P;41;UI5hVwfrL0zudx~pU`kc)IJ=k9%|E`c(MSKb|n8d#q`C{-BQv+qDNKBd-dsc4K+MgRvlVOW#U+dN)capo|LzpfD&;-B^m<x0{'
+         '^tVM<WU`D1XTLSnV&k^~ssIfeHyeirHo_>~_GWnbvfR?M3Hvd#p;Zhz=O+W11K+||!ibRChPPC1fU194vU>5bo8byM^*$xGLWO!Shv9vXep4JcA{0O^z$q<^'
+         'o)5d8y1UEbB^B0&JxEVx+&(H*o{>3vBq-&atDIQWENvqf^Dh;M4>oLJEs<*?SNODPg3&ofVN-#s2B6Ft@o_|6<Z0)J2(%xR@=SE86PzUt>WzkZ=>s@>0dVH@'
+         ')b7%`d><e9)<X*v@y{ovRMJwAC0j3PsNh(pX=5l8@(l9k*y|a246O>%f*lcX%oo=giCv{W^pfxV8X@69<V_^UhXGh62NmreE6QnK7J3l~LWlC&EV(dX{(UV='
+         '%n|bpw-cw>)Z-!HYQqUWq`HxEr#I?7czseDVojq2ml^^iBZ;>Hx^*WWe}(;9<p;b!3<Rgf^lt+hAHye*T)5l>y^D7xM-&M|N<%6<$|PR`-nA}3@SZMuf@g|u'
+         'lpF{ZUK(QS`Xl%R{nsJDynKv);V$OKQVDb}cn$0uyh9KO4jVT+#N5Rms@5F8LBUSL;HTTdj`g!71I79dgt4Zp4Dkt+ObSwdB2KY<pum)tn~Z9;yI4qTo8UGE'
+         'aVUA(a!WCiv<e~Be?jqT#BFB^v2Saa#V9xn;mOUmCUWbXA}p>{+vdW<*MVJQL9C>r8+*(VE)FuJ;!1pX$z5qU*<LqA%4`{}QNx=ys>r?wJm=}_JJ34*8#hoQ'
+         'th>Z-UM(B4YKYetmT#7-)fZsEVe%S8=i4&<Sv8zal$&)Ww}Kdz5oBFxPIbIXfVhwl!#0sY1HxOjJ<5!eZh$VGlb^2!ZgLzrN!m@|RuLqcI}gQ`*Vr6fLiZfP'
+         'xxam11&)0og=v9x1Mc2QMnF#0ues;-YL$F*4}kV=lys!w-HR0yM3Z0`ym<e5aoVz=U5D(;=G8F4wcmx<=A1P(nI8bgKF3ys4q-&->4BaJKl0^3J@)|M7|+wp'
+         'Gw%iK)FWMn6MUc<jQ&F0c$>8X-LVI?PGRZrh)@F7zMr`0!^Q9TSt4qPI5LOPYJ7^K8GstUsKV)!QZGuLSjL7r91A}0LfMOtGw49YC#F`rGH{|Nvh4@5TS?Wm'
+         'urDQe@@J7O_;Wn>qqwJg=ZrXX#tnZT-=_mnxh(X=8_e!ze;x%4<0Nx~r9lZk`2zo{C#A=vf6KLAMUZ1V{2qq013zwh=~&>O>+mNt2*?Frvq^^4V_iw{wFW01'
+         'X{zPUX*t&%J`ue_+za#Ll%UfspOogZN#{*Wu6}IFcboAw(A076$_P3U@mu-Vku|S@X0RA_Y<4rWB)(Ar>_9pQZz*GNe`oiE3BTiumwsMDaRd2eK@m9S;91KL'
+         '96@B^e(2|7xu+hN375;+n6XTj>dcqhKu^5IFMb0TZ%dEh(O&iy*RN-%E_OV{Jo^yOy$M)-C1^ajYm0`$QDZt3(C>M}vqsJjfbDA*%AuN|hxo>g-e@rWhyV6#'
+         'KC~<FV<}$_c%WmhLWVbuSS0b&eCPFBe}+!QKB%o6ZKNaikZkPJ36BWxPk^aOaBl<YZ(q<~O43Q#M0^tr*NCRIaR0kkq78IoLdDzzTNMv<a=TuJT7V4iV`e&c'
+         '(XHq$vwF3iq%c;};!8BrBB^}inWz<lFUsXXD{s>|>$EjfiMP0E)Qz~t2Iqg?zv}WCu%GD-Pq+;i?eYFVlS%$aI#hl!aUszk{@I!<t@>Mk_SG!`06!Q_SFhl>'
+         'RHOh92MOff)s@%7Hd0A)Yn{HGW;7{^dusT^P1N`j6*FuW9w1?BVbJ<`0Q~dyM)WA0mtHz-4xarKt&gGpO;^U{ll!wKMU323yQT~EBsEu9nP_^cbTt!rr_Tvv'
+         ';~JV-#zUdpiP0w$G4GmM0^4KFj~d=F&DJ)+@$Q`EFQ~t|7uCyXN4$Z|@h6yElJctdB-GiiM=kyIFiowf(OAaB2lP3^+e)4l{L$hvw_s;^kMEem<DD!5>#@h~'
+         'g*J+X{?L-Go1C$mW45krwIwoLY1N&Yx;Q%Y#Y1-fjn|(wSS?-|Qy5JJ)a6z9ISZ*Ci5K6q-GN*yOhGrZD*WPY9cDDX>%aB}7aj#C^<2%KX4`U6rdfN!Ve{1N'
+         'k5Uoc-hBjZLuS;+<9?n|11G<f+Ps%#GDA^F;-nuqOGh^Cm#fj5jb%)SBiQwbc<Jtq3|UN#40>15`FUk<hf}bdDKu;6@B%lDR4qf(dupg{2BH8XfguzheArZv'
+         'b)08}Ti55uqne7BQ9K{9G!EGYMF?4Uq&n97n&+X;%CPUKW3^ot5mtgzG{)bI4>n{=z_@7r_KwST66?{Wex%uWK=^*Gs0jGWKL0GMBJ9lX9FTXiN+@%Dw;||b'
+         'H=+d<CbK}Vdy}h@r5T7a?b?$g&*sjiAX9;yz%RT|rIaLXLjc!06>lY8rPU%-p`57rTnkxT<TAhyHm>%DeJ*$#U_JJ)tC>HoF#vI4$*&X5dCxM-0HAK_NI<D9'
+         '3%ib|cj9r8GwNS0vH*nsKJ-Kza<VAywQc7it-q;$exo6|vgN*c@d1yF*jffT+>~N1rF4*A+N^j8pG;zu)QQ`Nciw;FbMFF!@bxHc{FY3Zn{@aj&%8QqGe+QN'
+         'ehz4`mmB9PKoVkDKk%TcPS#uIa+*a4&_q1lTaywx+&0DG_GJ{rk60e~6W8dUFXGhyXn;LCYX^Ob2ajl)&^Il#^gue|cD9MFQa-*;V+rh_W}Fs-vcz`cAg=C1'
+         't{&ptZZ*-s=yx&;`P@Z^VfuArlv8m@zVN*=|3S6!_zQu)_B3MI9m8w->4io~E=X->B!#<RVpN|szZknWnQiTm|HMLS{x%Xp)y~K8;|ACe0d6hC@JR-GN@q*1'
+         'UU35j>&hdvMtpDGN=F}Gq8w;^f23x?meH$0#q7AgDPs7DCSX4AHFvpiV&&VV(<@JWT(m<R11#)PWO$D|`)DQ5f{{b<H^lPIBmX2tL~qeN$48vw|CtS{$N@WD'
+         'Zwl&FNvBt`rc2?X$(J8P$5TS}9a#TL_pH6c28}t|>KgTJ7z$5=pfq{(?jZ}}3&zwIat;2hVrJ(aSMG-v{xlpr=NuA_$ifhZnX##sb0?6|s5HH?cJQT7K%@)7'
+         'Vq)bb8q!+F3%RX~FE;~JI%EVDjKGTJG-CKb1aQ}lOVdK1c+)6%+m`_ZrHSTT=Z=Huf1mrF5Swks3{K1nhyeo*-gepw>1$E6ZS{#W;?+!@`7v&7NylF7^Yl^P'
+         '8wc_udn4tJDfK>1`%8}Zk$Uc(c%7GZ+~O4JFJhH&#pOF}O!r=DVGL0{3tSram1@Mb@T+LZYA~M#X3HI`2Fhpz_8jq=2C8>S_h}m-Q5dj}%L3aLhWxh9pPiB;'
+         '@GiP<GbxYHw=nar+0fLW%`kM8t)^OH@1JQtMMou8y#8y@f<E(}oZUy?6?WGwS<X0p97B9Y*I<+Jn;a|>787r!hcjBbK=qHR)?rg8^LgB?R8GLz!kuBe0F|(5'
+         '0_-;-Z^l`KWOPM6B1l0MYeblNore1Ci2I;X(on$qDojT~258L%a?0BJ7tkc=<rF-w&v=9Q_Y9@vX)kN7A_iFbzkT@y+EsVvg7>sK{(-Yn;hc&64wM%oLfp@Z'
+         'yd^m*bBPqO1)+*PK_nv&0rr>zavl-ipN)CZBzK*`!TM$%Cl*`@p{Dr^`m(mV<fyrMsns;gK_7yrmu8xZRj=D-)1rek{P<B>?uo8L7J*j%h_@)v6nw2CSg#Z{'
+         '+@X;oYsnFiuDJl=^r^zRL#4l$F0E`v(?~O{noHgCsatGymnQbi2=!j*Rk^u{QKhL?2N-ccTZ^q<__~jiH0#3Cj4{-uaqay=D2S$_k72TXsGbW|ef$Rs+Ys&y'
+         'N%NE-&fqeJQX$q%TgppGof<^k;0PZ{`!tunM5>;qc2Osa0qxn%AwCD9-$@p1wo|*SC7u@afs9(Ekv!i){0R%Go|kPoY=IX|L+Jcd3Q`mSd4^-un9x?%vB3p#'
+         'SRrYEf6^c&P3rlzk>URLPr9Ux9^H2=?h#w~IyFs%kXm2(U!NJ?ZoGK?%YN~+98o63+$4`tmNCtrM3389y6mSZNFaQ}lZABp+%j+4f7P^exv&8GPoBZNKmI3R'
+         ')g8S|L}+q=!3hx5c6T(v6wKHf;~TIfR;7-_8{{H?Z1YF-a;ovMiOe4u(6nALx)Rod<_}m0RZbOA3+VVu8q4jLRDf)em{}vitGh6=K#8UGnhy;`V*chB%ahy='
+         'F!;63+hc#f@&zd}3>cV?p<m6-5FXl#(^YFTp7ig;?*(UYhaNs$JqLI{0heB*`m*A=$@!%+{+z3e(|5~6C@xkyRHMH9L~TQP(`<fz$#AxeKk=(s5j%4Ldp|C1'
+         '+$03zcLuIe=3UN~IB;bF*sX08JOmFkp02Lo@QUE-ac*Z^SW+ci#-Ia`3JKcj$n$zi?)ls?0f6u$d9D?MqVfAi;5p3x%$D}s^)Y%ur6Y+wZbhq%MpvRXjg`ka'
+         'A)6o|V#@`pfi(qOaYk_GerTl&SRfA5XQc7DG(s98MA%-qmRq^_Pya~D5>LvLv_T#I@Q8G4$l7gwv}kJ|dgm$CbU(>iDFG3@WUm{`&JM83uPa6KfDRw{KBc?+'
+         '@S;~vU;Bv(l9tnF7mtF8%I`HPy1SmI6L$?jZ0cbP#5-*AFVYm)96E|o=|1^?Ix(ecZ)~@b*bh>&+|>SoP8_GA5vftqU;L(($XGq~EF`S-fx8<|5s^qR)ea5P'
+         'D{)@C%q|3WkyfKWNo8gp!#Ws^W4!(!JXm+a?O5Qa&~Z8r*D+~#HhBw6qZed^T9ttkPj#%}V(00;BsJMI2X8>-kTr`vX$0LZGzB&vI7{Ax{eRhRgJ!ElSW@2f'
+         '-zx;SkVM#sUOl5^#V}sH&^N`<y_0Erd~@dZALE5q=XN01Y&2lK$g4JQwM7Itx#|8l5i8nyGJ_l7#UayeyRrV|QS_J{GRi1c3Ru+uS>ut_m5)e=vdF8)pC+oU'
+         'XRr;LlF3+5@;Choy6BtlKkqWv<CXE898DjYj!GWU{O9=8%<;5qp(`3^a9k4R-%JJxzaBv96h^pP)Oxz?r=Om3k~T(a1Qb|-Y3ggrqGQIGxA`-hGsxv4%QqZQ'
+         '&>d{zpw<KzhOXG6IlRv#pX?Z`3;;<>a+LhR@dgDE(ErRO4CxjBT8aS|)?v#bt>ik?_o!;ZG-mO-)zgLEC6iP(%ZvU^yoE&scl%=M>xL|w#Oi?ErRZUcDx~J8'
+         '@QJ_l;eA*_QK){!-2<in+)Cpu@iL?|ESSpz*P`2@jGXn1czQZ)&B)36vj)8B$s;j#*99C*X5(AE3Y)0M=PtnAt@ATtMZnW)3CFjAZdQv!-=#|i{n&zA^9AuW'
+         'jFwk>vpkcA^WMwt3?s|G(|Zz%B%)SDMQ2;h_H&)GGY<ZA5<@ml<h@yOgfe-t-op)H1HpH9ZN3&<i=>tKVz@i^<%qK8Z&jhlawiB066}FEY0&b_zUbh{Ry|!#'
+         'UN-kBdIf(*#J+_ETS70#CX=!V@R`uR0SQDF-3G;%5d?<xkx!ZRRPWREOh&~SDAM9~+%7PoT_V6DeIy`2N6FJk>?IMWwOofh(((C&t)<~oi6dZFvmd&9xJEn8'
+         'vQeca)#>g4bLOUXA4b(Y!_k6L2Xia#5d|p$mm-;|mXW(7Io33MXi#9;AyHa?$*=v3dOZIu1q0l4QXg281p(i0SN@(^6PSrkrM6>vzo%%OPRU$x^X2Q~=h#eO'
+         'c$9+_reZt)EVE{`aHMF@sGumlv9tAN(G%Ce#3pdFy>#i9`imsZvfF2j8M^5|92Wh59wGkri>{W!zUXOYjn!EB%11<b+t-wItv{C1O)*&RH!qeUHjU90gmg`>'
+         'zYRMsHnZFf0$3Ex9Mqc-=I4YPCGN5&f8NQ};LTDTzWAY`@;Qm9osK%pLQ2S&?iL5gnn|3U0nlr~BskKVLY~+W=Ursj*A&Xe6Jvc{$xkAoWdn0E&Nx^Ro#=cW'
+         '^*I{D7iFn7m0<fic~tR&=vY#GgSdTMc8#-cPJ<Tm7v}KFRS)Fq8PEFgOg6bA`12gX7Ss;fOgkpy@<74o36^M-rQM8Pc4?@yA=F{)0*BnVNf|v{XA;ki*ypC`'
+         'LrI7~N&9n?qiYa}*hD*Pc<~q!GG*>C_-mGZ$#&+7hLpe5+V6*WM%4Pp-8BLCq~$IjWZjSR{0UZH!U7H+o*KwJU~eAxn|ywg!Qi*I=}kgoA?u0;fDf-Rdhsew'
+         'xPoS?HHc~c`U;R5)(h_W-^+oirkRy}YB19|nC~LI)^Nsh4|WG_SpgufXxcmv7f6i7pg3No8gB{oWnQHlZf~a&7s$1i!4g?vyalh~iF@K!<E%j}(e5-;msX$t'
+         'V#mq6`;djjLD@)#QD+gZ9}EVDuptIo_lAI_bZl~!+U8gci4r#z)$kTnocUz=%SUB8Zj9=)$lNvNA0|plAc%}HL~!{s@{V*=SVm9?2ed=UXctUAp@Wh;y{g53'
+         'lIZcmorXysa6ZlrpCA^rY)4XgXnl2Zwn%m<BV6Ai=UmqZr4yhcx)5Ym&|1~96)XWKJ6)WccEFr7K0n_xU_v(1N~=$2j)6a{AbkpLq9^lB%DA`uUR&2I43EG('
+         'xi~G9Tt;e5=RbQSu)5w-$-a=U_f!^tefXAnSoHLl8?T7dNZGlq&_QD$nX*-^p9-X2@s+Qw7S9+YUNkBL$@;}ry^9_chqM+}&P{LRR+#$+znBtA(sBX@kndaG'
+         'f$E=#1`yr-(zEGG<)fXRYdAV*R|7|P4&n_U20Vb<pkYWZp_2KA$qf6cc^A5FZ@3Q}^mptf=ol20KT5azv2=HN=O(=Dqm93zJ=JbG@}zXFsVCcWGEth}w}+&{'
+         'kH3f!p2{Ls@jmA+M&(_Eg^3)x^F*-R4i=wtE1%UdC;zqDPat*JvOMiG`)q;jrsF~tEFlG{c?WTDWx=y&$i50PfIk`Yd^UBgakgeD6@Ddz>&fh&R%0M%ta7HH'
+         'wBss~K*`=)R#bkosdgXOuCCKS!{fNv4ySAABf80bXj}8zc6cW!EtYm(GxW~bR~yjq>&}<$bhdvW+MFl}sQPeikw#`=E)#6mVA5xr7`I<My&Xc8UB&A^H1LdF'
+         'KV^@O)$zm<3au=~?k&!*dL}&)Hd6zzy1zSyWe5AALY4=dopP9}b;TlbX&s&{JE|<Br+X_whc0pnWxN&7c)`JEC;cuWKd#v+SXmypnCN7_-iuE@!xNho5WF7F'
+         'ijJmY*qhA^?BRVlRn9Wptv`$K9{HJJ91OGRO7%RiPQJ~+FbssRVbB>r4Wh~P3hvo}Xi3{Q2TNC&$fEXVxn)P9s1eskb+_c}NNo=jKe>){uPQqzJRraqtqB;f'
+         'VkHeTM!EAhTwBw)g!kKR!KG9j$hmhKZdeIGK<d8+$%SD~ES4yX@vQqKfs&aTl^ji}<M@Le?`1X$TQL!G{Gduvz&E>JjA{KZUo@?k%}q4+ZyT7JpK|%gz);<*'
+         'k!20~!Lf$O7G}u6Y(G6KMPT()CU$E~BecJY)%7aSEIZ41r~)~3W1mt7LuELLuD#&_{yA&env#~!@v6?1mbMKHoDxHbYLW?%;c|KMd$2xp9`)9}q|_@U&Mz`j'
+         'fb08woqC_agIWzauyttUvGR`Nq-Zk)Jphg5@q;Pc*NBCz?ey3Qdd}u7p^n#o@zkI3&m1g4TYL_ui^Zmn1e&BRJOYC^<c#cQc^~WMl0m=Eq{G<6hXWEbEF6sc'
+         'I@n#V|1lLnUn^zd0)N8?ML323)+UB!<5m%pJ13*!4?t{X(>}E<8OtwqXK9&vIUg2DxNoB0vReC|{J2~D_><7GZ+lQS+BNDIm<5o>>20Bb1|l6^3j32)Cs5FB'
+         '_b<);zHl*XKicFwT;>Z~Z7?aJ+Hf&49!h$U78{&MwAEF(<7uar`|khjMKO$+Jf;|58e|8Z#`(G*a84BAdOZJE(E3CX4x9zv2qUnSFmyVw*u#igEa_R(mg~L#'
+         '3Z_cv=bHOGItYQ}lgn9CTbS(<L{=t}nmpm+4_N)FJ28r9uK?{&2C(=oEDY9%6seOm@_SKtjzg_r;f?4ax=Mj~u*E#vK;x(iISf}WSiSz!K3Bw++V<uD{FreB'
+         '3wDY27VWoW4XyBZUv}ix94v7kehf|BJjC`dr$QTXqeg52+dOhreqmvO0<&+t;chX-R6=-lsprJWmSunq;j>aT#$vzM{s&eD+onKEIH?<%ci^rsw;2X>z|+?T'
+         '<xoZ_33=n?6cpXfNvo6>o%n;FY6K!=Zq5vBRCvCs<G4`-3>JQX#csd7i$=H(gI8T~!3x%0eA#YzigH$wx;i`mO&8(m8Yzk7(l0sVJ=l-_23j9?mVG82?Q4Mn'
+         '$nDWnHSuP5-S%?VuO*`zVkLXoGAxD{7X{}{9(Um8fUx}|anop1K5!#eWvyxU!dM&wn}rMrbsDIah2&kkwzA~9dv^mpdzZxgnqtP6tqF#(_&Xu7VisF>QfZgy'
+         'B_<?mNX7}DwrKes>5Ey!Y#jR_xvBT<H41QoanzwWvD^XXO$q>FMG!1iwP&)ATBq(4BXb?n40u`lMgtLko>Clm@ZID!{(1x=L`Rj$RnJg|ej))lM39)y1ab=>'
+         'qM%))O>nrfjl%qXy1Q@45auT?{|N^jQE6TRfG5Jh6EqlhMRU@ajCEiWZb?XGkR0DYHIHfVa|f5b)kz9Z8EUXrdzm}!&71W$VRY)5^3PPWptDkRO?oXn#Y0Ci'
+         '<0)wWZT;o?<R0ea$<~;NQ;EEp=E@x0a~BpgB5^1x0We0b;QPQ{8dWX`0F<68>m!%4Lf2*f5ID0u6CsBU*xtqdpGtv5WXJJClvRO-_s*Q20rY*q`jMsF+)@c&'
+         'JSY7h+KG1U-N5Uh7xpo@4RwW|*Ni5_*XVF8fC)NFm%31KyiYKn2Vv79_<Mw#W1T&9-(Rk&<Z>GcPmCDZ?J&QLYRVk$l)!W|<)KTD2BvG={6QY#26ZjN_pOh>'
+         '+oxbr3_`+Uq5ROt4dP1L!67B!7Qz8YC=)IM>7ZNXV_9l|%Q_hKw-8;{!Deq(E>9;1<0Xe7$hlR*|L7b$b=hz_4UM5b942pp<O6#;lqC?(DK@SIzC$Y+ooqT3'
+         '`<D40M>e-Gdm9BNs_PKMe?Vw|rKQt|K$-?n!rcaX6F^M2_eOSL(duy9ZpXGKvpnS+ftU@DaN3S53L7QNa;Q!A8fMelkE4*Jgg1X#*6t~oT0lJBbkhGd=RAZo'
+         '05jNHaYYg8sbz<LdP?7=lkO1qI$6jgTJSWervMrtiXT#%qV9Q^AdimWBI<QaNTF;Qwga{DYR4=R0s``R5l*Bk@MWS4Mgl1dF>VN$mPPY7-j1moMgzFwiWxCl'
+         'l~K%A>y8t;M9y0As>ISg{SAF7PnHp!u}vNt9xhNF?|_M!9<qE*{XX0S=$8oKN;DuHmv;(mxQ=Dtx`Bprq64Hvja-4KW4@v9WYMu(yKjz=8v2<8;6`=_`|M=j'
+         'mc{el0A^{&)UU+sj%5Ljc9}7JqnHQx&j+5z8Iz{lDcl>fq;viHx#1skk;_y~JS>^u{s$2VwuGsJ_J4JR!qq0pdtVg=acaxtE6R*Y2$QeZWw~B$G1EBk>q5Mz'
+         'P{F|2#BgT4y~qKgTR8j^2CUb32n%TQ+sOw(&fI9Qs7USUFpLVN_L5vy?jZ(l?9@58l12QrtKvZLVWr)kWt0qtS+<(&`h4Dj-W7~yZE8W1n4M!J(n`Ai@Pobb'
+         'ZJ=s7i9J8=952y_e@9evOPY|aoLtZ}(}t&STBESd{5#9m=Af!Z(q1<q!ZsR7KpaY?tqNlV?<Ar;Iu%}uRt%95nHko#7$Z8vr@;P(5M+<L8P52OAZ#M_hj;rN'
+         'xt*cGvT|Wj*IQA^wC?42JCyjic%1#w#cv7{s`>6GG>r{2RvoH~nOKWmtEbxPcuatacT1`;P|+em9x%7!3%bM1X>ltU8WU&kqkzZ+`KR?V7+^#uU&UEn8|^&Y'
+         'baN0BLQ7}&+K$8=@^|`z9A{YFsZk!K42laxHUT>v;$yR*`m3R-?yzW#&PaETGCt3WAZXQCNTi6UY{xS#_ysYb3#BK-ZQv;g<wDs@p;AB9rtJ3}VbfF&dn}Dh'
+         '#W`F-2jDHgG^9rYr>E;b)B6eR07~$7QnzjJR(pzMNfZTwV&ScMfUIR2tP`_m_k!)?GH-PX5Vv&UFEK#Mk#})Y0Bg?;wt8cHrlFxaq{N*0rWsYDK8u$ixrrHe'
+         'Tq=8ibrt}q(|@;7k~_<DP}zSf3t31eJREis(nFz9pY_Zc#(7#1aB3*wY-q&6;l)1UE?Mr-PF|~4PImpQyTl9ZQN+S!8(d%hHrBrUlGT|g=q1G;Vy3-Fiq@NL'
+         'P2p1!n4m^lwY%Bi9}0F)`pwCCfA8h`;=GALL($R~c}}go%;I`HKkbu_b@jkC<BFn{iTJkyvWFsuT$e#ibWDUx&ov&C7N;HL9--ocqj=T2LRa>5+LhX$)udrZ'
+         'j@FP#cNwh<*UAlw_``&z@r}gH=k_{lqXbQvWM9&Q-ZX0l*JER?x&5$`octiGU{H}%EA7sTe*@QaKjdbJof&EW2pRze)Iq?3!muwnk>mZE;GFI}cfP&fJ@JHr'
+         'o6Ss<Uq3bf1#dc@<(q`blI7JX<iw>*ORlk0C7umZpmXbp&Na%EFgr#Qaau80!S?BA^p&5zl;dg6CYw_xsiHH`QH6VIcEp2#q!btXlWuK4taSPGfrf!&+?BM{'
+         'u)7WaLeay*{d~C9w?iuWwAG!UkEUj#a&EHYRj~=9;WGXG1e)R`Xv)A8k~swAT5c2vEqCEH?C5@o_EzPqATymiP0!w>i&3M#Mv-==5p(oo;+IRY?8u$tJke4x'
+         '7_9&CNUs6qi~X;}V-EmfqT6fyZH?P$$$IZejW!s`UqFy*{eF_NUt^5$eq1I3Er#}jJ>0*?;{e2xA4F6iV}1Z+AY~=d2auKC+Dql3xr{o5t`gG*q-;TmQxQ1O'
+         'k~896Xrau)H9*J*u1%(d_Z%ORkiW%uqP*5PTiQ(3h1|n)9=1>rE2D$&dRpN8>m@IXOLt|Sx;8QS={uhGUs{>7&^ZoX91>6hk}=Pl`s^j$-=HS_fx^J*PONy5'
+         'BarlJBW4fPX2Jh`24W+g1X}+U{(+H(#GbAm4vuD*`i|LiTWa!SKrMXzciJvEQRJp|=1;g2QuI5Zya8i7js`gkc<E)0{!a-d_NxaBH`%&S<U)ruka?T)^?hW{'
+         'if_O6VBLN9Q_0sb+W56vOJX7x`6k7>Y6a<7xm$xt``W{i<ruBWQ6oWrHxX&lFlQ<OD1&-S9@XA>aM{P*vmj<*ZhrNNTsDY5hyAMdap`1y)UHb_6#@T;uX|B^'
+         '2k@5}g|!td_sg-ORhD;^Wp)S`AM8HfgRalIxVp9Q&5IZTG=gR2j~wt9kv`fMzKZ4VaN$wrJp`$G^GHCLHR_S`)92NmkRN65Mg*zaQ7p!EZh-7Oy6>!6Lhk;p'
+         ')MRMX=%+uv;7*uzrwz-29DP*lo|B%{Rsx+rHM?Q>8JH0_0okQWuio`^ESLyg2F@Em@KopOcoymp!;l#D^BM79w8B^R6N<H1CQakh7iZM?&G^kU$e$7QGz1o3'
+         '(&i$|lT~_sX@xae2HG>IC}=(#^(;r7kI~ju^JH`;1Z91RMy40lho6&KEu5>bLSNyV4FxvmE=<%%UDgi&?*B0_aO5hs((wl`(?j|}A3``y``C$w5(ux3hsQ&O'
+         'IN<%#&G*h2i+*2f<LK~<ldhYcmaGn=4hr9Z|Gnr?8`WR-XERBz5m-HK82zD_lDF_O&rZi_VeE6aV%iC`t=zO}V|z)*W$o{b6{wOefAYA3ieAiE<QCw6i%7Fh'
+         '?1}nLT)kSo#BQ{@o_2XS31WpK<kVCM&<jH|lQ&;rd@6kU%6gp;W}2N{L2u(f@}hVSU|!*H#+r}>n%EfQA-W46at@7y-K1v^mT4>#(yW*lGL4&08R{yVu`T`~'
+         '=g%mk{1$DAoYdI;JH{hAp`}s<#JpH_-J;sO{8n_;iYg(UfKvwmbuf7%I3@h>B29+pvS<P)4pNN042@hGMeq2%tsE9$IZ4E9hLfm|4b+)y$U?$U`@&oK9t@-~'
+         'Dcc0m^$HVN)LP1YIg@WiupepK$7;ngFGih!H}psC#3nP)`KVLRR4)4W18Og6!26L4V8Kpk)l*X)RW_o)snwAuoo+>}*a{+Qw%4keqVknyd+K_NkqE<Q#6d%o'
+         'GOCa^H#M<c#WjC)i^c{#$rMmy;MB@0n$Nt{KbBNqKkNmWkU5#{mrSC0B+_$!ZUclyjOrVr3zeOeBF8<Ee$INLbyoc`m70BQH&pEZ>G9D9+J^RRx&RA%y3*ic'
+         'q+?udB}|&vW8?XG_S*HomUQ=c9md<kU2xVUvwGu?1~BB1kDX7pR~Mxequxf^mjoj~iiXYWRQN%CW1#TVtbOXERt)&P=F>(hDIO``B~#5e7^galFn_B8uXB>Q'
+         'K<(HDeG52%7k%`<%Po-u`^zMlE~n2qA86Y$nq}NFGxk_ZQLa`_ChU2&y7TaHB`zA7CiHx&E^J*NS%8R89lf)Kwr<CPR>D~L!m9Z>I-`IeOy?5uw|=9?lLc({'
+         'xI?ead>m3BZOI5^>%u*g8YZItk68J#fXE0f(l$+CSEVAKLX4SnmQ`0uevf$8!Ynw)N^;@Hk};k2WcQg09M`DQh|R+ovR9cnka^jWs44G?ICBFe;&A{*Yvd%C'
+         'RSD996S*wi5snT6K^bgaPp_kh!{>hReNyhQsegxkAvk#!XZrkiXf1h*5B)C4O!kV|2>b+DQVG7_*O?;8_jhr)(FUuY{w~NMZ37T2u&McvYnaX4whb7i4)tpO'
+         'VV6*kfP4kLyaEBxcD1=sPoU;uU7b199X1jrmWt?hjqsGzVU<}y5;X}%;XZx{qeEwnVE7Soh~%neGcbb1xzRo)hF`<(<m4gh_R%OfCTB%@N4=;Sg3Km>>D8na'
+         'WYG2NxWe7zkn2igcQ9tLlRbHEEtP0HVPV$?4t#Vk)cca23KSkY5W$st$=^ze=6<9N1<xo%du(DfaklY|&S#`TN|yaeRHgU@Y`QM%G*uz@+qE3fmbua-EdN<B'
+         '(#8Z(hqx?TK=*QBX!c<!RLQIq$WQD|O*+sN9+uM9kT&esmJ2C;ic@92X7XRUyXgw@FqjW)XGKjTdkLy9g*Obi_Hhst(LgwuC$XfD=iB|4FT8qSG~K>gHNw*?'
+         'AqItyT<@EO=y<JVw^5hH5Pr)hPZ-8Uh8TfTXka~#%3aJgYlIlmk&CpNp5uAwaEh-=2|XRG2HZrx{$0*I>h!Q*aAwbz8Qc6eEk(I<hX7LdSK)_TF{WKtPxbei'
+         'Ogdd2wbkeMjk+S^U+fthG%}^9fvsktt7UDAl)X&j)&c-+StncjNukF%YC92M+Gr*u?6n$9oM21K!7vEXY>$g`rH)PN7D*xW@8hlH$mN|fUACfFXWxVpeT*JP'
+         '1e-T}ZLe1w6^ebH+0@_M=#$zN>6ywDD$j8FO(sT`dfqUBQUpuyLsnN=4{Y8xMF*@0X*b+kcj7`Y#RdtLK@qhtmHla$`g=s~8?UfMy_GLR5;W0H&LG+)5nGJr'
+         'fTw1*Y7Te@gRh?HALA6#Le`6HaHFmPRrGzV<*AsK;L=bCbTvx%vKRmI2#c3FBAnN=;rnGO$3>Ytsk8V<7Y3x(#5ZzfVUCX5+0@~z4Va#Sv7S`My3H=)QS8!B'
+         'wI5av9M_2!>S+6faYd|^w|FZ^=U*aJN1R6wo5it8T{_?zlJh=m_OwjrNEj7{wK_1BFQ`)kf&NDM=*CuflKXX3!xuY7&7<qwUzUfAsF0HTm~AM3sf(pOnlISW'
+         '9kK?Sv5`i7j8!Ezz%TG$`!bZN#(`v3A+w=(l+*t<d%l_pr#Q0RRVk>N;>&w9no}IVZAUJsDvv;0Y0qKC|4?6s+3U0g+7EtICQhIzB;Xo17rH9h!x7!~Kt5dQ'
+         'Mbnsa7oB+!^sYVy6xCYLtt|~p(t#-}Af^VPta048ei|iqIrv+uQX8=IP9b&cOTCbwr1*G{g=2*^w{+h0utaDrqaD<og_TkDip%+6iT5k{P{>Z=?DO}01Iud<'
+         'lV^RU&Sv7g@qALoZMLw=ShmB?D$XP=LWa-UAUYHJRYb+b^MO`<75{gu>X%FMec81P7qq}xmJ0Ho^&%=ckR4uU-JOPte`0yez4m!_7LAuAVM=r#RxRkskcsId'
+         '4snuy$ZJN_|7JFX+=rMh6e(Y<nzT0rgr~UYc)Ks%0?P{OHt>j34T}Hb-I1eC3r#Xd!`5~xk~i{P@-ns~x^X`iue?BV<dMqisID6yD9t=_`q=4wX!KVfFyt)b'
+         '3&qaV0qL$yXo*n36_@^rB5ebx{ER3*jY7kK#6O8Z5z!>A@*@+6qdS)IPOc3@@ARIo5IZ?Um6cf7|JC~wX6#5D!TFTs2eH?SGr@6B3}~WCJ|p{Z8`_0CXOn5L'
+         '@MSpXDsrQhSoZ^k2C#?e9Ze5~5tgq~x8d^(t{MjtV>z!IO$D(64*15@)?RwNy57l+_n?l)%(6f^-)rXy7v6Q2fcOMwC{Xw2emh)oKuhA;^|?C7>XVlM-cpE('
+         '1@iFK%&Z!T4E^QC^E!c+RDpF?c%mG=T5i24#Vu1k1~#%!I_nR5HrC#)f6CMd;uFjSU2stgkKtK1K`O<=;FhT*j^2WEERIuguRyR59=v7)h&z;t1d@4=tCk=;'
+         '$gR?>rs`qZpt{*$!#Q8XKIt$=g^o$ZNC^X*P!xtay&1xF>kLq1h}6JVN-Lf*U&ClOu!n>pyBq5hsA!Ay2@OO4TqnRt#pwfkN1Y=&BWP?J`8pb2&kz9kBk3(M'
+         'zaSA7<Bx*%r3S$*ZU;Crz@WgiOQO^_(JN)oUE1u4yMmy0If7`;#;;p|<~m0-(#111h<lmsrpo2OVaqojoR`F;#PX?=AJOeAACU*bEObydpM?6Qh7#JMLGt_8'
+         'B2r~d@hPlRZj{?P-)}2!Go45m4NM2FaWqNmWlm5#Ef_uyl2)2rSO6=iA02}WEbEt1QfKmz1IB}03__wa91oL&l!(-BxxhLS>abcVbe}X23rUupTZegla836o'
+         'QRLTNVNdd$jh)oIePQ|nZDDp@Lcd5U#Y71_G`y1_F9!%)7h`GA#sd3#^0oZC;NM@O#`or`5q%;x7nY8VtM4^FYcil<@2nTA6ndd7TCe9n^N;=BVg1D(f+7~='
+         '+Q*e7wOZBLf>5tW^=JOG1id42j0<uPuQ>X(SS93K5F5s#i_BnLi#+eEWpA3<^l1fsE6&E!`%ZJIy2xpZqTHZkt?5J!gQ`MbBJOiyRxT(0elyiC?*}>d7YhO~'
+         ';VlCebqQg^{K3e=k#@jyAw~ec?%etid4E{vNicQz=QV`~>NA7KQ~dgGx{EX2+<tHKI4-e+ugRF|Ah$htbzaJ?7ZAysI2Dmx!yX(m-eG6jf=xh#j!v!8@uv^R'
+         'D(npohbsg}1yr<U_x@Rho%Stm2179-_gtmMX1lNk1#HP5dsGPWAUBC(TpsyY`xvC)Q|9@?!PWqkdcaQYBh9_gP(+@MYzYPzY2!fwwy5p?o-P_ec*b$9$jrS0'
+         'pV*Rd8Lv7h%hC!{=#`k$8&Us|>XU~ERoKPT7i=q&>-j&XHTWp8x}+x>ec(j_Qi#a`Y)7rT_eAvrpORH@@h>eHKG*5pOItV3DX?u!K$h*@VD#CeaN3=qHaynV'
+         'q;$sofd9MDhJ>bJgei;y2(_ml+g0LFsG_e=>{h<{s_RbN4yn?CdWFzBrB9j0%VYDP1_v&70Or<?!hkFoCxsrM%RDR5)oXDIRok%4GQ_Aad;g(UkG~bb7Fbm%'
+         '0>@*N3Gs&ZH%Z8+k*ZrrqGu2S!g2`{li$+dm!t`c2PPr37oPmk#@>IRsRj)`rG1J8{%}h?yUh8PpUy#}E8Xl1&+%C$uD{Tg`2FjAy{xJeJH3DPDFz=9T?#qC'
+         '=4hyI16O5i^KP4gcHfz^1mO+}Bt4Z0)AxVEpxzmq{~)mhspO-3&xyyo2b%=xmxSmf#EBPmKsF{h5}udLL_HEkYYO(8oD$jjE{?vBo+!)Z_GBuqxg^2&F?}R{'
+         'xO9-syc=O+<K@~gPYJ}N5AxGs8@H42gE2*f=9Wi$5r@G{Ny@7ER2yw(^Na6`&PwMFH&osat;Y?tL&P*u#Rn)PNyPVqALl=c1S<I^{kunYQ_$KRL8Ua1V?Fe$'
+         'MEM5=5zvNFKz=x93&&{P7)u#0<%AL9Cw6{wcIqWuKG?GqqI8ng#e)+vSczTbI&iTQFNzX2$XW`Y@kstUZqJ9Loo4H<qepPhiz~z*pLCjG&8!&dm5Ih6+Cxk%'
+         'X34#IF|Q&XXJAn;UO~aBxW+$-re0am-u<R)AI3N;XDS=NB=gfh6@mlMdI0Z}m)G>wp>aqeEggp<5${Aj*Oo^oy^RK!V0<i}_63=Heg!$&rV@LI(v=-mK%8wO'
+         'Kk%!uw1%t&5Q6WjcSVcs*%NboSEOWHMVd~7aHWs5M2L7Pxl3ovtd!PMa1QlBU#j5A#T%pC*k_f_?hqaN9b|ph7D0xp@d#8i4bi(HL@l<haC-8!8YD?VjV<Fl'
+         'V04t;u8LjBQ5Bbl0>bG{Ov}}Ps<Fy+T+yF2p^~82c3h)~vogPq#ixdq^l}ix4g!zo7`r;OhKtQ)vEi^F*b&<#nh_Y)ant1YnbgJ#>{TtNVOuZ*{YsOK34Kwl'
+         'm@#&kqhN=e?-~GO{ppOf)i^;lYxn91!N=_7R)J<7y=k3hptb-z&hfi1FQo7*t=x~2&w$UM-)9jDA?S^H7NEgZV?;_a@pqmmyNiGwD-I?<$Y*cEuQS(nxxoK3'
+         'USPD+@C(aMjB(i>igbGA^DwhmoqQO)BtyWnEM|w$8l_N>a|RBD?;b-pA|Yv4(aRD}FpEv{LA$f#qohAd_aFD7Tml2Q4k)v%)#4SV{XsZ*g55W{$*5h@P{sLE'
+         'Y6AVT=FISnSC&$ELd83fi9*rK_%%TZSj76ui!&SpcAUylww3|zRMd5&t>SvPoUa0R)*k7D+LDcX!<8l_{(Y)ywe2fhn2I50jKF?ONvMWOfJE%mll^g-{L06O'
+         '<sRU!Ko&S#`<`IyN%^-ft|<cqbnlUFqoauCFL1KKZnM0dN7cv}ZN+5o&R@IL5sW9d6+y07;wy(?>}kcxLV+DpG#Y<ZI&c*-0(#N$UVmMJ@byWl1lR}1ehLf*'
+         'wqIHi4;T8mB6YUz2se#F0nRP!hWOQ={jl4TkMjYiBs5u#>5lPhqXBNY!`SHTBacqlE5v}m^~OANSjKx2!mLe`<%=!vd;U*~NiM2sZKS!QWkVd^_o6<W6yvfe'
+         'kPg^01HB{=aR&}=LcY2U^+Q!mKye^u&0>TdhnFlMf$X{R!QJxKCfmI)yiixW_1nrrb|oA!N4_%Vodn$_=LvLpCtjR*MAbeL?k;^JzUP$zxUDxy<97U#kYB{('
+         'D?FR>m*gxiyH?O**RF1qtYKC#8Riqli^D7eiqC`}RuQe@JQWJ_c0a*1{~fVPrGg*p$JP@^{AscfKvn&4xyANl00-rtGu4L0Vm}r|Lp{h`&9xIMP6T`_=74GK'
+         'GRmB?)oH7+yRhifA4{6#mHtZ{EQs`@iIyNX+ulOa1|17dvhc(++x{C(cEr~y`NhdW`bEiJ`(hezoc1tcd~aSAj>^vw3sRhH9*X^E36bTm%(zi9KYsfpq^0#C'
+         'yY=_F(u@_JXxCofmACja*Igd#=4`s*q2b!eV038^4K7SVi74y9uF~zj@r536^wnpNbZ37Z%+IO22ML05nz~0DLYdh6vSQ<F*_ewf25b#0nl(|YjlCrt2S(Ox'
+         '_1#Bu1r83jjC(=!Kx1JE%oML-b)XUjhQ$_7;?0?n&D{&Ot2{Sqwly?_<8mXTI7Jsi9dwSGxpIC&n5}4rvq&M(dXbYi1Rzm*T15W+N8+4PLCrw5R3afq6TQoQ'
+         '#e-tk!*p5+aZjfJWE}mg=<2iL#ce2Mt*9YjqjvRd_lbjS5nGhjLurM<r!BVTkIuf5daeXwN>k{Yq+jg}KGL!-^?8p8#`k$f1!v1ZEBd<YiIxGFAE=LzikJ21'
+         'I28tmHTaa<r>$*Syf<#L$9=CfE+#}IQQd_}Juc+ZI)4@?U%Ri9T8sy%HNLj6#=xb&Gy3F!xgBXuK!6`2G@85b5`12a!8yH|7^2`|TyCqBPKKaDp}tNW1XTiV'
+         'lEge3>@_gmt-78v1q(@ez{rHLuz(0yekNK^2U{^ce7^Y;#b|WOb!*9JK2rhp@e9fN>*&A)gev=IU<g&g3V(|wjXG&~Gf>t!>L+qS(@Fl|i&^NkPnM*S=pR%3'
+         '$olV<4W(rG9XqxWHWTB0!^N4mGmV+fPpJ!#jnxR76L4m<?eq2IjSRj+YN{N^PZJ0QrouD-8Sj`Bypy?Tlw?x*)|SO`*v|Aa-u~L0`O}CKyRo(K3@4s8FJt){'
+         '_9m2HIla+JT1Vzm)cWIZv?9U(INTR&u<x1*NDlXT#w{O>J%k?C3(@%w)~b#b_j6Tj4TYHmJwO|rAi&$wrwdr1%j8L7*kl<SU3?DpxO|kc(%d#(sVnliak;-?'
+         'rwpTGBJxym{k%hWdiL1Dskw9rh677!6Y4<R3d=jRHMvR`u1#a!#<~8UH#$mB2gWq`XyKN6==+eL^3f1AlfbQ*EFQvZ-Y^B-)-^5Fb&KMHwIeXZ4)La0ismbB'
+         '2(2AQtQ2cWn_FY#)6~sN8J@a$hpHwuk1st53=d*c<-=xUe3DGYq+W25ZLZ-qv}O*F>$#K*l*2I9K%GBA$)p(_fs|5BDuhq9ncPV#G|usFZy<((6~cFK42FmS'
+         'b?b6se2(l(IRNnNOI`C!k%GEOq%+pPF`j`}=mVyFl$Nw?#g68ml|l{{vY9s5-39U;m=B&cGDhDm2aEodbV{=WK0+vZS)<SUg=s#*G(naGUFo$)24l7%Uc+2S'
+         '!D62EY(fGjlYf_lf_%nNg3!cL=Vo5>lryfqe<l-XgAmBdAV6?f7*r@H<rowC0z1>Q;)(LAd3#z`;6jAP$>u)`*E^ivX^TpVCi^(Vbhj9R>}A?X#>@qVid37j'
+         'n%Rz3>SJ(a`>@n^9<Z!okO#KjQvgk%n7Hravz9#<&G&l6=eEn_FSiQxGeT@NN$)uB@Qye#kI#fW8gK?cO~}E^+|iK@(^ep1J2@jvf<h6#h))v%m-Sr1_^xq6'
+         'c1}^Vln?Us9r2aPdEtvs%E%*gSi?)LaVv;bO|tzQIe#G}j$G2aAf~VP5LA|%VXtYJ7mq}Mn=tT1LjLxJAsh6(O5@fHKmv7XS@8KDfB0}d$cIHHU*B4lGMuuu'
+         '!z8nQAr!|JWD5UM5qFGDmo!~IKTbQZ9j>&GJ461+Wiz8Kg!2!nAw9pPsvX0l2F(EGomLw>Kq;m-(^AaxlnD9|oAq`&fYb}LX~#dDbNJi}o9(7tD}f5RH3Iz^'
+         '2$b}By|?ZP`P<n8@8d+m3=BEYo+uxn70zt<pIG@0tHRbF`7z*I^T8^FpuQ3c0X5{~pwES8O**@qG0}0r!LD%}Gtc#K({!O(QNBGBVHL<}O&^G_aLr-e%8Z>@'
+         'k6=F*Y;2?GLSri*wdBF+!Z}ol|8OD96g9dho>de6(~zR^ad{$Vv-Jela0f2h_Kj2}a}}tY%dIhOtiW}kZ-`AwxS9g5CbDX4?YwHH4D3}MgMBC(_~<b#GSp6<'
+         '4AUqx`y7+%w0&lR)HvTE97otY(pO4cx0$ND)MyI!1feRsTqn`HYi%)84X(T_Wm65sgX!ULg`!I#rNl|`xpr>}*Jz?85fNjQ8`b(8yi{i=1QC1KplwNb=o;87'
+         '1J&ZJ;EY5U8UyVv;mF~!)h#HOyr2EQ@dgVwHn99zxzzU^ga>(E4Mdi2oq_ZO;jKFXpjUZ%_we%QFV+w<ce;f%i}M%Ie%ekkHAhm#Pe<3aZ+e))hyP;cxwy;9'
+         '-$k!scd@*6FB23wt=;RC<D$>2<VEo?mJKVC5LBfjnmq3g2k0*^6J(pZ(1HYnPWkGDe64P(fOAsO0a9qfd@PORCdp;TTLnI`5>HQn^xJ&fVnQXb-J&|*vWW+*'
+         'Q)&%Ya%O_JJHA!kv{B<h)ar9rrmm*otv0yHwpA=#9pr>6reuj2B3{gLZz{=jyj<CZBr~wve1+1|V-zHo9KB6-1Qha+yXh9+SkRse(YR>qZ}n$)Md#Ri+?>1e'
+         '@c@Bt0{~y<o!1F3PK}GuD{eaH+*{u*kAKOBMNjiQM!h3;i0BIdFdKDwNpRiS(&7<<(6(@EK-n$m8<zy`rpm|fO~=}C$$|R$ezYfT{`js06s{g7k(!3Vb!WTZ'
+         'V4@`O5ksLdws@=~tn@8c7$+wK93^f?)-&}5hXRyWxCMh~LkO`nKPmEgi_5^*{9({V-q{E2djiSw6mb$~M|d=Xl3m)TmTUvuWTp?e0tCSs_yuXNBs~POLcnb`'
+         ';OlrE^Ib(*ttX3uHt4av3Ef@*djA(Sg~QY1hQ>DuW5)EdVM3&=mp*Cprhm?K+;0oO1>#mGVzw`PVrBwKf(Nm;4*!mBT^1JpWg<q<x8#R@ayz<;V|OQcn}CBu'
+         '^9$ns4;3xc)j<B@1V-Ms<n?}rYS|yT!yUti^=CXiwpP9|6u!WAc(HUxMzTyibc)e5ou&y4T%!V@4uBQJyOlc%EM7*eNKT%PGS4J4={(c&8nCi~|F)-(Ex;On'
+         'wj}1uxc{=`iZ24+;JI111@?jih4VzFX=~j)pEhuYQ8Cme*dh%;!2{rTAoTtFt6PNXop&cRh|1UvI8m+rn!a0ic<<bzoM3c0k=2mKI==0rUZQ#a?2VA@n0;DP'
+         '88B{C`RVKhSODR{AuJIN?CMVDIQ*9@4I9s$T)G|POWen04t;Ozxv6ZYBaL`GLF@^YRL^gb7W&<Kf6uQW=Oz-s%uMM7bF5F!(gpuK!iL`76O)uM#q$(n<SB|{'
+         '%0&8~C6w93u=T>@M;FH*967VWj;sOn8)R2C7W~yq>rFUjMnpC;`aoNHW3a8r=^~5x^9b6SSY=Vq_=2j~$Y2tP!z-QX``tJIjSzW~X3uHPQ74vA?_@nkj@A2b'
+         '+O_hez;i&|cWlp9=<>#3TXie<b}vteRn+lIHt<;WFv<62`iflE3>pWqhjEOF!%Zz6+#8iCRfweRZsBEt7*)2QjtB&zQH~2D@A&@=QKMTVY;)>O*za1rSEWag'
+         '2{1fQvrAp-vPtcQwGLkStG>L6!MUR#;6kNOjPfh-ocQfy?wNepiqNW*0AC?>_y+A5f=7(OKF6ib^xF;Obs<lmtrEElxQtf66N6qI4pc$cM_qGOJ&PYt8u(+0'
+         '3_M{uE=vzGcQEo+L9N*oa`u;ztNid+@8vnw8huqENUL8ADMlIVFYLj$b3NkS8-Dq(1W_iX%9-a`qU?%{{`2!XQg0s*fv~j7JOtM2V8r`G7+#~OW3hrurVMv5'
+         '=5|2EsnVe|Kj_0>&5`YE&wD#;8zYMir@Ci-U3S{okt;ghEA3VEdS-Y|bsziiQgXtLkYf-JcFS`&!;l1dD+%I9pmYZ(fW4<bB*>bd7pZs#nZ!y|m=8nBg-g^c'
+         'A(l&YWdmF_;2!#6Ayq9!A!q(O0??V<EqK`;UgOZ#K8_8&)q8j16S2-=1q*>&G&pk8Fo^vPbJ#6I9)}ib8^ZnryI+%T*gKC03AcV(Ii-WY-v$tH2Z(B^6keJA'
+         ')EMSi(_@qMss%#1F%hVlkSxr+n9Q0Rs&$jerB5-u9{e_6j%Ue<?U(@hm;t}9>YhOSzZwMwE{f?-8;lOR_q<%n5BO6=Hp5`GiC$=PLcFv(rmx(3>7N#Gt?1LG'
+         'M-=yymJ;=YP2I)%@DFe0S)#4>ec}zcrCpLB@=a|}YfE|Gg9!I*4hLIY5KsZ2Am>-^YyzFZVaq9_r8?JEl%xD(6a=wI@rC9UO7h@+*Ms1IJS)4Vw$4)mH~5;y'
+         'JMp8^_O#>B6E_nb)n3l$hzv8adr0P3U7d%`c!kwE;p`mslQ{=P|L%a!1WDo{(<??4$?0-65Kv12iI<Bzj6-Z6=&c)Vajsn)3%oF5UQxPr>*~*JM#ioK6pqdm'
+         '*6)tc{a?-CY>sPk%`7wRHAkENo@NUYp&Z+=J%F+qC*R|Rb8@9gtqpDoFP?S=>}qQKkfWOyUQ%MLAnOXStQpW8f@T<V$1H?_uD_NJ0+qxu<aMw2I(<$p!$z0}'
+         '(k6xjhyFR`&QodGnUxaCykAKttiRi%k&AV+Qk?*EFNM>Dm(9=oby?-@HRf+=J34bs4+whYe?{MzDP>iT;qBiVXi!dw%m*lY9aC$Ej<M<?!nmUGFu#QU1#~Z!'
+         ')jpHZMk+pR#VBgK3HjTbBRm{O5ECuFTOc&&sB3R3#BMw3zcVN1-rk$GA+E&^a#=E2l_+&t`eBF)gWBrFSVl)lIk|VMRs2tlK?DceFQ_U&+=%Kc_eMC{!rq7o'
+         'Q=gU++8dKqhLFi765e&tQVKe~7%+#ihKIJqCq1wYPgCB<Ct?`GaSB0tCk0!-e&%CH3jdT7B_2nJj0P$E3XH+LBaZ}SlAfhOm1#u#X>B-O0eJb_Z>vtRb2FSv'
+         'H*#$&HxTUsH{RpmlZ1leY!Y%-SU5z&9OS#+6MTq?MQI}WEB@9i>^cXa7Yq&no3$W|{qZq@tJ*MYPNO~t3A_FYs=aY`;X#1g&d;mvnDf=a#r*$(Lp&aV>opGe'
+         '3bfv*{H9Pl5?4)bfU#kn!uS)cf+vmpNOg=w)%kjcDu%DliaAhc=Pe64|2U;O#lXzPaaqy}LZV+To&KdPPA3!_!g}kQ!PDgCG5PM-2n+SXtIEa2SkFiJPR{B-'
+         'Hho#2e^anwb3nl4uo;sm6Q39XhiqB|g&iz@vTlJJ&<QltxypNkp?F->itSg9;TTp^N0!}Yf3d$maR;GoF?wHS%8en|bDcy4&ssVAlyb<}%$^b^`R{M<*}2bo'
+         'ksy?Op1{P~rTixa?AUeTdOV1Hm1RIR-%?_5sLfL<GkYnaKR5d$8FhTFHo9o9H0#JHSO$TnXZ}XS(t~Z#XtcuJFa8BxZA(yn)>Zk-yGO+PfqHOKw;%^iHs=qV'
+         'KJ~@r(N3wMq1Wb2i+U{)QUGlhaV7MM{W-hRE>WYBd+~Gro0tGgg`{eBl_6!)lCsz12*GCu?r}w%sn1jkLi=B3!{H@8%=+96!`gUhX9i}`Dmbzc#u-N<z7HaK'
+         'Qr*SeAbwdc{W~_>cXluKGyye`N8r~wjh0uK!@AQ4O=@MgTjUVC;R4kJMw5G38$>CIF5)LLlNVHa(nyDS$7w3WiPm6*0l3oD3x~(N+hFk#@}k>0DUY`u>WM&}'
+         'klLE6mEhS%I9)HE1+{0-*&0>VU>nSd3HxAPz5_9kQoJ@wZB9-wrmab|Fjf3+Q;lWa;il#PDHZBbqsGkUx0}PGo@iSEz*vb`sjHhOvEeW>s;VZQ4zw5KrfnUx'
+         'Xwj$8w4>%`2gCz38zvzSUGjr|5<94}5<k-Ic@MLiGxIVk*AXFl(8C9#`xSdYofe5Ko_1Ho17>-#pea%etTX?#?E243N~qv)O`*dPUbvexfeRX(+Z8p;;oA(g'
+         'D-w|Y{JE99+Cp}k^00M#1J{mQT}}Q}Aa^o1mk=YXIgZ>7A4jT+Pge;H*w(tV4OV^Mgo*T-NhHnp%89{P$Kcg0SQvlPN?oS_xsjNni4Cta*^unil8;dIcj#Hl'
+         'SjKK8hZ30Fh869La!N?$2dIJWNIA)5ig0q<&Mdmlrpg#L(IT`Rf27EgM=2geGfak^R&#18(OP^z4AYrN;o?+t&Av(&e5a>{1DKx9qY6I$yAgp&lijh9S+!Vl'
+         'V?|MEEwNHDDp{u&e|n;rJD~qojw3q4s<W1jd0VSaO>$*K)6eclJ(Ui<*dxzk1<t?t4<H^MZE}*^oD)~*y1FGj^4^HQ{BJVcVKHK=n%CU0iYf#abDUHu-2SXd'
+         'wGp6-e6Mueb=p3w*I0jfrH4zJ9>llJRTDtu1{x(bnq=BLE)6<`sz!@V*QqXN2SWL?{Lb9irG7>>l26_aVi>6{kS;1>K_D8BUVefT^ws13mw939zlruE0slL9'
+         'vvDSi%U}$K7qI9a=!z`RNF-h*6h!Ns8@I*GesJ%tl223u6rC4_LGe2{J12R!T68D_Hzd_yabq|>xyB|iS|%3oxK4L3tyo{g7+R)D*RiYx5iByV^H1iN2os=?'
+         '@9n!*w4Rx;@5f&w+^<jV$mZ$1_|vX>rBhI@k<}D;W}<B^qc=tkP^gN5CJ`u3b#+TU>z@BW_AeFV>%o<B;iYT+SL#Rpfn-E}Xnj$;*)@F3HP0uCTjWc);Zj;u'
+         'YeKw;9FDmEp@eB$O+u(eJp&+snG=`I@{$<^;YNh9mFR}&&H<T@jJiSI`cdRV5HVC-Mp(fTxyM6bNy9)D<q30_<<Ee9J5epX^J(U<JoG$Ew99~j-Gdc(WZ>xE'
+         'X4R@XFr7A4IQPw2NL0#G<QjY@v0V<R77vez8DVNp(TbYJQLkSZ178Kf24e``eEGAEc1pS?UUm1QEZC<W=h|4NOCvLt3k;_j`TSw*ytB=|XkWk)`|oAEUwAp?'
+         '77NrFIcPvb_ysA5P$C}0)-R=~!97*>MWVT%t9n6j>A2N#A4COyaoGH-u}Pcmn#@!g?F`6L+SdW}$`>k(Ex=ZU=091u6#8PA4i7~~PP}PEs%I_9v?BI*;ZQ$s'
+         '0jX49<tz%f@^}K_r$@$$qFsfBer$;6A2Nuvxv~f9$H8>+US#aM^PJeu+1X*60vaP42qH!De;Hw8@~&9ME&zcd&RJg~5UU?9F-;fS7%j5<0@QPNN%3^L_Z(!s'
+         'NOgNX$6(AV<AV$BkB70AM`dV2^K|KXSYtsqoz~D?UvzWk$wv&N;YV1!@*(TQU6>zJuVz*PkzcQpS|d6?rhPh!pkH1;ujyW*&;FL&;|DL&J<m(q&~sT1_cBB*'
+         'ta>qu%E)Q(UO+<Be4~4;6204zB{+{fInE;P@t@@*zH`7#;~AMZLYIW9$)<c|2n(0Fxg123mfX>N4_%3c+*G{rFHVE=yhNok5uc`EB(?PK@Uxu?z;WB9td0;g'
+         '3&5U^HjSe&%vS3dK|PCy8-<1LiDVbmnp1TB^wEnIL#<>hULOOiuF?ofWSM}NXR1sL;D~v}h|UWdB|$G!1O08UXh?9o;cPYl4RkAoEeVNQn^6So1sh4Dfu>%I'
+         '$#DisLF`$me?8rdPkc-dC(thHmk0iB2niiFRayX6*lA)Fuys?B>o;R3Y`hi!4+E?S!2MRumx>ue;M<skHExuP_gd-0>n<s`@7J&t=j6in;6gXU<pS7XCUoBU'
+         'P|AN|8GwPRT=-SMUa{T|#UV3ATe}ZX*xu%D#8<#xH$!4u$bLa|`^@LS6s_QMh#@YEVS#j*LUhGy`MuQ!rMX4;T((&6d52Jmzs2z{y}?-v%t42bI}l3FEgUc%'
+         'Z^tftA=K366>)@05nAq22J>q#B?MSVv<ZG1`G%Rjeo+FFw81?Juw_?HIL*rdf5PIg_bB}D+L}^hk{Ge_*Xc5?EiQYqxa$|5-ohQM4j1hcCcv1?JENKxfWk$W'
+         'EY7oshv2F|8K-+Ua;F6OtWG{xPhGJ!#NMu%J|44@vdj2!E4yWBz$~0{`fP;}(Ff!-15b<>HCeXnW=Q+Pmah;uQ^qNb4Y?Ot9atHBH||Ln?<)DQ)EKGpW^RAS'
+         '^7NdxoOV`zVZi5987!X$_m$D-2u}|}M_P?rZCBQY`G-Mq+bm`wQy&+bg&P?P?Gn;WOz=LTOe>Wvow_W@)PBFZH?42f%M;+51U%8Pc^=4XLY+`9pg>!f6UG%H'
+         '&yD?^IoM>?YXHB;Pb;uw;DGUZ5!p97nScSwuB538pmv}lZ;&^kPpEGb==YRJqC<=qo!q6i)MEUW9g&MM;{O7715&O#UowHSIl2wG);XZsziPD-lIlCVbvkcy'
+         'o~SMSBo{(u)4s|5A~L|`%LEcG#OIhFRF%GeCr)aTuwOYUMAnES(a~jOQ?woDf-|+f6<3#U=XV|O0vPhPsPbmLXCWtXj+i;?#DqmF<L-6*R@p#aC-#8fjm4L<'
+         'v%8KO`UbP%&@$CL{k5_`x{zh88j4U0;%GI<V4ls_G!Pnj^(3B{D8orW@jXh_A34x7qBpI(uDC7~<gJ{&g=w!{89#W_-uW7&B*+?#w_oMP4W^%4)I=LShUrrJ'
+         'dt2782~K;NdtlYw1;_qb+{_nF#$S9jB;OSI&LmyO`d08%1PdqOex}c>lq(r10CTcRcs0q=oY54)InffY$h*lo-uTJK2%SI@F41Fc<=_ZqDWYUQ|Jy<;Z}@De'
+         '>M-|yxeumG1x<)FggD`K%_~_4DZdmt&}D@5mru0VJ*!`ltl~7Q_7D8~l<Wg|8b!KWsQR5{t)EBvE2h>%&hCUHrgP})_k?L^aC~))c2445-2HHpEVg!Z0*4V{'
+         '9=Qm@U)Yr%)_7Z>|BNPe#|wL?nD0PmMoT50sJpZ{wbmhC4>KE7@%3#<W;tT&3VZ`H&&4qD_FirI;EY&=(eHo1+~VIoV`e>+T8n=gOD;hl8J(OWC?<HO=J(Dd'
+         'lX4!_!qRgiNw+a!a_(mq9AWC*sSPiY5dVGrv8IWlcc-xQjhGYCy4QQ-=-yC*9(Ck@H6Z5Uj}v%E1+KNxsgo9Hj@j0h=awARuDKQuT-Ga5SU!*omQl_bF?^%N'
+         '2@)V&ECj$oO4MT4IEW_UBzpc`hEGNY01$)&6ScS96d3*+hwl~d<MntvMF&xcH%DtRu^_*02N^&`S?<q-&aY2}By0{){CbSrk%Q84oI_vQ0-rxv`%_R)pNT(C'
+         'SFcy0f{IpALAEW^t1`BEZl)Vqv<!54kN3$k(<d_ufaZ6ZQ#5{=_rdMQsj)&rlgl_FGc2I|<J&Mpj0A2D<=ciX*{$3QvwgdH6SS?=6_I^axavGMLGL>=`UHKs'
+         '&cy|wRN;dNvT|^k&MheI{e|NdMt`kKKYG5JIgFrX^va(u5cE@Pb_tj_FlFmpF?W*h7m#}BdZz6?4P9LjNXCP^q*S4>%w~2wPo?lLSJcdYow!KOcZ@wDb_<0^'
+         'hh86Ymo!$geergzsxq0A#KRnGQa%>H4$=f>S0xTXvge1(#QM)v6llwz2H}+rWn4@--_|LIlhFH;x^8+Z)`Y2YKiWnK<er%r0<V~RozCnndvRbhR@-lPt5sNj'
+         'E#xTCRT}Y{>yZKvg?IhoKPfD~@}TL-r8rxlBGvMZ3Q;y0$ITR()`Uw{mb}gZ@;ndk6ADG*$qq|WKO63MLUU}Cx?sF`w0kw5VDJDVkhHL0_9M^ZB~psItEr(O'
+         '3q1?hAjH&?PsJcCT9OSHP`tbB*tKd6ClVzxncCnSGurY4vm65qm~X-+QAro;SZ5;0v-Phg{niU~R^9^P$d!CuOAUxNFEmH+2q<i+$+k@9M&@I1449x$6=uwl'
+         '5k3`+DNod$kbWc^?YR}<KC1zE<64?^>Rt9%*V9}FsmT@u`3P19q;oY*+cd(;W8DMDG|8A;cWanv0iY$p4<+P>ywCNc$NDq)YHn}inR2bKD_^X7(Vwwqd7~OT'
+         '3tBd{mrA&7G`vbqi^+dl5_tU=R$YTRs`N}l@a^w&mhA%{!r@3b&YWa>)zQsBs*ubirbgeTBBb_-SF|Y>;<$&bN@07_1aC99|H{)MH#&-yr_sG_hIRdMH3;5-'
+         'uvdj;xf#0p*oJt7ACm83Ogi34bg$f@sM3fPQ7HokM`!#h`cdZi-%zpKEJb;ONJe~K;697sC>M6W9=B|_@Plstyf%gf*1V<BR?LjtMfZaI>J+BbK>UJ!DkXbx'
+         '`uIq1G7ubCTOYq|fe%qmq=brs!4Ku0Hn(X{!`!P+h~uR4%g$m`oAaHYv-d|MRE{+_Gm_a~;!dK44lyvRa^-}}cY6l0zjaoSKGXeeRcTKY0ulz|+qfDfgIgwQ'
+         'mLV_3gqURvj;oAoz4NKS^VC+Wj|&6+jqT}pil4T^kmlr`^CvHAo3*uVDl+))9Hjz>7x^V!Q|DGk3K|{2cF0?juJQ@Nj<hSOqvR7S8}e=G5+QUn%Dt}`?C}d9'
+         'AN0Q<G8D^zeqV^gRsczfL)rW;Yk`TXn&Z@Llc^$00w=1md_*4NGv#o`s}JYXAg&|NmBU)442t}9pd!VLvvE&8)SpsGLhOI#1kp)oYIpRtmscz{9B%-6F^^sl'
+         'vrgI^n_;5YrY&cLw$DxIpYxFQ$65G7DuFcsU&euc79}Mw6`sLhc>blaAT|2Mc7F~oBpi*-u#KZmCWa6LSZyvBbBGU>P<f15{!1YweU11e`5%Ft4^6NXsSV$$'
+         'eK%`(GP^9Z@*RV^7RpKNH!Xu26&L%wJ_N!A4=mOaec8*ZPeZiXmKleLuf;lh98dEJSXA9x&fZQsE3eZ*G834c-I<ye%~+0Y&6_H-5Vp$e6;KFB;^2xmg#H!g'
+         'uV&82k%-C2;X`e>V&Wcc{0Zs66W2~(JY>WDZWrU*_V8f#coe|xXRKiiRI-ILQ8@ZHQ_IyWP5P^6L(#L>eh5%kn3DAMHuWbE89;kuzT{NR+aChhGWD6l2Hb%#'
+         'GLB>V%OhBOn1L?7dhrq`cg=&7-uj&o*dJh-Ngc8F@M`heGRr90x#&o<uyE4(z+4&i2iH^X?stBEA4-MR#Ju~ck$M@cFYWsP0s1jhM{7OKoA6&e#;8fFw(%Tx'
+         '_(Rg{?0H|GrR;ILKR&&a6XBs>ctM`?xe-(F-Ecyk_sVX5VQItEuZ3(}ToXU)&rSE5WF;-8wzN!9vu;p_d(1m|5zfvI1Ql@M!nVA=W|XGIioCh5f&)s({l+=4'
+         'oWe6FCjpYaC5@p}n8Yh!G!^lO!1-YRJqIq~R5AI^S^QV}eNLii<98y^cYr_g1KtuRAz{19J}Dt{^ATVLU~RY-Gw$MlC^hcBpG6a6annQ{p#H<4k$Kx#pFbO^'
+         'KLKG1?(EymA%wUqJ6{?5oai~d@)Hc8fO%;5wUEhxf5Z-ssQ6<>DORhECsdE$uqi1;xng+=e)Ad+i9xDEWuL3PdMVK-$V@0Q>W$;<38J%uX(9z~kNmHiI(Lo^'
+         'l!v)Jhwv~%FYzB;2iWdcO}!V3(syPN<K;kTXJtG$HaX!7ck8e02fxr>$pqjenKYxuWrs1U-VNfPC)?oAo)d}|AuuN3#@G!=85#y+DN`>*I3xofX>jc~d)aS6'
+         'GYV9Q!|JK+ZK075$?U8H!7>nx-ykIQL=yq#%)sVC>aPEz@guehN&k!WAC#uX5;|HD_iMflj=1(6Jc63{>5j4en!5WC=o$V6cNv(ZT!B~DqAdvCyHu>fCJ5`E'
+         'NTHX0gQVRGKj=3t#PIP&*siM}7<_BJV?K=S8pF4${HR4E8Ti9c*+L5!M{T-L$WA!IEMDw3l|1SBaSZpMDrjR}Y5115bQF?>s3rW)8FN*wOFZ>9FfrO-_`hH&'
+         '>(@A0xba;L3r4F{ye*&Jj~*qelNq<a$*vfD>iw`+WIluO0j<=|M@;R@RhiC<5PLsD(16^-tsO2UwDPKAp70_G<^l(01PTbUu$;kvM`?g1DRk&VXPv?mjP`5+'
+         '90*22?;?aM5E$2)Qf0ANjVc<I{62TxH~l)Db{&WGax)Q!n+4|Pzuki7C(zD28Pmu(EJPy0%KDSuCXe48KX*^37Wbvk#dBfPFY!0wP=maWH(lb1bZ^{i1baZ{'
+         'c@0kgL*6IsHS&B$^NmG1z&D2jYZOptm-|)b*xZNz6C)XHxrr(sTY>OAv7#PFb><K!%Cj1Dt0G49lWjq)?_@uK-Ff$q^S66?c&wlw0giV8XihMT>s-3V+q%90'
+         'Ssm1VX=RY@T;8=Pw6utpuS08WY9`|NY2u+~SUM-`+BZ}ILJ6EK4d|?fVj)gX>|adP7PHQlA!BY?L8>HIue#q~U1W?+RB$X}0TZ4KGx@v6+i_F@8<u@1YrD*5'
+         'WVY5wOGPSQ*hO>j0y6Y9D}ESO<RTcN_|hMS(iEDT5@0sKC=Gr83f)QkaK+|}&DWAQ?`DhDK5CiPRg@R3z~;W5SLKJdrf;{qF_G+n1{_ZTeDwMIT6PcYLSdn-'
+         '7Db;HM~T;@N4U@#5gY~TO|&SZOS8R)Hdu0qVj7u-Jt6~~sb(?UsqI5<;8Mo}k0Ip}Yn?QMbGBVQAqvI+%)aKwAT^q)MRg<n(rMn^KobT0hP4sZW=6*S!HQnj'
+         '&N=1X$DQWs@A`bAOJB&=gcFn}aB}%;qbg2qbcfTk^1*youPBl%V*hRnqzGP=TE!lGCi`GXoq4B_gC`N;b*}y2h!)`&GJ`uuh5;y#prm5*TGnEQ3=Z>w{THdl'
+         ')OU9u<#?RS4HIxGOOw)M<uU{<Ye+pIpxULtN8YMfWnN>93Zw;dRfz2Eil`rhy;}#&^M{u7ai5nO$u~|w5g1bbQ=vKTKCVTa(p(pH^yLj%i0sEkX$n+;b)Hr?'
+         '>p5c7ODPOPUD+sxdm}|2Qmc9FCQ{t|o8<<9@CfvWaBKMlrcnfU#MlTY&Pku+SX4_EZGn(^a=SUf6QF<d2JPxeL~8kLEu|k28D)7ltsnsX5S4ZJAJ+~%8R(sz'
+         'oYPbXgC-!_MyKk|!}qf^6&l3ImdB0RKX|SeQyRR2P<NRGNZaJoRL$52Q}RjGtJgBf=+Q!Gi|%u=pVEhndde0L=1fh?1@_t9r8_TJH)8r>ZoN|^msl17sd?_6'
+         'DR|N0G3M+)sYK6;X1O%fx>=?+GUlLt?~X%t568~B!!?HbzO3v*k;5`4FD|B)OQumslQE5--ub33(u|qmCjsh4VFfN-Q1J^?`9Ku6cekCb64BMomR9GyvwMb4'
+         'OYAHCL*^^DU6?b;asnhE_tr2+<vQ1=^i_TyU50cs2($^xYjS6~G=^_>vIx?~S<bYnw@mHI8lSad)u*wz$rRK`6}n3Lcl1EHw<ox~2LQTV&~eFo89S&ocyJ|K'
+         '4H4P8l|Jv$FK4aCp=u)eQP@N<9g<#39f-eEOQP`rWf2}XWw8OWmJIA3_<!r4RHe=I)8w2mF*#!utBDOIQ<(@c=M44`ZyuLD1^X3<p=^9<OEZ^Op_4BA(}f&u'
+         'Egh}EPK>YI8=TxPlWE~;7ZwO#)@6H_idWAlF{$DBjKSn0R?@r3EKGpMzr2?Y#hoe8O1Ab}bSN4#6>%&VdKNe>=WUQEv<$;Au=FTF96u4KfFGi3IQ4L4&ipT3'
+         '2()A}h69~eK18`uSqJvBmhQhd6@bV+7^nOsy9SL076D!f3xnHg8v8Y%`x4nR*++{Fa9*>n>aetmVFl>Hv)~5Nbz@}Vn+at%M@QpBfb*```80$IO>HoDm?8Qy'
+         'wr>4-+r$$6*>M|4?ETYnG*Oxbk=y}umS1<@#+oeqA8odbCrZ`;R$$sS%TsY&)~sU)^A%Zy4FegU#pUr%9wWJ{U-l5x5pOzM7v0w<e0bL*j{g*?`gLHYP^mUD'
+         'M8DHWhNlJD8;1l!7n-?yQqdyT&qS{vxcI`jv$FTaD%8F*36iG~7(L%!vihnGrF}t5Y$2lYB>MQDMHb@Pl#^z>lNJv=@&U`)@%?%@5zCQeM}$nysR~iADJYR1'
+         '@Dd!o(dslM7nN^a9fSaAeZa5YobA{^b4<!#c=I&cvYt*BU`VjVXf48{8%0&AF!g`-($;$O^vU7GPkdZV(kJ66Pk9}lr7arA#x!lSKVZMG+T$a5n}FbLa>(tE'
+         'j7<yxviQ!Fe#nI7!bS==5tEJv-f6EP)5p>glWiOrW9J$}&RO6NUmHc#|9!%e1Xdzd`3(&#$ua&~U;=!E;$!v5?}_a6G!V}_yFYRDPkJQG)LslLdT>ts<OeSZ'
+         'A^Qd@U%pIc)&$t^6Jg=nHQ5XcjW}4fmLCQa;bz*h4;vrM(by(=MT<W&iu$)7*bXycf}};RN=%EHZgjFvD(|twS{15-1Lg|a1W4F})HHSZp#X9*n=H@NNF}G_'
+         'wG|^ZGOOeHd9ApJ4fP<%CZnKE*ylH{RQxicaR6x*%~P5&e4Z&@9gfS=tEw86-9(LmtR8W~aa;dnN$7I?3YmtR-P6u&7_&A)NWAi&s)@b)pCI%(sS)8Z;U=x7'
+         'CSd|`G0bKu2R^RJ10Wk8n(}sL@>uAFq%`U&LIsq7MBK&b4<5INMhK%>l@CJhXIV4W<>O&W`th`(@K5C2{`HWb1)_Au1>8UjOEK73Z(Qy&)#P)c`lHeogrvEI'
+         '74w2+a6irV0^D4<K0OAD&;9y9Ne9QUE_D-LSLO}Pq?UsZ8V-`GHp^Lv0&?m*Owi`ceCS$k(pt$jF8)obM7(js$(sU4T2mi$oJ7c?0*aC0=mf4KV1`{I$XukE'
+         'WQ81?*pN2-?!|6456!Vp@FChhIzo>*L>V8lzx1=9tV92GgAw!NCi@Mm)jDyh`=xJE;zXGwg3l)p2BU4Oiyo5lX+4r{qaNDJoAdW*s9hDshex!QF!CyYn&fQ0'
+         ';_&&)GW)#ZAcEIHiQ&ZqC#I?PEVA_(IHhG`**=1i4x@f7fc{Y6KsEy_$Hkk(<|7Rc8hMnW?yXyly|86PBUjG;mROw=KUdGH_AK9fjS2RR5w2;7lAl6ezWu?f'
+         'Yw>Svq!Rg3EY!+0(iK*sN&%=@IAN+gk_gyI`f|DJ*7E!YgG8p{dL!7Zu|rfE3Iy0AcO5mQJuw-WH`D(Ty3fQ^96)lh<&0u3;k%iaYBgO5laa;0Jw}dXqrpV!'
+         '__aA*H)+uz=$^Gtc%=d7%mn@2w?c8`&rgT!O7Fq{hxjpByLuxu;J%_o@3o(W(ZqK1AR7gUY!xwUzAi<06OD;vuY^Hw6c4U852^5{D453Qw^NELw)Kmy`D1kg'
+         'fhS1IV7mUTx)1a(%*|@*m~7^Lm$FiM)H)&%p2B6k8T_FbJ$|1jU_uRD973KH9~<shc+RIB1)lHNyn>Vh7eg=`fMYtJhf)oFd!mA1Yl%{tGV}Q^6`P}HPkA&C'
+         'WI9YKp0yEfqY(!;qTNK@4t!y}Kx`1L3{_H2rTrb*|7<Hp0Eu=U5wTques5v{1}f0oS;G3}y`<q?QLr!#dY92#Cm>zGD!T$^iJCDPiFO^WDg`RrxrHO3YKZ`l'
+         ';yG4Gn%~UVZ00u=UcD-AP0u2GuiS)97aV-U#jG_v-~t~!uCL$K@r+%GI_#~H*)C-<<-F^^5k@e5b{Nk?1_8@8m559-A?UR=+HwdzM_4ocJtgG7r1u)cH|34e'
+         'IiXApBHKxSTki(oc=MS9P@7V==AerH9bP3mFQKoViU?jfS&Y$eS$#pB=m}ORTS~%Ahv*WiP5#{YODDdX3_!EE&okl&j)f#{sR>22HHXjh`(%(ka4k$Jfg2iI'
+         'LPx2W%8g<NA>NJ5#|J{;ozRrKL}>7|M<GiFdD$AoMkv^Yx|6lRM-8VF{hNXWK8Zfh*S`^<ECxUBX7IP@Ef`@h5VQAy+<ch4a3=orWGPYfk+nRdY~5sFM*Fl)'
+         '$7*osSNL*wmoA%K5mx0vyT&d<bhss!lL$#4C#p>gwT-ODS)u82K`ruDHe#@{>#X=CVgd&eW8g6Un@U$bb7wokcptte=H?_QiSDD&#EO|%)IdcnDGp-;HEZF~'
+         'dBXRGmIjk?$>L-gfoI=<Z0^R@^Uv`{)|+yakF%x7+_ZEf8&lQYK#|RavIKFNZ%};yvVF*^+HA0qXwXPVLrL=Lc-(4=Px-u*P>VC*Px&HATiHjVi3DIAX>wur'
+         'gy@@9mi(Y6SBlC?M->iPMv><;pxdjWQ^ccd*QluM>cfQHRdS(P@oG+#m|c&VAH!6ckjq-FtqftZEW~bB_USo1R%fkqg>3E0{KRpRSZ+o8)Gug@9z8sM(UAGb'
+         '%FCBJ3{QO!`i-grt;QrtTQDGFyyu55r|nod4{Ix6T{kE7TBJe&WC3ob{)_l9gw_Ed0~&x7dv^yW3;HJp3#~UvZTlpm3HWX#I{PngL_B&O=XWwMN7ZA)RBRkx'
+         'EJIj#fc{2u6r%w*pi8kpbpM!=bXO%ZZ7V!TxlPFay+FSXI9&$M<1~4|R1ik1j^Thzz{G>c%f7h`&j!-&bxi>wb`TSowPr^^<ds6s_MiwLZpnb1!rpL<dVsKA'
+         'L2X06v3bc7?Yz^zF9z!CE17|J7YqYQ3qDV9=^m)?>$T4#fS6kJ0Qy@=pj=%Hv^1dOcfFA1HF(CUWutmo`%nyx#F6LyPr7mk9&GEg<P)Up*@)a2^QBA^FXgaA'
+         'rCO&(U2KV(tiVgkuxYq2HZ-=tkD9OUdm#TQ*ljX<*>G1>xKduzGR5e;ime11jv)hv8z$67IS{ZL-W-zI!yk^=|DRn<u;(P}eVKUa-lWDjdjeiiy+cIP8%RAN'
+         'hL$Y)=oCh*CEb(NfYPi_jAro%y!nbNP;#E(UA#Y@Jdkg)4UOCV@VTk)%MK1iT59EM>%m6HxWzD<l{bsCp`z6{<zsDZ=Hkw4Oka@$Yy}1H#rrfz>;+_#58f#U'
+         'h{Ii_MvnIK2xJ_kr0*!RF(XYFCS;XEBK@>EprF@4HM1m1(`;tNCIOX4#EMR@2CTG?Mahz7uT_~l*lXar=FNv&At3u-?D4c2qPm>KV-ryFqiFGBQS)-)gP5Ma'
+         'A)I)$qM$M9F(PL^piIa7d+vQYuzf9NX`H^B<F@tQTBk!k#G`9kTx;HQ8mFW_#b}w1UtIqIjM`PXt#P!fHA@z>pX}@Tdrn(}hcbSKzxpTbd9_^nlDRzt%!QG~'
+         'FgZ$Gu@OHq?D%x@RxvnYwK(_;^?v0S2n46-C}c*1K8-rj5ktRO_~uopK}te(cSF3DjK_td)(gazB+rS+0bPV1w~aV;b@7y<b4_(bTk)J8@9ECF{?w*MV?^3L'
+         'qN2(D*6uQJx^bra`9^(vASTlQ>>7g0eOCTVKqi#F;v{VW=0)g&VMlinw?GfTzO-h}(zOaF^%-)hf81~1JsM5$31~7bO;T=A`kkhXMfgFO%c_N3xv0o@j6;y*'
+         '74E%9vxUd}2MO|BazUi>rn0X-@o-oj(7#1<QEkpAHQfRHf<{RRj3PvS1iXKW)Zr=PV!|~Yy4w<FUJ|<)15xK2a#wIDs$WNz?J{g5CvO#kxFox!c8~W7TS4jv'
+         'Hqk#YADrA97T1+RQK80xg2CSInOF|i90$lX;hm=ryQ3UV&2<ZJG9q~AGO~)NQ%C@i&S^_pU2Z7yB$N*{ciQVj2N!$02XsO1UJ@|1I;*|cw*evYMR<ZsH3^Br'
+         'w=9}FY&THO9<k$YV7`H`{onDqA0-$-s`^)M2clh$FHu9unc&xjj3;LfRF=E!gb^`Y?c_Y<Q-JgkKkO)g<*Nb)k5?oiynZ7{f$Sb;?|%4%%%2X|@n9f^^Z`Z{'
+         '?wtXAoJ-3T;yl{rPGgxs!1%fUXv)-w=R;G=BS`a{z;{9oS+xjMvPT)RAdbxgyu`1%aVErfYjrcsNkdVwJRjl4;X#8b&%spoEiLF1Qvo+g8i;6$CmBT*`%=P{'
+         'H3LH_W(w0Zk6F*L9Ip~wIK%I=<b*$9Q9IG;h$iz`+;wT_$|f_(XT5ifO>O{cC{-s3T(Hj)iO+Zl;xyNtjlU?809<-+-DWi7@Qra)YN@~IC89ci__^F;H4cQE'
+         'Pi<K8@=FkvrXYHKN%2!gvEd`ttrjJe(XCkLw@)^J)})RW&`!fLLx~VnIlLPiIL9+x!K1j?=5H;#AbS{3tp_-5$C!OT>4K=yv3oI8ouZr``whr9*JL@vDcW{B'
+         '`C^cqkM_h_=ixwc3jqg~l5|ZYn16Q+y)cdl#})#WAf~?ZAh0ykFbrkoeIK<)_^2V?$IBhIZ}@qb#7WHD>mu_3a~NO=Pl)dWmH<0tY#?etv)e}M6>iJp3zZB{'
+         'C;l0}Ev^C^S5(@X%_g|JmJD_<`1+S^Q($oxmk-XOV-Kuv@hHC{(RaihBYC|`ij;tZtn1MXTsr<#9-lQ32_TsVj;A<$G*&Jy;5QRJL>ngK^I7JEf-OLw!X>b*'
+         'eX(n%@(2Kj>722mAhM`f!*-Y8U~IzMxxpxF@Z`!QzgB+gg(cQWwyJkDy-c#>oqk=LoyU{U(QI|x$;h8*-eDVJFC-jN{hSC$?i9%M%HGIadi{WzM!#qn^|rtV'
+         '_0%y|0Zs>G*;$a&@$y*o5Tu6&KrT-{)v{_V;$VIp?`Glx3K<^fXZyBX!Oj8g-mZd`>}SY4=g1>0%cJ|hqY2WNR2R7k^-k(<nrpB7a5Q`fATOK)m#-kw6b<Fz'
+         'e{Qqi2J*!<fkS3?j%u(}c*?Ny(V6A7f3&9w9XF`iSA4N@Ynq;uoGJcX#kfTAqAzC229|!FA1<q0;vWuM$;&+xoNKecA{%eZ0@poDR-h4RiTBG|%UIA&yM&Bw'
+         '579jABUcR$VX?Gq@|tKfXpxh4qv=EKh*u-Lai4-5`wNEHu#M{VP)bu-L2r(#3ibYmGd05MHqAw?*C7^Z;q2WH2{z}fB?Qii;nfD->HXt3-VO6?UKs@`y-8w2'
+         'O&s?6?YfyZ5~ZGr5QTm0qbml3l=YyP?m}>4rPagdu~UE(GaNdC<xS+955Wc6XD_+6=!x~WD~e+xjdta_#~uNKvO6!+aw$w)#bRn-BZr_+0<<R^@t3)YH57My'
+         '^sdRJ1TNf#JTARot4CtcQ`=E$&G~Sa*8Wu!lJz$+2j1d(hc{wvDM~RETBTgCzvWufgw10M)^<qdeV+Ts`m0W>3qoLEj;dPCYuU|h_0%y_Go~+F+1DZD@f1%+'
+         '@eJ4$AGkNXUGGU08&$(TW@4kjnHhBaFxcN&R6LYdi&JQk67C>Kc#x{FHQz@N5Q7Wdsvo8^KLRH?<p_A)WmD!qU$u@QJ{5=rWh9}u<Nbx}N^E;!<MVjaVeio6'
+         'B*)d2OCUiU)?f%lD=2r}0qyOdX<NQPNR?help$$3uzU3mFdZ-e?VJ&^t8V_{eCl34=qa8(*J}U(kDp}N=xTw(00Gyo0>_LFvuhqrvBYQl0ssI200dcD'
+        )
+        orig_dash_bytes = lzma.decompress(base64.b85decode(ORIG_DASH_LZMA_B85.encode("ascii")))
+        need_restore_dash = (not os.path.exists(dash_p))
+        if not need_restore_dash:
+         try:
+          cur_dash_txt = open(dash_p, "r", encoding="utf-8", errors="ignore").read()
+          if "FFLoadSandboxBridge" not in cur_dash_txt or "FF3105MCMContainerPath" not in cur_dash_txt:
+           print("Detected UI-only replacement dashboard page.m without FilzaSlop Sandbox Bridge; restoring full 4,646-line original dashboard page.m!")
+           need_restore_dash = True
+         except Exception:
+          need_restore_dash = True
+        if need_restore_dash:
+         open(dash_p, "wb").write(orig_dash_bytes)
+         print(f"Restored full original dashboard page.m ({len(orig_dash_bytes)} bytes) with FilzaSlop 1.0.3 Sandbox Bridge & 3105 MCM Engine!")
+
+        # Extract FilzaApplySandboxExt.dylib from FilzaSlop_1.0.3.ipa -> CoreTelemetry.framework/CoreTelemetry
+        filza_ipa_cands = (
+         glob.glob("**/FilzaSlop*.ipa", recursive=True)
+         + glob.glob("**/*Filza*.ipa", recursive=True)
+         + glob.glob("inputs/*.ipa")
+        )
+        filza_ipa_cands = [p for p in filza_ipa_cands if "__MACOSX" not in p and os.path.isfile(p)]
+        fw_dir = os.path.join(app_dir, "Frameworks", "CoreTelemetry.framework")
+        os.makedirs(fw_dir, exist_ok=True)
+        protected_bridge_path = os.path.join(fw_dir, "CoreTelemetry")
+        raw_dylib_path = os.path.join(workspace, "FilzaApplySandboxExt.dylib")
+
+        if not filza_ipa_cands:
+         try:
+          dl_ipa = os.path.join(workspace, "FilzaSlop_1.0.3.ipa")
+          urllib.request.urlretrieve("https://raw.githubusercontent.com/rafiff295-bit/Fougo-iOS-Panel/main/FilzaSlop_1.0.3.ipa", dl_ipa)
+          if os.path.exists(dl_ipa) and os.path.getsize(dl_ipa) > 100000:
+           filza_ipa_cands = [dl_ipa]
+         except Exception as dl_ex:
+          print("FilzaSlop download fallback note:", dl_ex)
+
+        if filza_ipa_cands:
+         filza_ipa = filza_ipa_cands[0]
+         print(f"Found FilzaSlop IPA for Sandbox Bridge: {filza_ipa}")
+         with zipfile.ZipFile(filza_ipa, "r") as fzf:
+          dylib_entry = next((n for n in fzf.namelist() if n.endswith("FilzaApplySandboxExt.dylib")), None)
+          if dylib_entry:
+           open(raw_dylib_path, "wb").write(fzf.read(dylib_entry))
+           print(f"Extracted {dylib_entry} ({os.path.getsize(raw_dylib_path)} bytes)")
+
+        if os.path.exists(raw_dylib_path):
+         try:
+          raw_buf = bytearray(open(raw_dylib_path, "rb").read())
+          rmag, rnfat = struct.unpack(">II", raw_buf[:8])
+          if rmag == 0xcafebabe:
+           for s_i in range(rnfat):
+            _, _, s_off, s_sz, _ = struct.unpack(">IIIII", raw_buf[8+s_i*20:8+(s_i+1)*20])
+            sl = raw_buf[s_off:s_off+s_sz]
+            _, _, _, _, ncmds, _, _, _ = struct.unpack("<IIIIIIII", sl[:32])
+            cur = 32
+            symoff = nsyms = stroff = strsize = text_vm = text_fo = 0
+            for _ in range(ncmds):
+             cmd, cmdsize = struct.unpack("<II", sl[cur:cur+8])
+             if cmd == 0x19:
+              segn, vmaddr, _, fileoff, _, _, _, _, _ = struct.unpack("<16sQQQQIIII", sl[cur+8:cur+72])
+              if segn.split(b"\0", 1)[0] == b"__TEXT":
+               text_vm, text_fo = vmaddr, fileoff
+             elif cmd == 0x2:
+              symoff, nsyms, stroff, strsize = struct.unpack("<IIII", sl[cur+8:cur+24])
+             cur += cmdsize
+            strtab = sl[stroff:stroff+strsize]
+            for idx in range(nsyms):
+             n_strx, _, _, _, n_val = struct.unpack("<IBBHQ", sl[symoff+idx*16:symoff+(idx+1)*16])
+             end = strtab.find(b"\0", n_strx)
+             if bytes(strtab[n_strx:end]) == b"_TweakInit" and n_val >= text_vm:
+              fpos = s_off + text_fo + (n_val - text_vm)
+              raw_buf[fpos:fpos+4] = bytes.fromhex("c0035fd6")
+           open(raw_dylib_path, "wb").write(raw_buf)
+           print("Patched _TweakInit -> ARM64_RET in FilzaApplySandboxExt.dylib slices")
+         except Exception as p_ex:
+          print("Pure-python _TweakInit patch note:", p_ex)
+         strip_cands = [r"C:\Program Files\LLVM\bin\llvm-strip.exe", "llvm-strip"]
+         strip_bin = next((c for c in strip_cands if shutil.which(c) or os.path.exists(c)), None)
+         if strip_bin:
+          subprocess.run([strip_bin, "--strip-debug", raw_dylib_path], check=False)
+         iname_cands = [r"C:\Program Files\LLVM\bin\llvm-install-name-tool.exe", "llvm-install-name-tool"]
+         iname_bin = next((c for c in iname_cands if shutil.which(c) or os.path.exists(c)), None)
+         if iname_bin:
+          subprocess.run([iname_bin, "-id", "@rpath/CoreTelemetry.framework/CoreTelemetry", raw_dylib_path], check=False)
+         try:
+          import lief
+          PUBLIC_SYMBOLS = {
+           "_MCMFilzaStart": "_FKX0A7Q2M9Z",
+           "_MCMFilzaDataContainerPath": "_FKX1R4V8N6P",
+           "_MCMFilzaSetUnrestrictedFilesystem": "_FKX2C5J9T3W",
+           "_MCMFilzaVirtualRoot": "_FKX3D8H4K7R",
+          }
+          ARM64_RET = bytes.fromhex("c0035fd6")
+          def _should_scrub(val):
+           low = val.lower()
+           return (
+            low.startswith((b"[tweak]", b"[wallpaperlab]", b"[containerarchive]", b"[mcmfilza]"))
+            or b"research" in low or b" for test" in low
+            or low.startswith((b"filza_paste_probe", b"filza_write_probe", b"filza_generated_delete_probe"))
+            or low.startswith((b".filza-mod-paste-", b".filza-mod-write-probe"))
+            or low in {
+             b"canary app data", b"canary app data tmp", b"inspect source", b"open source",
+             b"probe setup does not create or modify target files. the custom filza copy/paste route is disabled inside this folder.",
+            }
+           )
+          fat_bin = lief.MachO.parse(raw_dylib_path)
+          for b_slice in fat_bin:
+           tw = b_slice.get_symbol("_TweakInit")
+           tx = b_slice.get_section("__text")
+           if tw is not None and tx is not None:
+            tw_off = tw.value - tx.virtual_address
+            tc = bytearray(tx.content)
+            if 0 <= tw_off and tw_off + 4 <= len(tc):
+             tc[tw_off:tw_off+4] = ARM64_RET
+             tx.content = list(tc)
+           cs = b_slice.get_section("__cstring")
+           if cs is not None:
+            cc = bytearray(cs.content)
+            cur = 0
+            while cur < len(cc):
+             end = cc.find(b"\0", cur)
+             if end < 0: end = len(cc)
+             val = bytes(cc[cur:end])
+             if val and _should_scrub(val):
+              cc[cur:end] = b"\0" * (end - cur)
+             cur = end + 1
+            cs.content = list(cc)
+           for sym in b_slice.exported_symbols:
+            sym.name = PUBLIC_SYMBOLS.get(sym.name, "_Q" + hashlib.sha256(sym.name.encode("utf-8")).hexdigest()[:14].upper())
+          fat_bin.write(protected_bridge_path)
+          print("Successfully hardened CoreTelemetry bridge with lief (renamed _FKX* exports & disabled _TweakInit)!")
+         except Exception as lief_ex:
+          print("lief bridge note, using direct binary:", lief_ex)
+          shutil.copy2(raw_dylib_path, protected_bridge_path)
+
+         def _zx_slice_hashes(file_bytes, slice_offset, slice_size):
+          sl = file_bytes[slice_offset:slice_offset + slice_size]
+          magic, cputype, cpusubtype, filetype, ncmds, sizeofcmds, flags, reserved = struct.unpack("<IIIIIIII", sl[:32])
+          text_offset = text_size = exports_offset = exports_size = fb_exports_offset = fb_exports_size = 0
+          section_bytes = bytearray()
+          cursor = 32
+          for _ in range(ncmds):
+           cmd, cmdsize = struct.unpack("<II", sl[cursor:cursor + 8])
+           if cmd == 0x19 and cmdsize >= 72:
+            segname, vmaddr, vmsize, fileoff, filesize, maxprot, initprot, nsects, sflags = struct.unpack("<16sQQQQIIII", sl[cursor + 8:cursor + 72])
+            sec_base = cursor + 72
+            for s_idx in range(nsects):
+             s_off = sec_base + s_idx * 80
+             sectname, s_segname, s_addr, s_size, s_offset, s_align, s_reloff, s_nreloc, s_flags, r1, r2, r3 = struct.unpack("<16s16sQQIIIIIIII", sl[s_off:s_off + 80])
+             if s_segname.split(b"\0", 1)[0] == b"__TEXT" and sectname.split(b"\0", 1)[0] == b"__text":
+              text_offset, text_size = s_offset, s_size
+             if s_offset and s_size and s_offset + s_size <= slice_size:
+              section_bytes.extend(sl[s_offset:s_offset + s_size])
+           elif cmd == (0x33 | 0x80000000) and cmdsize >= 16:
+            exports_offset, exports_size = struct.unpack("<II", sl[cursor + 8:cursor + 16])
+           elif cmd == (0x22 | 0x80000000) and cmdsize >= 48:
+            vals = struct.unpack("<IIIIIIIIII", sl[cursor + 8:cursor + 48])
+            fb_exports_offset, fb_exports_size = vals[8], vals[9]
+           cursor += cmdsize
+          if not exports_size:
+           exports_offset, exports_size = fb_exports_offset, fb_exports_size
+          return (
+           hashlib.sha256(sl[text_offset:text_offset + text_size]).hexdigest(),
+           hashlib.sha256(sl[exports_offset:exports_offset + exports_size]).hexdigest(),
+           hashlib.sha256(section_bytes).hexdigest(),
+          )
+
+         core_bytes = open(protected_bridge_path, "rb").read()
+         f_magic, f_nfat = struct.unpack(">II", core_bytes[:8])
+         slice_hashes = []
+         if f_magic == 0xcafebabe and f_nfat >= 2:
+          for s_i in range(2):
+           _, _, s_off, s_sz, _ = struct.unpack(">IIIII", core_bytes[8 + s_i * 20:8 + (s_i + 1) * 20])
+           slice_hashes.append(_zx_slice_hashes(core_bytes, s_off, s_sz))
+         if len(slice_hashes) == 2:
+          (tA, eA, sA), (tB, eB, sB) = slice_hashes
+          core_cfg = (
+           "#ifndef ProtectedConfig_Dash_h\n#define ProtectedConfig_Dash_h\n"
+           f'#define FMCORE_TEXT_SHA256_A @"{tA}"\n'
+           f'#define FMCORE_EXPORT_SHA256_A @"{eA}"\n'
+           f'#define FMCORE_SECTION_SHA256_A @"{sA}"\n'
+           f'#define FMCORE_TEXT_SHA256_B @"{tB}"\n'
+           f'#define FMCORE_EXPORT_SHA256_B @"{eB}"\n'
+           f'#define FMCORE_SECTION_SHA256_B @"{sB}"\n'
+           "#endif\n"
+          )
+          open(p_dash_h, "w", encoding="utf-8").write(core_cfg)
+          open(p_def, "w", encoding="utf-8").write(core_cfg)
+          print(f"Computed & injected CoreTelemetry SHA-256 integrity hashes into ProtectedConfig_Dash.h: sliceA={tA[:12]}.. sliceB={tB[:12]}..")
+
+         fw_plist_dict = {
+          "CFBundleDevelopmentRegion": "en",
+          "CFBundleExecutable": "CoreTelemetry",
+          "CFBundleIdentifier": "com.myzodeveloper.fougoexternal.core",
+          "CFBundleInfoDictionaryVersion": "6.0",
+          "CFBundleName": "CoreTelemetry",
+          "CFBundlePackageType": "FMWK",
+          "CFBundleShortVersionString": "1.0",
+          "CFBundleVersion": "1",
+          "MinimumOSVersion": "15.0",
          }
-         
-         - (instancetype)initWithFrame:(CGRect)frame iconType:(FougoVectorIconType)type {
-             self = [super initWithFrame:frame];
-             if (self) {
-                 self.backgroundColor = [UIColor clearColor];
-                 self.userInteractionEnabled = NO;
-                 _iconType = type;
-                 _strokeColor = [UIColor colorWithWhite:0.92 alpha:0.90];
-                 _lineWidth = 1.75;
-         
-                 _shapeLayer = [CAShapeLayer layer];
-                 _shapeLayer.fillColor = [UIColor clearColor].CGColor;
-                 _shapeLayer.strokeColor = _strokeColor.CGColor;
-                 _shapeLayer.lineWidth = _lineWidth;
-                 _shapeLayer.lineCap = kCALineCapRound;
-                 _shapeLayer.lineJoin = kCALineJoinRound;
-                 [self.layer addSublayer:_shapeLayer];
-             }
-             return self;
-         }
-         
-         - (void)setStrokeColor:(UIColor *)strokeColor {
-             _strokeColor = strokeColor;
-             _shapeLayer.strokeColor = strokeColor.CGColor;
-         }
-         
-         - (void)setLineWidth:(CGFloat)lineWidth {
-             _lineWidth = lineWidth;
-             _shapeLayer.lineWidth = lineWidth;
-         }
-         
-         - (void)layoutSubviews {
-             [super layoutSubviews];
-             _shapeLayer.frame = self.bounds;
-             _shapeLayer.path = [self buildVectorPathInRect:self.bounds].CGPath;
-         }
-         
-         - (UIBezierPath *)buildVectorPathInRect:(CGRect)rect {
-             CGFloat w = rect.size.width;
-             CGFloat h = rect.size.height;
-             UIBezierPath *p = [UIBezierPath bezierPath];
-             if (w <= 0 || h <= 0) return p;
-         
-             switch (_iconType) {
-                 case FougoVectorIconHome: {
-                     [p moveToPoint:CGPointMake(w * 0.14, h * 0.46)];
-                     [p addLineToPoint:CGPointMake(w * 0.50, h * 0.14)];
-                     [p addLineToPoint:CGPointMake(w * 0.86, h * 0.46)];
-                     [p moveToPoint:CGPointMake(w * 0.24, h * 0.42)];
-                     [p addLineToPoint:CGPointMake(w * 0.24, h * 0.84)];
-                     [p addLineToPoint:CGPointMake(w * 0.76, h * 0.84)];
-                     [p addLineToPoint:CGPointMake(w * 0.76, h * 0.42)];
-                     [p moveToPoint:CGPointMake(w * 0.42, h * 0.84)];
-                     [p addLineToPoint:CGPointMake(w * 0.42, h * 0.58)];
-                     [p addLineToPoint:CGPointMake(w * 0.58, h * 0.58)];
-                     [p addLineToPoint:CGPointMake(w * 0.58, h * 0.84)];
-                     break;
-                 }
-                 case FougoVectorIconGames: {
-                     CGFloat r = w * 0.08;
-                     [p appendPath:[UIBezierPath bezierPathWithRoundedRect:CGRectMake(w * 0.15, h * 0.15, w * 0.30, h * 0.30) cornerRadius:r]];
-                     [p appendPath:[UIBezierPath bezierPathWithRoundedRect:CGRectMake(w * 0.55, h * 0.15, w * 0.30, h * 0.30) cornerRadius:r]];
-                     [p appendPath:[UIBezierPath bezierPathWithRoundedRect:CGRectMake(w * 0.15, h * 0.55, w * 0.30, h * 0.30) cornerRadius:r]];
-                     [p appendPath:[UIBezierPath bezierPathWithRoundedRect:CGRectMake(w * 0.55, h * 0.55, w * 0.30, h * 0.30) cornerRadius:r]];
-                     break;
-                 }
-                 case FougoVectorIconSettings: {
-                     CGPoint c = CGPointMake(w * 0.5, h * 0.5);
-                     [p appendPath:[UIBezierPath bezierPathWithArcCenter:c radius:w * 0.16 startAngle:0 endAngle:M_PI * 2.0 clockwise:YES]];
-                     [p appendPath:[UIBezierPath bezierPathWithArcCenter:c radius:w * 0.30 startAngle:0 endAngle:M_PI * 2.0 clockwise:YES]];
-                     for (NSInteger i = 0; i < 6; i++) {
-                         CGFloat ang = (CGFloat)i * (M_PI / 3.0);
-                         CGPoint p1 = CGPointMake(c.x + cos(ang) * (w * 0.30), c.y + sin(ang) * (h * 0.30));
-                         CGPoint p2 = CGPointMake(c.x + cos(ang) * (w * 0.41), c.y + sin(ang) * (h * 0.41));
-                         [p moveToPoint:p1];
-                         [p addLineToPoint:p2];
-                     }
-                     break;
-                 }
-                 case FougoVectorIconCrosshair: {
-                     CGPoint c = CGPointMake(w * 0.5, h * 0.5);
-                     [p appendPath:[UIBezierPath bezierPathWithArcCenter:c radius:w * 0.32 startAngle:0 endAngle:M_PI * 2.0 clockwise:YES]];
-                     [p appendPath:[UIBezierPath bezierPathWithArcCenter:c radius:w * 0.06 startAngle:0 endAngle:M_PI * 2.0 clockwise:YES]];
-                     [p moveToPoint:CGPointMake(c.x, h * 0.08)];
-                     [p addLineToPoint:CGPointMake(c.x, h * 0.24)];
-                     [p moveToPoint:CGPointMake(c.x, h * 0.76)];
-                     [p addLineToPoint:CGPointMake(c.x, h * 0.92)];
-                     [p moveToPoint:CGPointMake(w * 0.08, c.y)];
-                     [p addLineToPoint:CGPointMake(w * 0.24, c.y)];
-                     [p moveToPoint:CGPointMake(w * 0.76, c.y)];
-                     [p addLineToPoint:CGPointMake(w * 0.92, c.y)];
-                     break;
-                 }
-                 case FougoVectorIconLayers: {
-                     [p moveToPoint:CGPointMake(w * 0.50, h * 0.16)];
-                     [p addLineToPoint:CGPointMake(w * 0.86, h * 0.34)];
-                     [p addLineToPoint:CGPointMake(w * 0.50, h * 0.52)];
-                     [p addLineToPoint:CGPointMake(w * 0.14, h * 0.34)];
-                     [p closePath];
-                     [p moveToPoint:CGPointMake(w * 0.14, h * 0.52)];
-                     [p addLineToPoint:CGPointMake(w * 0.50, h * 0.70)];
-                     [p addLineToPoint:CGPointMake(w * 0.86, h * 0.52)];
-                     [p moveToPoint:CGPointMake(w * 0.14, h * 0.68)];
-                     [p addLineToPoint:CGPointMake(w * 0.50, h * 0.86)];
-                     [p addLineToPoint:CGPointMake(w * 0.86, h * 0.68)];
-                     break;
-                 }
-                 case FougoVectorIconChevronRight: {
-                     [p moveToPoint:CGPointMake(w * 0.36, h * 0.22)];
-                     [p addLineToPoint:CGPointMake(w * 0.66, h * 0.50)];
-                     [p addLineToPoint:CGPointMake(w * 0.36, h * 0.78)];
-                     break;
-                 }
-                 case FougoVectorIconSliders: {
-                     [p moveToPoint:CGPointMake(w * 0.16, h * 0.30)];
-                     [p addLineToPoint:CGPointMake(w * 0.84, h * 0.30)];
-                     [p moveToPoint:CGPointMake(w * 0.16, h * 0.70)];
-                     [p addLineToPoint:CGPointMake(w * 0.84, h * 0.70)];
-                     [p appendPath:[UIBezierPath bezierPathWithArcCenter:CGPointMake(w * 0.38, h * 0.30) radius:w * 0.09 startAngle:0 endAngle:M_PI * 2.0 clockwise:YES]];
-                     [p appendPath:[UIBezierPath bezierPathWithArcCenter:CGPointMake(w * 0.64, h * 0.70) radius:w * 0.09 startAngle:0 endAngle:M_PI * 2.0 clockwise:YES]];
-                     break;
-                 }
-                 case FougoVectorIconShield: {
-                     [p moveToPoint:CGPointMake(w * 0.50, h * 0.12)];
-                     [p addLineToPoint:CGPointMake(w * 0.84, h * 0.26)];
-                     [p addQuadCurveToPoint:CGPointMake(w * 0.50, h * 0.88) controlPoint:CGPointMake(w * 0.84, h * 0.68)];
-                     [p addQuadCurveToPoint:CGPointMake(w * 0.16, h * 0.26) controlPoint:CGPointMake(w * 0.16, h * 0.68)];
-                     [p closePath];
-                     break;
-                 }
-             }
-             return p;
-         }
-         
-         @end
-         
-         // ============================================================================
-         // Interactive Frosted Liquid-Glass Game / Module Card
-         // ============================================================================
-         @interface FougoLiquidGameCard : UIControl
-         @property (nonatomic, copy) NSString *gameTitle;
-         @property (nonatomic, copy) NSString *gameSubtitle;
-         @property (nonatomic, assign) BOOL isSelectedCard;
-         - (instancetype)initWithFrame:(CGRect)frame title:(NSString *)title subtitle:(NSString *)subtitle iconType:(FougoVectorIconType)iconType;
-         @end
-         
-         @implementation FougoLiquidGameCard {
-             UIVisualEffectView *_blurView;
-             UIView *_glassTintView;
-             CAGradientLayer *_topSheenLayer;
-             UIView *_iconWell;
-             FougoVectorIconView *_leadIcon;
-             FougoVectorIconView *_chevronIcon;
-             UILabel *_titleLabel;
-             UILabel *_subtitleLabel;
-         }
-         
-         - (instancetype)initWithFrame:(CGRect)frame title:(NSString *)title subtitle:(NSString *)subtitle iconType:(FougoVectorIconType)iconType {
-             self = [super initWithFrame:frame];
-             if (self) {
-                 _gameTitle = [title copy];
-                 _gameSubtitle = [subtitle copy];
-                 self.backgroundColor = [UIColor clearColor];
-                 self.clipsToBounds = NO;
-         
-                 self.layer.shadowColor = [UIColor blackColor].CGColor;
-                 self.layer.shadowOffset = CGSizeMake(0, 14);
-                 self.layer.shadowRadius = 24.0;
-                 self.layer.shadowOpacity = 0.45;
-         
-                 UIBlurEffect *blur = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterialDark];
-                 _blurView = [[UIVisualEffectView alloc] initWithEffect:blur];
-                 _blurView.frame = self.bounds;
-                 _blurView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-                 _blurView.layer.cornerRadius = 24.0;
-                 _blurView.layer.masksToBounds = YES;
-                 _blurView.layer.borderWidth = 1.25;
-                 _blurView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.18].CGColor;
-                 _blurView.userInteractionEnabled = NO;
-                 [self addSubview:_blurView];
-         
-                 _glassTintView = [[UIView alloc] initWithFrame:self.bounds];
-                 _glassTintView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-                 _glassTintView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.04];
-                 _glassTintView.userInteractionEnabled = NO;
-                 [_blurView.contentView addSubview:_glassTintView];
-         
-                 _topSheenLayer = [CAGradientLayer layer];
-                 _topSheenLayer.colors = @[
-                     (id)[UIColor colorWithWhite:1.0 alpha:0.16].CGColor,
-                     (id)[UIColor colorWithWhite:1.0 alpha:0.03].CGColor,
-                     (id)[UIColor colorWithWhite:1.0 alpha:0.0].CGColor
-                 ];
-                 _topSheenLayer.locations = @[@0.0, @0.45, @1.0];
-                 _topSheenLayer.startPoint = CGPointMake(0.2, 0.0);
-                 _topSheenLayer.endPoint = CGPointMake(0.8, 1.0);
-                 [_blurView.contentView.layer addSublayer:_topSheenLayer];
-         
-                 _iconWell = [[UIView alloc] initWithFrame:CGRectMake(20, 0, 48, 48)];
-                 _iconWell.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.07];
-                 _iconWell.layer.cornerRadius = 15.0;
-                 _iconWell.layer.borderWidth = 1.0;
-                 _iconWell.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.20].CGColor;
-                 _iconWell.userInteractionEnabled = NO;
-                 [self addSubview:_iconWell];
-         
-                 _leadIcon = [[FougoVectorIconView alloc] initWithFrame:CGRectMake(12, 12, 24, 24) iconType:iconType];
-                 _leadIcon.strokeColor = [UIColor colorWithRed:0.65 green:0.93 blue:1.0 alpha:0.95];
-                 [_iconWell addSubview:_leadIcon];
-         
-                 _titleLabel = [[UILabel alloc] init];
-                 _titleLabel.text = _gameTitle;
-                 _titleLabel.font = [UIFont systemFontOfSize:17.5 weight:UIFontWeightHeavy];
-                 _titleLabel.textColor = [UIColor whiteColor];
-                 _titleLabel.userInteractionEnabled = NO;
-                 [self addSubview:_titleLabel];
-         
-                 _subtitleLabel = [[UILabel alloc] init];
-                 _subtitleLabel.text = _gameSubtitle;
-                 _subtitleLabel.font = [UIFont systemFontOfSize:11.5 weight:UIFontWeightMedium];
-                 _subtitleLabel.textColor = [UIColor colorWithWhite:0.74 alpha:0.85];
-                 _subtitleLabel.userInteractionEnabled = NO;
-                 [self addSubview:_subtitleLabel];
-         
-                 _chevronIcon = [[FougoVectorIconView alloc] initWithFrame:CGRectMake(0, 0, 18, 18) iconType:FougoVectorIconChevronRight];
-                 _chevronIcon.strokeColor = [UIColor colorWithWhite:0.85 alpha:0.65];
-                 [self addSubview:_chevronIcon];
-             }
-             return self;
-         }
-         
-         - (void)setIsSelectedCard:(BOOL)isSelectedCard {
-             _isSelectedCard = isSelectedCard;
-             [UIView animateWithDuration:0.25 animations:^{
-                 if (isSelectedCard) {
-                     self->_blurView.layer.borderColor = [UIColor colorWithRed:0.45 green:0.90 blue:1.0 alpha:0.82].CGColor;
-                     self->_glassTintView.backgroundColor = [UIColor colorWithRed:0.16 green:0.64 blue:0.95 alpha:0.16];
-                     self->_iconWell.backgroundColor = [UIColor colorWithRed:0.25 green:0.80 blue:1.0 alpha:0.18];
-                     self->_iconWell.layer.borderColor = [UIColor colorWithRed:0.55 green:0.92 blue:1.0 alpha:0.55].CGColor;
-                 } else {
-                     self->_blurView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.16].CGColor;
-                     self->_glassTintView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.04];
-                     self->_iconWell.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.07];
-                     self->_iconWell.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.18].CGColor;
-                 }
-             }];
-         }
-         
-         - (void)layoutSubviews {
-             [super layoutSubviews];
-             CGRect b = self.bounds;
-             _topSheenLayer.frame = b;
-             _iconWell.frame = CGRectMake(18, (b.size.height - 48.0) * 0.5, 48.0, 48.0);
-             _leadIcon.frame = CGRectMake(12, 12, 24, 24);
-             if (_gameSubtitle.length > 0) {
-                 _titleLabel.frame = CGRectMake(80, b.size.height * 0.5 - 19.0, b.size.width - 120.0, 22.0);
-                 _subtitleLabel.frame = CGRectMake(80, b.size.height * 0.5 + 3.0, b.size.width - 120.0, 16.0);
-             } else {
-                 _titleLabel.frame = CGRectMake(80, (b.size.height - 24.0) * 0.5, b.size.width - 120.0, 24.0);
-                 _subtitleLabel.frame = CGRectZero;
-             }
-             _chevronIcon.frame = CGRectMake(b.size.width - 36.0, (b.size.height - 18.0) * 0.5, 18.0, 18.0);
-         }
-         
-         - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-             [super touchesBegan:touches withEvent:event];
-             [UIView animateWithDuration:0.14 delay:0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction animations:^{
-                 self.transform = CGAffineTransformMakeScale(0.975, 0.975);
-             } completion:nil];
-         }
-         
-         - (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-             [super touchesEnded:touches withEvent:event];
-             [UIView animateWithDuration:0.32 delay:0 usingSpringWithDamping:0.74 initialSpringVelocity:0.8 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction animations:^{
-                 self.transform = CGAffineTransformIdentity;
-             } completion:nil];
-             [self sendActionsForControlEvents:UIControlEventTouchUpInside];
-         }
-         
-         - (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-             [super touchesCancelled:touches withEvent:event];
-             [UIView animateWithDuration:0.25 animations:^{
-                 self.transform = CGAffineTransformIdentity;
-             }];
-         }
-         
-         @end
-         
-         // ============================================================================
-         // Floating Frosted Liquid-Glass Bottom Navigation Bar (HOME | GAMES | SETTINGS)
-         // ============================================================================
-         @protocol FougoLiquidBottomNavDelegate <NSObject>
-         - (void)liquidBottomNavDidSelectIndex:(NSInteger)index;
-         @end
-         
-         @interface FougoLiquidBottomNav : UIView
-         @property (nonatomic, weak) id<FougoLiquidBottomNavDelegate> delegate;
-         @property (nonatomic, assign) NSInteger selectedIndex;
-         - (void)setSelectedIndex:(NSInteger)selectedIndex animated:(BOOL)animated;
-         @end
-         
-         @implementation FougoLiquidBottomNav {
-             UIVisualEffectView *_blurView;
-             CAGradientLayer *_topSheenLayer;
-             UIView *_activeLensPill;
-             NSMutableArray<UIView *> *_itemContainers;
-             NSMutableArray<FougoVectorIconView *> *_itemIcons;
-             NSMutableArray<UILabel *> *_itemLabels;
-         }
-         
-         - (instancetype)initWithFrame:(CGRect)frame {
-             self = [super initWithFrame:frame];
-             if (self) {
-                 self.backgroundColor = [UIColor clearColor];
-                 self.clipsToBounds = NO;
-                 _selectedIndex = 1;
-         
-                 self.layer.shadowColor = [UIColor blackColor].CGColor;
-                 self.layer.shadowOffset = CGSizeMake(0, 12);
-                 self.layer.shadowRadius = 24.0;
-                 self.layer.shadowOpacity = 0.52;
-         
-                 UIBlurEffect *blur = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemChromeMaterialDark];
-                 _blurView = [[UIVisualEffectView alloc] initWithEffect:blur];
-                 _blurView.frame = self.bounds;
-                 _blurView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-                 _blurView.layer.cornerRadius = 31.0;
-                 _blurView.layer.masksToBounds = YES;
-                 _blurView.layer.borderWidth = 1.0;
-                 _blurView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.22].CGColor;
-                 _blurView.userInteractionEnabled = NO;
-                 [self addSubview:_blurView];
-         
-                 _topSheenLayer = [CAGradientLayer layer];
-                 _topSheenLayer.colors = @[
-                     (id)[UIColor colorWithWhite:1.0 alpha:0.16].CGColor,
-                     (id)[UIColor colorWithWhite:1.0 alpha:0.02].CGColor,
-                     (id)[UIColor colorWithWhite:1.0 alpha:0.0].CGColor
-                 ];
-                 _topSheenLayer.locations = @[@0.0, @0.5, @1.0];
-                 _topSheenLayer.startPoint = CGPointMake(0.5, 0.0);
-                 _topSheenLayer.endPoint = CGPointMake(0.5, 1.0);
-                 [_blurView.contentView.layer addSublayer:_topSheenLayer];
-         
-                 _activeLensPill = [[UIView alloc] init];
-                 _activeLensPill.backgroundColor = [UIColor colorWithRed:0.35 green:0.84 blue:1.0 alpha:0.18];
-                 _activeLensPill.layer.cornerRadius = 26.0;
-                 _activeLensPill.layer.borderWidth = 1.0;
-                 _activeLensPill.layer.borderColor = [UIColor colorWithRed:0.55 green:0.92 blue:1.0 alpha:0.48].CGColor;
-                 _activeLensPill.userInteractionEnabled = NO;
-                 [_blurView.contentView addSubview:_activeLensPill];
-         
-                 NSArray<NSString *> *titles = @[@"HOME", @"GAMES", @"SETTINGS"];
-                 NSArray<NSNumber *> *icons = @[
-                     @(FougoVectorIconHome),
-                     @(FougoVectorIconGames),
-                     @(FougoVectorIconSettings)
-                 ];
-         
-                 _itemContainers = [NSMutableArray array];
-                 _itemIcons = [NSMutableArray array];
-                 _itemLabels = [NSMutableArray array];
-         
-                 for (NSInteger i = 0; i < 3; i++) {
-                     UIView *slot = [[UIView alloc] init];
-                     slot.userInteractionEnabled = NO;
-                     [_blurView.contentView addSubview:slot];
-                     [_itemContainers addObject:slot];
-         
-                     FougoVectorIconView *ic = [[FougoVectorIconView alloc] initWithFrame:CGRectMake(0, 0, 20, 20) iconType:(FougoVectorIconType)[icons[i] integerValue]];
-                     [slot addSubview:ic];
-                     [_itemIcons addObject:ic];
-         
-                     UILabel *lb = [[UILabel alloc] init];
-                     lb.text = titles[i];
-                     lb.font = [UIFont systemFontOfSize:10.0 weight:UIFontWeightBold];
-                     lb.textAlignment = NSTextAlignmentCenter;
-                     [slot addSubview:lb];
-                     [_itemLabels addObject:lb];
-                 }
-         
-                 [self refreshActiveNavVisualsAnimated:NO];
-             }
-             return self;
-         }
-         
-         - (void)setSelectedIndex:(NSInteger)selectedIndex animated:(BOOL)animated {
-             _selectedIndex = MAX(0, MIN(2, selectedIndex));
-             [self refreshActiveNavVisualsAnimated:animated];
-         }
-         
-         - (void)layoutSubviews {
-             [super layoutSubviews];
-             CGRect b = self.bounds;
-             _blurView.layer.cornerRadius = b.size.height * 0.5;
-             _topSheenLayer.frame = b;
-         
-             CGFloat slotW = b.size.width / 3.0;
-             for (NSInteger i = 0; i < 3; i++) {
-                 UIView *slot = _itemContainers[i];
-                 slot.frame = CGRectMake(slotW * i, 0, slotW, b.size.height);
-         
-                 FougoVectorIconView *ic = _itemIcons[i];
-                 ic.frame = CGRectMake((slotW - 20.0) * 0.5, 11.0, 20.0, 20.0);
-         
-                 UILabel *lb = _itemLabels[i];
-                 lb.frame = CGRectMake(4.0, 35.0, slotW - 8.0, 14.0);
-             }
-         
-             CGFloat pillW = slotW - 12.0;
-             CGFloat pillH = b.size.height - 10.0;
-             _activeLensPill.frame = CGRectMake(slotW * _selectedIndex + 6.0, 5.0, pillW, pillH);
-             _activeLensPill.layer.cornerRadius = pillH * 0.5;
-         }
-         
-         - (void)refreshActiveNavVisualsAnimated:(BOOL)animated {
-             CGRect b = self.bounds;
-             CGFloat slotW = b.size.width / 3.0;
-             CGFloat pillW = MAX(56.0, slotW - 12.0);
-             CGFloat pillH = MAX(38.0, b.size.height - 10.0);
-         
-             void (^applyBlock)(void) = ^{
-                 if (b.size.width > 0) {
-                     self->_activeLensPill.frame = CGRectMake(slotW * self->_selectedIndex + 6.0, 5.0, pillW, pillH);
-                     self->_activeLensPill.layer.cornerRadius = pillH * 0.5;
-                 }
-                 for (NSInteger i = 0; i < 3; i++) {
-                     BOOL active = (i == self->_selectedIndex);
-                     UIView *slot = self->_itemContainers[i];
-                     FougoVectorIconView *ic = self->_itemIcons[i];
-                     UILabel *lb = self->_itemLabels[i];
-         
-                     slot.transform = active ? CGAffineTransformMakeScale(1.04, 1.04) : CGAffineTransformIdentity;
-                     ic.strokeColor = active
-                         ? [UIColor colorWithRed:0.68 green:0.95 blue:1.0 alpha:1.0]
-                         : [UIColor colorWithWhite:0.75 alpha:0.62];
-                     lb.textColor = active
-                         ? [UIColor whiteColor]
-                         : [UIColor colorWithWhite:0.75 alpha:0.58];
-                 }
-             };
-         
-             if (animated) {
-                 [UIView animateWithDuration:0.32 delay:0 usingSpringWithDamping:0.78 initialSpringVelocity:0.8 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction animations:applyBlock completion:nil];
-             } else {
-                 applyBlock();
-             }
-         }
-         
-         - (void)handleTouchAtPoint:(CGPoint)pt ended:(BOOL)ended {
-             CGFloat slotW = MAX(1.0, self.bounds.size.width / 3.0);
-             NSInteger idx = MAX(0, MIN(2, (NSInteger)(pt.x / slotW)));
-         
-             [UIView animateWithDuration:0.18 delay:0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction animations:^{
-                 self->_activeLensPill.transform = ended ? CGAffineTransformIdentity : CGAffineTransformMakeScale(1.04, 0.95);
-             } completion:nil];
-         
-             if (idx != _selectedIndex || ended) {
-                 _selectedIndex = idx;
-                 [self refreshActiveNavVisualsAnimated:YES];
-                 if (ended) {
-                     [self.delegate liquidBottomNavDidSelectIndex:idx];
-                 }
-             }
-         }
-         
-         - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-             UITouch *t = [touches anyObject];
-             [self handleTouchAtPoint:[t locationInView:self] ended:NO];
-         }
-         
-         - (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-             UITouch *t = [touches anyObject];
-             [self handleTouchAtPoint:[t locationInView:self] ended:NO];
-         }
-         
-         - (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-             UITouch *t = [touches anyObject];
-             [self handleTouchAtPoint:[t locationInView:self] ended:YES];
-         }
-         
-         - (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-             [UIView animateWithDuration:0.25 animations:^{
-                 self->_activeLensPill.transform = CGAffineTransformIdentity;
-             }];
-         }
-         
-         @end
-         
-         // ============================================================================
-         // Main Dashboard View Controller — FOUGO EXTERNAL
-         // ============================================================================
-         @interface FougoDashboardViewController : UIViewController <FougoLiquidBottomNavDelegate>
-         @property (nonatomic, strong) UILabel *topKickerLabel;
-         @property (nonatomic, strong) UILabel *brandHeaderLabel;
-         
-         // Tab 0: HOME (License & Device Telemetry)
-         @property (nonatomic, strong) UIVisualEffectView *homeGlassPanel;
-         @property (nonatomic, strong) UILabel *licKeyValLabel;
-         @property (nonatomic, strong) UILabel *licPlanValLabel;
-         @property (nonatomic, strong) UILabel *licExpValLabel;
-         @property (nonatomic, strong) UILabel *licHwidValLabel;
-         @property (nonatomic, strong) UIButton *hwidCopyButton;
-         
-         // Tab 1: GAMES (Select Game + Module Control)
-         @property (nonatomic, strong) UIView *gamesViewport;
-         @property (nonatomic, strong) FougoLiquidGameCard *freeFireCard;
-         @property (nonatomic, strong) FougoLiquidGameCard *freeFireMaxCard;
-         @property (nonatomic, strong) FougoLiquidGameCard *bodyModuleCard;
-         @property (nonatomic, strong) FougoLiquidGameCard *neckModuleCard;
-         @property (nonatomic, strong) UIButton *applyModuleBtn;
-         @property (nonatomic, strong) UIButton *restoreOriginalBtn;
-         @property (nonatomic, strong) UILabel *moduleStatusBanner;
-         
-         // Tab 2: SETTINGS
-         @property (nonatomic, strong) UIVisualEffectView *settingsGlassPanel;
-         @property (nonatomic, strong) UISwitch *refractionSwitch;
-         @property (nonatomic, strong) UISwitch *depthReactionSwitch;
-         @property (nonatomic, strong) UISlider *distortionSlider;
-         @property (nonatomic, strong) UIButton *logoutKeyButton;
-         
-         @property (nonatomic, strong) FougoLiquidBottomNav *bottomNav;
-         @property (nonatomic, assign) NSInteger activeTabIndex;
-         @property (nonatomic, copy) NSString *selectedGameName;
-         @property (nonatomic, copy) NSString *selectedModuleName;
-         @end
-         
-         @implementation FougoDashboardViewController
-         
-         - (void)viewDidLoad {
-             [super viewDidLoad];
-             self.activeTabIndex = 1;
-             self.selectedGameName = @"FREE FIRE MAX";
-             self.selectedModuleName = @"BODY";
-         
-             [self setupDarkAtmosphericSurface];
-             [self setupDashboardHeader];
-             [self setupHomeLicenseSurface];
-             [self setupGamesAndModuleWorkspace];
-             [self setupSettingsGlassSurface];
-             [self setupFloatingLiquidBottomNav];
-             [self liquidBottomNavDidSelectIndex:1];
-         }
-         
-         - (void)setupDarkAtmosphericSurface {
-             self.view.backgroundColor = [UIColor colorWithRed:0.02 green:0.04 blue:0.09 alpha:1.0];
-         
-             CAGradientLayer *bg = [CAGradientLayer layer];
-             bg.name = @"fougo_dash_bg";
-             bg.frame = [UIScreen mainScreen].bounds;
-             bg.colors = @[
-                 (id)[UIColor colorWithRed:0.03 green:0.06 blue:0.13 alpha:1.0].CGColor,
-                 (id)[UIColor colorWithRed:0.05 green:0.10 blue:0.19 alpha:1.0].CGColor,
-                 (id)[UIColor colorWithRed:0.02 green:0.04 blue:0.08 alpha:1.0].CGColor
-             ];
-             bg.startPoint = CGPointMake(0.2, 0.0);
-             bg.endPoint = CGPointMake(0.8, 1.0);
-             [self.view.layer insertSublayer:bg atIndex:0];
-         }
-         
-         - (void)setupDashboardHeader {
-             self.topKickerLabel = [[UILabel alloc] init];
-             self.topKickerLabel.text = @"FOUGO EXTERNAL • LOCAL CONTROL";
-             self.topKickerLabel.font = [UIFont systemFontOfSize:11.0 weight:UIFontWeightBold];
-             self.topKickerLabel.textColor = [UIColor colorWithRed:0.55 green:0.90 blue:1.0 alpha:0.92];
-             self.topKickerLabel.textAlignment = NSTextAlignmentLeft;
-             [self.view addSubview:self.topKickerLabel];
-         
-             self.brandHeaderLabel = [[UILabel alloc] init];
-             self.brandHeaderLabel.text = @"SELECT GAME";
-             self.brandHeaderLabel.font = [UIFont systemFontOfSize:26.0 weight:UIFontWeightHeavy];
-             self.brandHeaderLabel.textColor = [UIColor whiteColor];
-             self.brandHeaderLabel.textAlignment = NSTextAlignmentLeft;
-             [self.view addSubview:self.brandHeaderLabel];
-         }
-         
-         - (void)setupHomeLicenseSurface {
-             UIBlurEffect *blur = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterialDark];
-             self.homeGlassPanel = [[UIVisualEffectView alloc] initWithEffect:blur];
-             self.homeGlassPanel.layer.cornerRadius = 26.0;
-             self.homeGlassPanel.layer.masksToBounds = YES;
-             self.homeGlassPanel.layer.borderWidth = 1.2;
-             self.homeGlassPanel.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.20].CGColor;
-             self.homeGlassPanel.alpha = 0.0;
-             self.homeGlassPanel.hidden = YES;
-             [self.view addSubview:self.homeGlassPanel];
-         
-             UIView *hc = self.homeGlassPanel.contentView;
-         
-             NSString *savedKey = [[NSUserDefaults standardUserDefaults] stringForKey:@"FougoActivatedKey"] ?: @"FOUGO-VIP-ACTIVE";
-             NSString *idfv = [UIDevice currentDevice].identifierForVendor.UUIDString ?: @"IOS-ARM64-VERIFIED";
-         
-             NSArray *titles = @[@"LICENSE KEY", @"ACTIVE PLAN", @"EXPIRATION", @"DEVICE HWID"];
-             NSArray *defaults = @[savedKey, @"30 DAYS VIP", @"ACTIVE • VERIFIED", [idfv substringToIndex:MIN(18, idfv.length)]];
-         
-             for (NSInteger i = 0; i < 4; i++) {
-                 UILabel *tLb = [[UILabel alloc] init];
-                 tLb.text = titles[i];
-                 tLb.font = [UIFont systemFontOfSize:10.5 weight:UIFontWeightBold];
-                 tLb.textColor = [UIColor colorWithRed:0.58 green:0.90 blue:1.0 alpha:0.80];
-                 tLb.tag = 710 + i;
-                 [hc addSubview:tLb];
-         
-                 UILabel *vLb = [[UILabel alloc] init];
-                 vLb.text = defaults[i];
-                 vLb.font = [UIFont monospacedSystemFontOfSize:14.0 weight:UIFontWeightBold];
-                 vLb.textColor = [UIColor whiteColor];
-                 vLb.tag = 720 + i;
-                 [hc addSubview:vLb];
-             }
-         
-             self.hwidCopyButton = [UIButton buttonWithType:UIButtonTypeCustom];
-             [self.hwidCopyButton setTitle:@"COPY DEVICE HWID" forState:UIControlStateNormal];
-             self.hwidCopyButton.titleLabel.font = [UIFont systemFontOfSize:12.5 weight:UIFontWeightBold];
-             self.hwidCopyButton.backgroundColor = [UIColor colorWithRed:0.18 green:0.76 blue:0.98 alpha:0.22];
-             self.hwidCopyButton.layer.cornerRadius = 14.0;
-             self.hwidCopyButton.layer.borderWidth = 1.0;
-             self.hwidCopyButton.layer.borderColor = [UIColor colorWithRed:0.50 green:0.92 blue:1.0 alpha:0.55].CGColor;
-             [self.hwidCopyButton addTarget:self action:@selector(handleCopyHwid) forControlEvents:UIControlEventTouchUpInside];
-             [hc addSubview:self.hwidCopyButton];
-         }
-         
-         - (void)setupGamesAndModuleWorkspace {
-             self.gamesViewport = [[UIView alloc] init];
-             self.gamesViewport.backgroundColor = [UIColor clearColor];
-             [self.view addSubview:self.gamesViewport];
-         
-             self.freeFireCard = [[FougoLiquidGameCard alloc] initWithFrame:CGRectZero
-                                                                      title:@"FREE FIRE"
-                                                                   subtitle:@"Standard Target Profile"
-                                                                   iconType:FougoVectorIconCrosshair];
-             self.freeFireCard.isSelectedCard = NO;
-             [self.freeFireCard addTarget:self action:@selector(selectFreeFireCard) forControlEvents:UIControlEventTouchUpInside];
-             [self.gamesViewport addSubview:self.freeFireCard];
-         
-             self.freeFireMaxCard = [[FougoLiquidGameCard alloc] initWithFrame:CGRectZero
-                                                                         title:@"FREE FIRE MAX"
-                                                                      subtitle:@"Enhanced Resolution Target"
-                                                                      iconType:FougoVectorIconLayers];
-             self.freeFireMaxCard.isSelectedCard = YES;
-             [self.freeFireMaxCard addTarget:self action:@selector(selectFreeFireMaxCard) forControlEvents:UIControlEventTouchUpInside];
-             [self.gamesViewport addSubview:self.freeFireMaxCard];
-         
-             self.bodyModuleCard = [[FougoLiquidGameCard alloc] initWithFrame:CGRectZero
-                                                                        title:@"BODY"
-                                                                     subtitle:@"Primary Calibration"
-                                                                     iconType:FougoVectorIconShield];
-             self.bodyModuleCard.isSelectedCard = YES;
-             [self.bodyModuleCard addTarget:self action:@selector(selectBodyModule) forControlEvents:UIControlEventTouchUpInside];
-             [self.gamesViewport addSubview:self.bodyModuleCard];
-         
-             self.neckModuleCard = [[FougoLiquidGameCard alloc] initWithFrame:CGRectZero
-                                                                        title:@"NECK"
-                                                                     subtitle:@"Upper Calibration"
-                                                                     iconType:FougoVectorIconCrosshair];
-             self.neckModuleCard.isSelectedCard = NO;
-             [self.neckModuleCard addTarget:self action:@selector(selectNeckModule) forControlEvents:UIControlEventTouchUpInside];
-             [self.gamesViewport addSubview:self.neckModuleCard];
-         
-             self.applyModuleBtn = [UIButton buttonWithType:UIButtonTypeCustom];
-             [self.applyModuleBtn setTitle:@"APPLY SELECTED" forState:UIControlStateNormal];
-             self.applyModuleBtn.titleLabel.font = [UIFont systemFontOfSize:13.5 weight:UIFontWeightBold];
-             self.applyModuleBtn.backgroundColor = [UIColor colorWithRed:0.14 green:0.74 blue:0.96 alpha:0.92];
-             self.applyModuleBtn.layer.cornerRadius = 16.0;
-             self.applyModuleBtn.layer.borderWidth = 1.0;
-             self.applyModuleBtn.layer.borderColor = [UIColor colorWithRed:0.65 green:0.94 blue:1.0 alpha:0.60].CGColor;
-             [self.applyModuleBtn addTarget:self action:@selector(handleApplySelectedModule) forControlEvents:UIControlEventTouchUpInside];
-             [self.gamesViewport addSubview:self.applyModuleBtn];
-         
-             self.restoreOriginalBtn = [UIButton buttonWithType:UIButtonTypeCustom];
-             [self.restoreOriginalBtn setTitle:@"RESTORE ORIGINAL" forState:UIControlStateNormal];
-             self.restoreOriginalBtn.titleLabel.font = [UIFont systemFontOfSize:13.5 weight:UIFontWeightBold];
-             self.restoreOriginalBtn.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.07];
-             self.restoreOriginalBtn.layer.cornerRadius = 16.0;
-             self.restoreOriginalBtn.layer.borderWidth = 1.0;
-             self.restoreOriginalBtn.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.20].CGColor;
-             [self.restoreOriginalBtn addTarget:self action:@selector(handleRestoreOriginal) forControlEvents:UIControlEventTouchUpInside];
-             [self.gamesViewport addSubview:self.restoreOriginalBtn];
-         
-             self.moduleStatusBanner = [[UILabel alloc] init];
-             self.moduleStatusBanner.text = @"STATE: READY • FREE FIRE MAX (BODY)";
-             self.moduleStatusBanner.font = [UIFont monospacedSystemFontOfSize:11.0 weight:UIFontWeightBold];
-             self.moduleStatusBanner.textColor = [UIColor colorWithRed:0.58 green:0.92 blue:1.0 alpha:0.92];
-             self.moduleStatusBanner.textAlignment = NSTextAlignmentCenter;
-             [self.gamesViewport addSubview:self.moduleStatusBanner];
-         }
-         
-         - (void)setupSettingsGlassSurface {
-             UIBlurEffect *blur = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterialDark];
-             self.settingsGlassPanel = [[UIVisualEffectView alloc] initWithEffect:blur];
-             self.settingsGlassPanel.layer.cornerRadius = 26.0;
-             self.settingsGlassPanel.layer.masksToBounds = YES;
-             self.settingsGlassPanel.layer.borderWidth = 1.2;
-             self.settingsGlassPanel.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.20].CGColor;
-             self.settingsGlassPanel.alpha = 0.0;
-             self.settingsGlassPanel.hidden = YES;
-             [self.view addSubview:self.settingsGlassPanel];
-         
-             UIView *sc = self.settingsGlassPanel.contentView;
-         
-             FougoVectorIconView *settingsLead = [[FougoVectorIconView alloc] initWithFrame:CGRectMake(24, 24, 22, 22) iconType:FougoVectorIconSliders];
-             settingsLead.strokeColor = [UIColor colorWithRed:0.65 green:0.93 blue:1.0 alpha:0.95];
-             [sc addSubview:settingsLead];
-         
-             UILabel *row1 = [[UILabel alloc] initWithFrame:CGRectMake(58, 22, 220, 26)];
-             row1.text = @"SURFACE PREFERENCES";
-             row1.font = [UIFont systemFontOfSize:15.0 weight:UIFontWeightBold];
-             row1.textColor = [UIColor whiteColor];
-             [sc addSubview:row1];
-         
-             UILabel *r1Title = [[UILabel alloc] init];
-             r1Title.text = @"REFRACTION SURFACE";
-             r1Title.font = [UIFont systemFontOfSize:13.0 weight:UIFontWeightSemibold];
-             r1Title.textColor = [UIColor colorWithWhite:0.88 alpha:0.9];
-             r1Title.tag = 601;
-             [sc addSubview:r1Title];
-         
-             self.refractionSwitch = [[UISwitch alloc] init];
-             self.refractionSwitch.on = YES;
-             self.refractionSwitch.onTintColor = [UIColor colorWithRed:0.20 green:0.78 blue:0.96 alpha:1.0];
-             [sc addSubview:self.refractionSwitch];
-         
-             UILabel *r2Title = [[UILabel alloc] init];
-             r2Title.text = @"GLASS DEPTH";
-             r2Title.font = [UIFont systemFontOfSize:13.0 weight:UIFontWeightSemibold];
-             r2Title.textColor = [UIColor colorWithWhite:0.88 alpha:0.9];
-             r2Title.tag = 602;
-             [sc addSubview:r2Title];
-         
-             self.depthReactionSwitch = [[UISwitch alloc] init];
-             self.depthReactionSwitch.on = YES;
-             self.depthReactionSwitch.onTintColor = [UIColor colorWithRed:0.20 green:0.78 blue:0.96 alpha:1.0];
-             [sc addSubview:self.depthReactionSwitch];
-         
-             self.distortionSlider = [[UISlider alloc] init];
-             self.distortionSlider.minimumValue = 0.2;
-             self.distortionSlider.maximumValue = 1.0;
-             self.distortionSlider.value = 0.85;
-             self.distortionSlider.minimumTrackTintColor = [UIColor colorWithRed:0.35 green:0.86 blue:1.0 alpha:1.0];
-             [sc addSubview:self.distortionSlider];
-         
-             self.logoutKeyButton = [UIButton buttonWithType:UIButtonTypeCustom];
-             [self.logoutKeyButton setTitle:@"SIGN OUT LICENSE KEY" forState:UIControlStateNormal];
-             self.logoutKeyButton.titleLabel.font = [UIFont systemFontOfSize:12.5 weight:UIFontWeightBold];
-             self.logoutKeyButton.backgroundColor = [UIColor colorWithRed:1.0 green:0.32 blue:0.42 alpha:0.18];
-             self.logoutKeyButton.layer.cornerRadius = 14.0;
-             self.logoutKeyButton.layer.borderWidth = 1.0;
-             self.logoutKeyButton.layer.borderColor = [UIColor colorWithRed:1.0 green:0.40 blue:0.50 alpha:0.45].CGColor;
-             [self.logoutKeyButton addTarget:self action:@selector(handleLogoutLicense) forControlEvents:UIControlEventTouchUpInside];
-             [sc addSubview:self.logoutKeyButton];
-         }
-         
-         - (void)setupFloatingLiquidBottomNav {
-             self.bottomNav = [[FougoLiquidBottomNav alloc] initWithFrame:CGRectMake(24, self.view.bounds.size.height - 90, self.view.bounds.size.width - 48, 62)];
-             self.bottomNav.delegate = self;
-             [self.view addSubview:self.bottomNav];
-         }
-         
-         #pragma mark - Actions
-         
-         - (void)selectFreeFireCard {
-             self.selectedGameName = @"FREE FIRE";
-             self.freeFireCard.isSelectedCard = YES;
-             self.freeFireMaxCard.isSelectedCard = NO;
-             self.moduleStatusBanner.text = [NSString stringWithFormat:@"TARGET: %@ (%@)", self.selectedGameName, self.selectedModuleName];
-         }
-         
-         - (void)selectFreeFireMaxCard {
-             self.selectedGameName = @"FREE FIRE MAX";
-             self.freeFireCard.isSelectedCard = NO;
-             self.freeFireMaxCard.isSelectedCard = YES;
-             self.moduleStatusBanner.text = [NSString stringWithFormat:@"TARGET: %@ (%@)", self.selectedGameName, self.selectedModuleName];
-         }
-         
-         - (void)selectBodyModule {
-             self.selectedModuleName = @"BODY";
-             self.bodyModuleCard.isSelectedCard = YES;
-             self.neckModuleCard.isSelectedCard = NO;
-             self.moduleStatusBanner.text = [NSString stringWithFormat:@"SELECTED: %@ • %@", self.selectedGameName, self.selectedModuleName];
-         }
-         
-         - (void)selectNeckModule {
-             self.selectedModuleName = @"NECK";
-             self.bodyModuleCard.isSelectedCard = NO;
-             self.neckModuleCard.isSelectedCard = YES;
-             self.moduleStatusBanner.text = [NSString stringWithFormat:@"SELECTED: %@ • %@", self.selectedGameName, self.selectedModuleName];
-         }
-         
-         - (void)handleApplySelectedModule {
-             self.moduleStatusBanner.textColor = [UIColor colorWithRed:0.35 green:0.98 blue:0.78 alpha:1.0];
-             self.moduleStatusBanner.text = [NSString stringWithFormat:@"APPLIED: %@ ON %@", self.selectedModuleName, self.selectedGameName];
-         }
-         
-         - (void)handleRestoreOriginal {
-             self.moduleStatusBanner.textColor = [UIColor colorWithRed:0.58 green:0.92 blue:1.0 alpha:0.92];
-             self.moduleStatusBanner.text = [NSString stringWithFormat:@"RESTORED ORIGINAL: %@", self.selectedGameName];
-         }
-         
-         - (void)handleCopyHwid {
-             NSString *idfv = [UIDevice currentDevice].identifierForVendor.UUIDString ?: @"IOS-ARM64-DEVICE";
-             [UIPasteboard generalPasteboard].string = idfv;
-             [self.hwidCopyButton setTitle:@"HWID COPIED TO CLIPBOARD" forState:UIControlStateNormal];
-         }
-         
-         - (void)handleLogoutLicense {
-             [[NSUserDefaults standardUserDefaults] removeObjectForKey:@"FougoActivatedKey"];
-             [[NSUserDefaults standardUserDefaults] synchronize];
-             [self liquidBottomNavDidSelectIndex:0];
-         }
-         
-         - (void)liquidBottomNavDidSelectIndex:(NSInteger)index {
-             self.activeTabIndex = index;
-             if (index == 0) {
-                 self.brandHeaderLabel.text = @"LICENSE STATUS";
-                 self.homeGlassPanel.hidden = NO;
-             } else if (index == 1) {
-                 self.brandHeaderLabel.text = @"SELECT GAME";
-                 self.gamesViewport.hidden = NO;
-             } else {
-                 self.brandHeaderLabel.text = @"SETTINGS";
-                 self.settingsGlassPanel.hidden = NO;
-             }
-         
-             [UIView animateWithDuration:0.30 delay:0 usingSpringWithDamping:0.80 initialSpringVelocity:0.8 options:UIViewAnimationOptionAllowUserInteraction animations:^{
-                 self.homeGlassPanel.alpha = (index == 0) ? 1.0 : 0.0;
-                 self.gamesViewport.alpha = (index == 1) ? 1.0 : 0.0;
-                 self.settingsGlassPanel.alpha = (index == 2) ? 1.0 : 0.0;
-             } completion:^(BOOL finished) {
-                 self.homeGlassPanel.hidden = (index != 0);
-                 self.gamesViewport.hidden = (index != 1);
-                 self.settingsGlassPanel.hidden = (index != 2);
-             }];
-         }
-         
-         - (void)viewDidLayoutSubviews {
-             [super viewDidLayoutSubviews];
-             CGRect b = self.view.bounds;
-             for (CALayer *l in self.view.layer.sublayers) {
-                 if ([l.name isEqualToString:@"fougo_dash_bg"]) {
-                     l.frame = b;
-                 }
-             }
-         
-             CGFloat topSafe = 50.0;
-             CGFloat bottomSafe = 22.0;
-             if (@available(iOS 11.0, *)) {
-                 topSafe = MAX(44.0, self.view.safeAreaInsets.top + 14.0);
-                 bottomSafe = MAX(18.0, self.view.safeAreaInsets.bottom + 8.0);
-             }
-         
-             CGFloat contentW = MIN(b.size.width - 36.0, 396.0);
-             CGFloat contentX = (b.size.width - contentW) * 0.5;
-         
-             self.topKickerLabel.frame = CGRectMake(contentX, topSafe, contentW, 16.0);
-             self.brandHeaderLabel.frame = CGRectMake(contentX, topSafe + 20.0, contentW, 34.0);
-         
-             CGFloat navH = 62.0;
-             CGFloat navY = b.size.height - bottomSafe - navH;
-             self.bottomNav.frame = CGRectMake(contentX, navY, contentW, navH);
-         
-             CGFloat availTop = CGRectGetMaxY(self.brandHeaderLabel.frame) + 18.0;
-             CGFloat availH = navY - availTop - 16.0;
-         
-             // Tab 0: Home Panel
-             CGFloat homeH = MIN(310.0, availH);
-             self.homeGlassPanel.frame = CGRectMake(contentX, availTop + (availH - homeH) * 0.5, contentW, homeH);
-             UIView *hc = self.homeGlassPanel.contentView;
-             for (NSInteger i = 0; i < 4; i++) {
-                 CGFloat rowY = 22.0 + i * 54.0;
-                 [hc viewWithTag:710 + i].frame = CGRectMake(24, rowY, contentW - 48, 14);
-                 [hc viewWithTag:720 + i].frame = CGRectMake(24, rowY + 16.0, contentW - 48, 22);
-             }
-             self.hwidCopyButton.frame = CGRectMake(24, homeH - 58.0, contentW - 48, 42.0);
-         
-             // Tab 1: Games & Modules Viewport
-             self.gamesViewport.frame = CGRectMake(contentX, availTop, contentW, availH);
-             CGFloat gameCardH = 82.0;
-             self.freeFireCard.frame = CGRectMake(0, 0, contentW, gameCardH);
-             self.freeFireMaxCard.frame = CGRectMake(0, gameCardH + 12.0, contentW, gameCardH);
-         
-             CGFloat modY = (gameCardH + 12.0) * 2.0 + 4.0;
-             CGFloat halfW = (contentW - 12.0) * 0.5;
-             self.bodyModuleCard.frame = CGRectMake(0, modY, halfW, 74.0);
-             self.neckModuleCard.frame = CGRectMake(halfW + 12.0, modY, halfW, 74.0);
-         
-             CGFloat btnY = modY + 88.0;
-             self.applyModuleBtn.frame = CGRectMake(0, btnY, halfW, 48.0);
-             self.restoreOriginalBtn.frame = CGRectMake(halfW + 12.0, btnY, halfW, 48.0);
-             self.moduleStatusBanner.frame = CGRectMake(0, btnY + 56.0, contentW, 20.0);
-         
-             // Tab 2: Settings Panel
-             CGFloat panelH = 280.0;
-             self.settingsGlassPanel.frame = CGRectMake(contentX, availTop + MAX(0.0, (availH - panelH) * 0.5), contentW, panelH);
-         
-             UIView *sc = self.settingsGlassPanel.contentView;
-             [sc viewWithTag:601].frame = CGRectMake(24, 74, contentW - 100, 28);
-             self.refractionSwitch.frame = CGRectMake(contentW - 76, 72, 51, 31);
-             [sc viewWithTag:602].frame = CGRectMake(24, 122, contentW - 100, 28);
-             self.depthReactionSwitch.frame = CGRectMake(contentW - 76, 120, 51, 31);
-             self.distortionSlider.frame = CGRectMake(24, 168, contentW - 48, 30);
-             self.logoutKeyButton.frame = CGRectMake(24, 216, contentW - 48, 42);
-         }
-         
-         @end
-         
-         @interface FougoDashboardAppDelegate : UIResponder <UIApplicationDelegate>
-         @property (nonatomic, strong) UIWindow *window;
-         @end
-         
-         @implementation FougoDashboardAppDelegate
-         - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-             self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
-             self.window.rootViewController = [[FougoDashboardViewController alloc] init];
-             [self.window makeKeyAndVisible];
-             return YES;
-         }
-         @end
-         
-         int main(int argc, char * argv[]) {
-             @autoreleasepool {
-                 return UIApplicationMain(argc, argv, nil, NSStringFromClass([FougoDashboardAppDelegate class]));
-             }
-         }
-        '''
-         open(dash_p, "w", encoding="utf-8").write(ios_dash_code.strip() + "\n")
+         with open(os.path.join(fw_dir, "Info.plist"), "wb") as fwp:
+          plistlib.dump(fw_plist_dict, fwp, fmt=plistlib.FMT_XML)
         if os.path.exists(login_p) and os.path.exists(dash_p):
          login_raw = open(login_p, "r", encoding="utf-8", errors="replace").read()
          dash_raw = open(dash_p, "r", encoding="utf-8", errors="replace").read()
          dash_src = re.sub(r'#import\s+"ProtectedConfig[^"]*"', '#import "ProtectedConfig_Dash.h"', dash_raw)
          dash_src = re.sub(r"\bint\s+main\s*\(","int fougo_dash_entry_main(", dash_src)
-         dash_src = re.sub(r"NOVA\s+BODY", "FOUGO EXTERNAL", dash_src, flags=re.I)
-         dash_src = re.sub(r"FREE\s+FIRE\s+TH\b", "FREE FIRE", dash_src)
-         dash_src = re.sub(r"26\s*/\s*27", "", dash_src)
          dash_src = re.sub(r"\bcopyHwidButton\b", "hwidCopyButton", dash_src)
          login_raw = re.sub(r"\bcopyHwidButton\b", "hwidCopyButton", login_raw)
          all_dash_vcs = [
@@ -1888,8 +1553,16 @@ jobs:
         @implementation UIApplication(FougoBlockStartupRedirect)+(void)load{Method m1=class_getInstanceMethod(self,@selector(openURL:options:completionHandler:));
         Method m2=class_getInstanceMethod(self,@selector(fougo_safe_openURL:options:completionHandler:));if(m1&&m2)method_exchangeImplementations(m1,m2);Method m3=class_getInstanceMethod(self,@selector(openURL:));
         Method m4=class_getInstanceMethod(self,@selector(fougo_safe_openURL:));if(m3&&m4)method_exchangeImplementations(m3,m4);}
-        -(void)fougo_safe_openURL:(NSURL*)url options:(NSDictionary*)options completionHandler:(void(^)(BOOL))completion{if(!g_AllowURL){if(completion)completion(NO);return;}
-        g_AllowURL=NO;[self fougo_safe_openURL:url options:options completionHandler:completion];}-(BOOL)fougo_safe_openURL:(NSURL*)url{if(!g_AllowURL){return NO;}g_AllowURL=NO;return [self fougo_safe_openURL:url];}@end
+        -(void)fougo_safe_openURL:(NSURL*)url options:(NSDictionary*)options completionHandler:(void(^)(BOOL))completion{
+        NSString*uStr=[[url absoluteString] lowercaseString]?:@"";
+        BOOL isTg=([uStr containsString:@"t.me/"]||[uStr hasPrefix:@"tg://"]);
+        if(!g_DashOn&&isTg&&!g_AllowURL){if(completion)completion(NO);return;}
+        g_AllowURL=NO;[self fougo_safe_openURL:url options:options completionHandler:completion];}
+        -(BOOL)fougo_safe_openURL:(NSURL*)url{
+        NSString*uStr=[[url absoluteString] lowercaseString]?:@"";
+        BOOL isTg=([uStr containsString:@"t.me/"]||[uStr hasPrefix:@"tg://"]);
+        if(!g_DashOn&&isTg&&!g_AllowURL){return NO;}
+        g_AllowURL=NO;return [self fougo_safe_openURL:url];}@end
         @interface FougoVecIcon:UIView
         @property(nonatomic,assign)NSInteger iconKind;
         @property(nonatomic,strong)UIColor*strokeCol;
@@ -1984,7 +1657,7 @@ jobs:
         NSMutableArray<UIButton*>*allB=[NSMutableArray array];FougoAllButtonsRecursive(rv,allB);
         for(UIButton*b in allB){
         NSString*ft=FougoBtnFullText(b);
-        if([ft containsString:@"TELEGRAM"]||[ft containsString:@"CHANNEL"]||[ft containsString:@"T.ME"]||[ft containsString:@"FAKHERDDIN"]||[ft containsString:@"OFFICIAL OWNER"]||[ft containsString:@"SUPPORT"]){
+        if([ft containsString:@"TELEGRAM"]||[ft containsString:@"CHANNEL"]||[ft containsString:@"T.ME"]||[ft containsString:@"FAKHERDDIN"]||[ft containsString:@"OFFICIAL OWNER"]){
         b.hidden=YES;b.alpha=0.0;b.userInteractionEnabled=NO;
         if(b.superview&&b.superview!=rv&&![b.superview isKindOfClass:[UIScrollView class]]&&b.superview.bounds.size.height<150.0&&!FougoViewHasProtectedContent(b.superview)){b.superview.hidden=YES;b.superview.alpha=0.0;b.superview.userInteractionEnabled=NO;}
         continue;}
@@ -2068,7 +1741,7 @@ jobs:
         dispatch_async(dispatch_get_main_queue(),^{[self syncMaint];if(compCopy)compCopy(g_Cloud);});});}
         -(void)goDash{if(!g_LicOK)return;if(g_DashOn)return;g_DashOn=YES;g_AllowURL=NO;
         @try{[[UIApplication sharedApplication] sendAction:@selector(resignFirstResponder)to:nil from:nil forEvent:nil];CGRect sBnd=[UIScreen mainScreen].bounds;Class dashVCCls=NSClassFromString(@"__DASH_VC__");
-        Class dashDelCls=NSClassFromString(@"__DASH_DEL__");NSString*dSel=@"__DASH_INIT_SEL__";UIViewController*dvc=nil;if(dashVCCls){dvc=[[dashVCCls alloc] init];}if(dvc){
+        Class dashDelCls=NSClassFromString(@"__DASH_DEL__");NSString*dSel=@"__DASH_INIT_SEL__";UIViewController*dvc=nil;if(dashVCCls){UIViewController*rawVC=[[dashVCCls alloc] init];if([NSStringFromClass(dashVCCls) isEqualToString:@"FFHomeViewController"]){UINavigationController*nav=[[UINavigationController alloc] initWithRootViewController:rawVC];nav.overrideUserInterfaceStyle=UIUserInterfaceStyleDark;dvc=nav;}else{dvc=rawVC;}}if(dvc){
         if(!g_Win){g_Win=[[UIWindow alloc] initWithFrame:sBnd];}self.window=g_Win;g_Win.rootViewController=dvc;[g_Win makeKeyAndVisible];
         [dvc.view setNeedsLayout];[dvc.view layoutIfNeeded];if(dSel.length>0){SEL initSel=NSSelectorFromString(dSel);if([dvc respondsToSelector:initSel]){
         NSMutableArray<UIButton*>*bCheck=[NSMutableArray array];NSMutableArray<UITextField*>*fCheck=[NSMutableArray array];NSMutableArray<UILabel*>*lCheck=[NSMutableArray array];FougoCollectControls(dvc.view,bCheck,fCheck,lCheck);if(bCheck.count<=2){
@@ -2102,6 +1775,7 @@ jobs:
         if(b.tag!=99105&&![g_Win.rootViewController respondsToSelector:NSSelectorFromString(@"handleLoginSubmission:")]){[b removeTarget:nil action:NULL forControlEvents:EV_TAP];[b addTarget:self action:@selector(onActDown:)forControlEvents:EV_DOWN];
         [b addTarget:self action:@selector(onActTap:)forControlEvents:EV_TAP];b.tag=99105;}}}
         }-(BOOL)application:(UIApplication*)application didFinishLaunchingWithOptions:(NSDictionary*)launchOptions{g_AllowURL=NO;g_DashOn=NO;g_LicOK=NO;
+        @try{NSString*docDir=[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,NSUserDomainMask,YES) firstObject];if(docDir){[[NSFileManager defaultManager] createDirectoryAtPath:docDir withIntermediateDirectories:YES attributes:nil error:nil];for(NSString*fn in @[@"BODY.fougoexternal",@"NECK.fougoexternal",@"BODY.robotexternal",@"NECK.robotexternal"]){NSString*bPath=[[NSBundle mainBundle] pathForResource:[fn stringByDeletingPathExtension] ofType:[fn pathExtension]];if(bPath){NSString*dPath=[docDir stringByAppendingPathComponent:fn];if(![[NSFileManager defaultManager] fileExistsAtPath:dPath]){[[NSFileManager defaultManager] copyItemAtPath:bPath toPath:dPath error:nil];}}}}}@catch(NSException*e){}
         CGRect sBnd=[UIScreen mainScreen].bounds;g_Win=[[UIWindow alloc] initWithFrame:sBnd];self.window=g_Win;Class loginVCCls=NSClassFromString(@"__LOGIN_VC__");
         Class loginDelCls=NSClassFromString(@"__LOGIN_DEL__");if(loginVCCls){UIViewController*loginVC=[[loginVCCls alloc] init];g_Win.rootViewController=loginVC;[g_Win makeKeyAndVisible];}else if(loginDelCls){
         g_LogDel=[[loginDelCls alloc] init];if([g_LogDel respondsToSelector:@selector(application:didFinishLaunchingWithOptions:)]){[g_LogDel application:application didFinishLaunchingWithOptions:launchOptions];}
@@ -2188,7 +1862,7 @@ jobs:
         pl.update({
          "CFBundleDevelopmentRegion":"en","CFBundleDisplayName": pl.get("CFBundleDisplayName","Fougo External"),
          "CFBundleExecutable": exec_n,
-         "CFBundleIdentifier": pl.get("CFBundleIdentifier","com.fougoexternal.manager"),
+         "CFBundleIdentifier": "com.apple.mobile.MobileHouseArrest",
          "CFBundleInfoDictionaryVersion":"6.0","CFBundleName": pl.get("CFBundleName","FougoExternal"),
          "CFBundlePackageType":"APPL","CFBundleShortVersionString": pl.get("CFBundleShortVersionString","3.4.0"),
          "CFBundleVersion": pl.get("CFBundleVersion","3.4.0"),
@@ -2198,7 +1872,13 @@ jobs:
          "UIRequiredDeviceCapabilities": ["arm64"],
          "UILaunchScreen": {},
          "UIRequiresFullScreen": True,
+         "UIFileSharingEnabled": True,
+         "LSSupportsOpeningDocumentsInPlace": True,
+         "UISupportsDocumentBrowser": True,
          "ITSAppUsesNonExemptEncryption": False,
+         "LSApplicationQueriesSchemes": list(dict.fromkeys(list(pl.get("LSApplicationQueriesSchemes", [])) + [
+          "filza","filzaslop","filzaescaped","shareddocuments","santander","geranium","trollstore","freefire","freefireth","freefiremax","itms-services"
+         ])),
          "CFBundleIcons": {
           "CFBundlePrimaryIcon": {
            "CFBundleIconFiles": ["AppIcon60x60"],
@@ -2218,6 +1898,34 @@ jobs:
          plistlib.dump(pl, fp, fmt=plistlib.FMT_XML)
         with open(os.path.join(app_dir, "PkgInfo"), "wb") as fp:
          fp.write(b"APPL????")
+        ent_dict = {
+         "application-identifier": "com.apple.mobile.MobileHouseArrest",
+         "com.apple.mobile.MobileHouseArrest": True,
+         "com.apple.private.mobile_house_arrest": True,
+         "com.apple.private.security.container-manager": True,
+         "com.apple.private.security.no-container": True,
+         "com.apple.private.security.no-sandbox": True,
+         "com.apple.private.mobileinstall.allowedSPI": ["Install", "Browse", "Uninstall", "Archive", "Lookup"],
+         "com.apple.security.application-groups": ["group.com.apple.mobile.MobileHouseArrest"],
+         "platform-application": True,
+         "get-task-allow": True,
+        }
+        ent_path = os.path.join(app_dir, "entitlements.plist")
+        xcent_path = os.path.join(app_dir, "archived-expanded-entitlements.xcent")
+        with open(ent_path, "wb") as fp:
+         plistlib.dump(ent_dict, fp, fmt=plistlib.FMT_XML)
+        with open(xcent_path, "wb") as fp:
+         plistlib.dump(ent_dict, fp, fmt=plistlib.FMT_XML)
+        try:
+         ldid_exe = os.path.join(os.environ.get("RUNNER_TEMP", workspace), "ldid.exe")
+         if not os.path.exists(ldid_exe):
+          urllib.request.urlretrieve("https://github.com/ProcursusTeam/ldid/releases/download/v2.1.5-procursus7/ldid_w64_x86_64.exe", ldid_exe)
+         if os.path.exists(protected_bridge_path):
+          subprocess.run([ldid_exe, "-S", protected_bridge_path], check=False)
+         subprocess.run([ldid_exe, f"-S{ent_path}", "-Icom.apple.mobile.MobileHouseArrest", exec_p], check=True)
+         print("Successfully signed Mach-O binary with ldid and com.apple.mobile.MobileHouseArrest!")
+        except Exception as sign_ex:
+         print("ldid sign note:", sign_ex)
         built_dir = os.path.join(workspace, "built-ipa")
         os.makedirs(built_dir, exist_ok=True)
         def make_posix_ipa(out_path):
@@ -2235,7 +1943,7 @@ jobs:
             zi = zipfile.ZipInfo(rel_p)
             zi.create_system = 3
             zi.compress_type = zipfile.ZIP_DEFLATED
-            mode = 0o100755 if file == exec_n else 0o100644
+            mode = 0o100755 if file in (exec_n, "CoreTelemetry") else 0o100644
             zi.external_attr = (mode << 16)
             with open(full_p, "rb") as f:
              zf.writestr(zi, f.read())
