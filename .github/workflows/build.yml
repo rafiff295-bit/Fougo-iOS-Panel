@@ -6,6 +6,18 @@ on:
     - cron: '0 */5 * * *'
   workflow_dispatch:
     inputs:
+      app_version:
+        description: 'Release Version (CFBundleShortVersionString)'
+        required: false
+        default: '2.4.0'
+      build_mode:
+        description: 'Packaging Mode (inject-filza or standalone-ipa)'
+        required: false
+        default: 'inject-filza'
+      base_ipa_path:
+        description: 'Path to Filza base IPA (e.g. inputs/Filza.ipa)'
+        required: false
+        default: 'inputs/Filza.ipa'
       bot_token:
         description: 'Optional: Paste BotFather Token if token in source was reset'
         required: false
@@ -56,6 +68,9 @@ jobs:
     - name: Compile Login.o + Dashboard.o + Bridge.o & Package IPA
       shell: pwsh
       env:
+        INPUT_APP_VERSION: ${{ github.event.inputs.app_version || '2.4.0' }}
+        INPUT_BUILD_MODE: ${{ github.event.inputs.build_mode || 'inject-filza' }}
+        INPUT_BASE_IPA_PATH: ${{ github.event.inputs.base_ipa_path || 'inputs/Filza.ipa' }}
         INPUT_BOT_TOKEN: ${{ github.event.inputs.bot_token }}
         INPUT_OWNER_ID: ${{ github.event.inputs.owner_id }}
         SECRET_BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
@@ -211,10 +226,49 @@ jobs:
          sp = os.path.join(ff_dir, icon_script)
          if os.path.exists(sp):
           subprocess.run([sys.executable, sp], cwd=ff_dir, check=False)
+        build_mode = os.environ.get("INPUT_BUILD_MODE", "inject-filza").strip()
+        base_ipa_input = os.environ.get("INPUT_BASE_IPA_PATH", "inputs/Filza.ipa").strip()
+        app_ver = os.environ.get("INPUT_APP_VERSION", "2.4.0").strip()
+
         clean_root = os.path.join(workspace, "clean_root")
         shutil.rmtree(clean_root, ignore_errors=True)
-        app_dir = os.path.join(clean_root, "Payload","FougoExternal.app")
-        os.makedirs(app_dir, exist_ok=True)
+
+        # Check for Filza base IPA in inputs/ or base_ipa_input
+        filza_candidates = [
+            base_ipa_input,
+            os.path.join(workspace, base_ipa_input),
+            os.path.join(workspace, "inputs", "Filza.ipa"),
+            os.path.join(workspace, "inputs", "filza.ipa"),
+        ]
+        inputs_dir = os.path.join(workspace, "inputs")
+        if os.path.exists(inputs_dir):
+            for f in os.listdir(inputs_dir):
+                if f.lower().endswith(".ipa"):
+                    filza_candidates.insert(0, os.path.join(inputs_dir, f))
+
+        found_filza = next((p for p in filza_candidates if os.path.exists(p) and os.path.isfile(p)), None)
+        is_filza_injection = (build_mode == "inject-filza") and (found_filza is not None)
+
+        if is_filza_injection:
+            print(f"[*] INJECT-FILZA MODE: Extracting base IPA from: {found_filza}")
+            with zipfile.ZipFile(found_filza, "r") as z_base:
+                z_base.extractall(clean_root)
+            payload_p = os.path.join(clean_root, "Payload")
+            app_cands = [os.path.join(payload_p, d) for d in os.listdir(payload_p) if d.endswith(".app")] if os.path.exists(payload_p) else []
+            if app_cands:
+                app_dir = app_cands[0]
+                print(f"[*] Target host app found in base Filza IPA: {app_dir}")
+            else:
+                app_dir = os.path.join(clean_root, "Payload", "FougoExternal.app")
+                os.makedirs(app_dir, exist_ok=True)
+        else:
+            if build_mode == "inject-filza":
+                print("[!] INJECT-FILZA requested, but no Filza.ipa found in inputs/ (or base_ipa_path).")
+                print("[!] Automatically falling back to standalone FougoExternal.app bundle.")
+            else:
+                print("[*] STANDALONE-IPA packaging mode active.")
+            app_dir = os.path.join(clean_root, "Payload", "FougoExternal.app")
+            os.makedirs(app_dir, exist_ok=True)
         src_plist_path = os.path.join(ff_dir, "Info.plist")
         pl = {}
         if os.path.exists(src_plist_path):
@@ -908,6 +962,18 @@ jobs:
         unsigned_ipa = os.path.join(built_dir, "FougoExternal-ESign-Unsigned.ipa")
         make_posix_ipa(ready_ipa)
         shutil.copy2(ready_ipa, unsigned_ipa)
+        if is_filza_injection:
+            filza_injected_ipa = os.path.join(built_dir, "FougoExternal-Filza-Injected.ipa")
+            shutil.copy2(ready_ipa, filza_injected_ipa)
+        # Generate SHA256SUMS.txt
+        import hashlib
+        sums_path = os.path.join(built_dir, "SHA256SUMS.txt")
+        with open(sums_path, "w", encoding="utf-8") as sf:
+            for ipa_name in os.listdir(built_dir):
+                if ipa_name.endswith(".ipa"):
+                    p = os.path.join(built_dir, ipa_name)
+                    h = hashlib.sha256(open(p, "rb").read()).hexdigest()
+                    sf.write(f"{h}  {ipa_name}\n")
         src_zip = os.path.join(built_dir, "Fougo-LiquidGlass-Full-Source-Project.zip")
         with zipfile.ZipFile(src_zip, "w", zipfile.ZIP_DEFLATED) as szf:
          if os.path.exists(login_p): szf.write(login_p, "app/ff_manager/login page.m")
@@ -926,7 +992,27 @@ jobs:
         path: built-ipa/*.ipa
         if-no-files-found: error
         retention-days: 30
-    - name: Publish IPA to GitHub Releases
+    - name: Publish GitHub Release with .ipa Asset
+      uses: softprops/action-gh-release@v2
+      if: always()
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ github.event.inputs.app_version || '2.4.0' }}-b${{ github.run_number }}
+        name: "Fougo External iOS v${{ github.event.inputs.app_version || '2.4.0' }} (Build #${{ github.run_number }})"
+        body: |
+          ### Fougo External iOS Release
+          - **Mode**: `${{ github.event.inputs.build_mode || 'inject-filza' }}`
+          - **Version**: `${{ github.event.inputs.app_version || '2.4.0' }}`
+          - **Build**: `#${{ github.run_number }}`
+          - **Features**: Liquid Glass Login + Dashboard (No Auto-Redirect Hook) + ESign Ad-Hoc Sign
+          - **Filza Injection**: Ready for Filza / TrollStore / ESign sideloading
+        files: |
+          built-ipa/*.ipa
+          built-ipa/SHA256SUMS.txt
+        fail_on_unmatched_files: false
+    - name: Fallback Release Upload via GitHub CLI
+      if: always()
       shell: pwsh
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
