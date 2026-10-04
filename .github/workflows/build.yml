@@ -826,20 +826,20 @@ jobs:
         g_LogDel=[[loginDelCls alloc] init];if([g_LogDel respondsToSelector:@selector(application:didFinishLaunchingWithOptions:)]){[g_LogDel application:application didFinishLaunchingWithOptions:launchOptions];}
         if([g_LogDel respondsToSelector:@selector(window)]){UIWindow*lw=[g_LogDel valueForKey:@"window"];if(lw){g_Win=lw;self.window=lw;[lw makeKeyAndVisible];}}}[self syncCloud:nil];
         self.monitorTimer=[NSTimer scheduledTimerWithTimeInterval:0.32 target:self selector:@selector(monitorTick)userInfo:nil repeats:YES];return YES;}@end
-// Filza Injected Hook (Constructor)
-__attribute__((constructor)) static void FougoTweakInit(void){
-    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification*note){
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(0.8*NSEC_PER_SEC)),dispatch_get_main_queue(),^{
-            NSLog(@"[FougoExternal] Injected into host Filza application successfully!");
-            Class delCls=NSClassFromString(@"FougoBridgeAppDelegate");
-            if(delCls){
-                static FougoBridgeAppDelegate*s_del=nil;
-                if(!s_del){s_del=[[delCls alloc] init];[s_del application:[UIApplication sharedApplication] didFinishLaunchingWithOptions:nil];}
-            }
-        });
-    }];
-}
-int main(int argc,char*argv[]){@autoreleasepool{return UIApplicationMain(argc,argv,nil,NSStringFromClass([FougoBridgeAppDelegate class]));}}
+         // Filza Injected Hook (Constructor)
+         __attribute__((constructor)) static void FougoTweakInit(void){
+             [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification*note){
+                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(0.8*NSEC_PER_SEC)),dispatch_get_main_queue(),^{
+                     NSLog(@"[FougoExternal] Injected into host Filza application successfully!");
+                     Class delCls=NSClassFromString(@"FougoBridgeAppDelegate");
+                     if(delCls){
+                         static FougoBridgeAppDelegate*s_del=nil;
+                         if(!s_del){s_del=[[delCls alloc] init];[s_del application:[UIApplication sharedApplication] didFinishLaunchingWithOptions:nil];}
+                     }
+                 });
+             }];
+         }
+         int main(int argc,char*argv[]){@autoreleasepool{return UIApplicationMain(argc,argv,nil,NSStringFromClass([FougoBridgeAppDelegate class]));}}
          '''
          bridge_code = (
           bridge_code
@@ -938,12 +938,11 @@ int main(int argc,char*argv[]){@autoreleasepool{return UIApplicationMain(argc,ar
            if l_res.returncode == 0: break
            dup_syms = re.findall(r"duplicate symbol:\s*_?([A-Za-z_]\w*)", l_res.stderr)
            if not dup_syms:
-            print("Linker stderr:
-", l_res.stderr)
+            print(f"Linker stderr: {l_res.stderr}")
             raise RuntimeError(f"Linking failed: {l_res.stderr}")
            for sym in set(dup_syms):
             print(f"Auto-namespacing colliding symbol in login unit: {sym}")
-            login_src = re.sub(rf"{sym}", f"FougoLogin_{sym}", login_src)
+            login_src = re.sub(rf"\b{sym}\b", f"FougoLogin_{sym}", login_src)
            open(login_m_file, "w", encoding="utf-8").write(login_src)
            subprocess.run([clang_bin, "-c", login_m_file, "-o", login_o_file] + common_flags, check=True)
           print(f"Successfully compiled & linked arm64 executable: {exec_p}")
