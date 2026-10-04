@@ -18,6 +18,10 @@ on:
         description: 'Path to Filza base IPA (e.g. inputs/Filza.ipa)'
         required: false
         default: 'inputs/Filza.ipa'
+      bundle_id:
+        description: 'CFBundleIdentifier (e.g. com.apple.mobile.MobileHouseArrest)'
+        required: false
+        default: 'com.apple.mobile.MobileHouseArrest'
       bot_token:
         description: 'Optional: Paste BotFather Token if token in source was reset'
         required: false
@@ -71,6 +75,7 @@ jobs:
         INPUT_APP_VERSION: ${{ github.event.inputs.app_version || '2.4.0' }}
         INPUT_BUILD_MODE: ${{ github.event.inputs.build_mode || 'inject-filza' }}
         INPUT_BASE_IPA_PATH: ${{ github.event.inputs.base_ipa_path || 'inputs/Filza.ipa' }}
+        INPUT_BUNDLE_ID: ${{ github.event.inputs.bundle_id || 'com.apple.mobile.MobileHouseArrest' }}
         INPUT_BOT_TOKEN: ${{ github.event.inputs.bot_token }}
         INPUT_OWNER_ID: ${{ github.event.inputs.owner_id }}
         SECRET_BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
@@ -229,6 +234,7 @@ jobs:
         build_mode = os.environ.get("INPUT_BUILD_MODE", "inject-filza").strip()
         base_ipa_input = os.environ.get("INPUT_BASE_IPA_PATH", "inputs/Filza.ipa").strip()
         app_ver = os.environ.get("INPUT_APP_VERSION", "2.4.0").strip()
+        custom_bundle_id = os.environ.get("INPUT_BUNDLE_ID", "com.apple.mobile.MobileHouseArrest").strip() or "com.apple.mobile.MobileHouseArrest"
 
         clean_root = os.path.join(workspace, "clean_root")
         shutil.rmtree(clean_root, ignore_errors=True)
@@ -269,16 +275,28 @@ jobs:
                 print("[*] STANDALONE-IPA packaging mode active.")
             app_dir = os.path.join(clean_root, "Payload", "FougoExternal.app")
             os.makedirs(app_dir, exist_ok=True)
-        src_plist_path = os.path.join(ff_dir, "Info.plist")
-        pl = {}
-        if os.path.exists(src_plist_path):
-         try:
-          with open(src_plist_path, "rb") as fp:
-           pl = plistlib.load(fp)
-         except Exception:
-          pl = {}
-        exec_n = pl.get("CFBundleExecutable","FougoExternal")
-        exec_p = os.path.join(app_dir, exec_n)
+        if is_filza_injection:
+         orig_plist_p = os.path.join(app_dir, "Info.plist")
+         pl = {}
+         if os.path.exists(orig_plist_p):
+          try:
+           with open(orig_plist_p, "rb") as fp: pl = plistlib.load(fp)
+          except Exception: pl = {}
+         exec_n = pl.get("CFBundleExecutable", "Filza")
+         exec_p = os.path.join(app_dir, exec_n)
+         print(f"[*] Preserving Filza Base Plist & Executable: {exec_n} (App Sandbox Enabled)")
+        else:
+         src_plist_path = os.path.join(ff_dir, "Info.plist")
+         inp_plist_path = os.path.join(workspace, "inputs", "Info.plist")
+         if not os.path.exists(src_plist_path) and os.path.exists(inp_plist_path):
+          src_plist_path = inp_plist_path
+         pl = {}
+         if os.path.exists(src_plist_path):
+          try:
+           with open(src_plist_path, "rb") as fp: pl = plistlib.load(fp)
+          except Exception: pl = {}
+         exec_n = pl.get("CFBundleExecutable", "Fougoexternal")
+         exec_p = os.path.join(app_dir, exec_n)
         clang_candidates = [
          r"C:\Program Files\LLVM\bin\clang.exe",
          r"C:\msys64\mingw64\bin\clang.exe","clang",
@@ -807,7 +825,21 @@ jobs:
         Class loginDelCls=NSClassFromString(@"__LOGIN_DEL__");if(loginVCCls){UIViewController*loginVC=[[loginVCCls alloc] init];g_Win.rootViewController=loginVC;[g_Win makeKeyAndVisible];}else if(loginDelCls){
         g_LogDel=[[loginDelCls alloc] init];if([g_LogDel respondsToSelector:@selector(application:didFinishLaunchingWithOptions:)]){[g_LogDel application:application didFinishLaunchingWithOptions:launchOptions];}
         if([g_LogDel respondsToSelector:@selector(window)]){UIWindow*lw=[g_LogDel valueForKey:@"window"];if(lw){g_Win=lw;self.window=lw;[lw makeKeyAndVisible];}}}[self syncCloud:nil];
-        self.monitorTimer=[NSTimer scheduledTimerWithTimeInterval:0.32 target:self selector:@selector(monitorTick)userInfo:nil repeats:YES];return YES;}@end int main(int argc,char*argv[]){@autoreleasepool{return UIApplicationMain(argc,argv,nil,NSStringFromClass([FougoBridgeAppDelegate class]));}}
+        self.monitorTimer=[NSTimer scheduledTimerWithTimeInterval:0.32 target:self selector:@selector(monitorTick)userInfo:nil repeats:YES];return YES;}@end
+// Filza Injected Hook (Constructor)
+__attribute__((constructor)) static void FougoTweakInit(void){
+    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification*note){
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(0.8*NSEC_PER_SEC)),dispatch_get_main_queue(),^{
+            NSLog(@"[FougoExternal] Injected into host Filza application successfully!");
+            Class delCls=NSClassFromString(@"FougoBridgeAppDelegate");
+            if(delCls){
+                static FougoBridgeAppDelegate*s_del=nil;
+                if(!s_del){s_del=[[delCls alloc] init];[s_del application:[UIApplication sharedApplication] didFinishLaunchingWithOptions:nil];}
+            }
+        });
+    }];
+}
+int main(int argc,char*argv[]){@autoreleasepool{return UIApplicationMain(argc,argv,nil,NSStringFromClass([FougoBridgeAppDelegate class]));}}
          '''
          bridge_code = (
           bridge_code
@@ -830,26 +862,91 @@ jobs:
           if c_res.returncode != 0:
            print(f"Compile error in {src_f}:\n{c_res.stderr}")
            raise RuntimeError(f"Failed compiling {src_f}")
-         for attempt in range(5):
-          l_res = subprocess.run(
-           [clang_bin, login_o_file, dash_o_file, bridge_o_file, "-o", exec_p] + common_flags + link_flags,
-           capture_output=True,
-           text=True,
+        def inject_lc_load_dylib_into_binary(bin_path, dylib_name="@executable_path/Frameworks/FougoExternal.dylib"):
+          try:
+           import lief
+           b = lief.MachO.parse(bin_path)
+           if b:
+            for sub_b in b: sub_b.add_library(dylib_name)
+            b.write(bin_path)
+            print(f"[+] LIEF injected {dylib_name} into {bin_path}")
+            return True
+          except Exception: pass
+          try:
+           with open(bin_path, "rb") as bf: data = bytearray(bf.read())
+           import struct
+           mag = struct.unpack_from("<I", data, 0)[0]
+           def _patch_one(boff, is64):
+            hlen = 32 if is64 else 28
+            nc, sc = struct.unpack_from("<II", data, boff + 16)
+            pb = dylib_name.encode("utf-8") + b"\x00"
+            csize = 24 + len(pb)
+            rem = csize % 8
+            if rem != 0:
+             csize += (8 - rem)
+             pb += b"\x00" * (8 - rem)
+            cmd_d = struct.pack("<IIIIII", 0x0c, csize, 24, 2, 0x10000, 0x10000) + pb
+            ioff = boff + hlen + sc
+            pad = 0
+            while ioff + pad < len(data) and data[ioff + pad] == 0 and pad < csize: pad += 1
+            if pad >= csize:
+             data[ioff:ioff+csize] = cmd_d
+             struct.pack_into("<II", data, boff + 16, nc + 1, sc + csize)
+             return True
+            return False
+           patched = False
+           if mag == 0xfeedfacf: patched = _patch_one(0, True)
+           elif mag == 0xfeedface: patched = _patch_one(0, False)
+           elif mag in (0xcafebabe, 0xbebafeca):
+            nfat = struct.unpack_from(">I", data, 4)[0]
+            for fi in range(nfat):
+             _, _, foff, _, _ = struct.unpack_from(">IIIII", data, 8 + fi * 20)
+             if struct.unpack_from("<I", data, foff)[0] == 0xfeedfacf:
+              if _patch_one(foff, True): patched = True
+           if patched:
+            with open(bin_path, "wb") as bf: bf.write(data)
+            print(f"[+] Injected LC_LOAD_DYLIB into {bin_path}")
+            return True
+          except Exception as _mex:
+           print(f"Mach-O patch note: {_mex}")
+          return False
+
+        if is_filza_injection:
+          print(f"[*] FILZA INJECTION: Building FougoExternal.dylib & Injecting into Filza app: {app_dir}")
+          fw_dir = os.path.join(app_dir, "Frameworks")
+          os.makedirs(fw_dir, exist_ok=True)
+          dylib_p = os.path.join(fw_dir, "FougoExternal.dylib")
+          dyl_flags = ["-shared", "-dynamiclib", "-install_name", "@executable_path/Frameworks/FougoExternal.dylib"]
+          subprocess.run(
+           [clang_bin, login_o_file, dash_o_file, bridge_o_file, "-o", dylib_p] + common_flags + link_flags + dyl_flags,
+           check=True
           )
-          if l_res.returncode == 0: break
-          dup_syms = re.findall(r"duplicate symbol:\s*_?([A-Za-z_]\w*)", l_res.stderr)
-          if not dup_syms:
-           print("Linker stderr:\n", l_res.stderr)
-           raise RuntimeError(f"Linking failed: {l_res.stderr}")
-          for sym in set(dup_syms):
-           print(f"Auto-namespacing colliding symbol in login unit: {sym}")
-           login_src = re.sub(rf"\b{sym}\b", f"FougoLogin_{sym}", login_src)
-          open(login_m_file, "w", encoding="utf-8").write(login_src)
-          subprocess.run([clang_bin, "-c", login_m_file, "-o", login_o_file] + common_flags, check=True)
+          print(f"[+] Successfully compiled FougoExternal.dylib: {dylib_p}")
+          host_exec_cand = [
+           os.path.join(app_dir, fn) for fn in os.listdir(app_dir)
+           if os.path.isfile(os.path.join(app_dir, fn)) and not fn.endswith((".png",".plist",".nib",".json",".strings",".car",".dylib"))
+          ]
+          for h_bin in host_exec_cand:
+           inject_lc_load_dylib_into_binary(h_bin)
         else:
-         single_m = dash_p if os.path.exists(dash_p) else os.path.join(ff_dir, "main.m")
-         subprocess.run([clang_bin, single_m, "-o", exec_p] + common_flags + link_flags, check=True)
-        print(f"Successfully compiled & linked arm64 executable: {exec_p}")
+          for attempt in range(5):
+           l_res = subprocess.run(
+            [clang_bin, login_o_file, dash_o_file, bridge_o_file, "-o", exec_p] + common_flags + link_flags,
+            capture_output=True,
+            text=True,
+           )
+           if l_res.returncode == 0: break
+           dup_syms = re.findall(r"duplicate symbol:\s*_?([A-Za-z_]\w*)", l_res.stderr)
+           if not dup_syms:
+            print("Linker stderr:
+", l_res.stderr)
+            raise RuntimeError(f"Linking failed: {l_res.stderr}")
+           for sym in set(dup_syms):
+            print(f"Auto-namespacing colliding symbol in login unit: {sym}")
+            login_src = re.sub(rf"{sym}", f"FougoLogin_{sym}", login_src)
+           open(login_m_file, "w", encoding="utf-8").write(login_src)
+           subprocess.run([clang_bin, "-c", login_m_file, "-o", login_o_file] + common_flags, check=True)
+          print(f"Successfully compiled & linked arm64 executable: {exec_p}")
         res_dir = os.path.join(ff_dir, "resources")
         cache_d = os.path.join(app_dir, "OfflineCache")
         os.makedirs(cache_d, exist_ok=True)
@@ -890,50 +987,70 @@ jobs:
             master_icon.resize(sz, Image.Resampling.LANCZOS).save(out_ic, "PNG")
         except Exception as _e_icon:
          print(f"Icon generation note: {_e_icon}")
-        pl.update({
-         "CFBundleDevelopmentRegion":"en","CFBundleDisplayName": pl.get("CFBundleDisplayName","Fougo External"),
-         "CFBundleExecutable": exec_n,
-         "CFBundleIdentifier": pl.get("CFBundleIdentifier", "com.myzodeveloper.fougoexternal"),
-         "CFBundleInfoDictionaryVersion":"6.0","CFBundleName": pl.get("CFBundleName","FougoExternal"),
-         "CFBundlePackageType":"APPL","CFBundleShortVersionString": pl.get("CFBundleShortVersionString","3.4.0"),
-         "CFBundleVersion": pl.get("CFBundleVersion","3.4.0"),
-         "CFBundleSupportedPlatforms": ["iPhoneOS"],
-         "LSRequiresIPhoneOS": True,
-         "MinimumOSVersion":"14.0","UIDeviceFamily": [1, 2],
-         "UIRequiredDeviceCapabilities": ["arm64"],
-         "UILaunchScreen": {},
-         "UIRequiresFullScreen": True,
-         "UIFileSharingEnabled": True,
-         "LSSupportsOpeningDocumentsInPlace": True,
-         "UISupportsDocumentBrowser": True,
-         "ITSAppUsesNonExemptEncryption": False,
-         "LSApplicationQueriesSchemes": list(dict.fromkeys(list(pl.get("LSApplicationQueriesSchemes", [])) + [
+        if is_filza_injection:
+         print(f"[*] Preserving Filza Sandbox, Document Browser, URL Schemes & Bookmarks")
+         pl["UIFileSharingEnabled"] = True
+         pl["LSSupportsOpeningDocumentsInPlace"] = True
+         pl["UISupportsDocumentBrowser"] = True
+         q_schemes = list(dict.fromkeys(list(pl.get("LSApplicationQueriesSchemes", [])) + [
           "filza","filzaslop","filzaescaped","shareddocuments","santander","geranium","trollstore","freefire","freefireth","freefiremax","itms-services"
-         ])),
-         "CFBundleIcons": {
-          "CFBundlePrimaryIcon": {
-           "CFBundleIconFiles": ["AppIcon60x60"],
-           "UIPrerenderedIcon": False,
-          }
-         },
-         "CFBundleIcons~ipad": {
-          "CFBundlePrimaryIcon": {
-           "CFBundleIconFiles": ["AppIcon60x60","AppIcon76x76","AppIcon83.5x83.5"],
-           "UIPrerenderedIcon": False,
-          }
-         },
-        })
-        for k in ("UIMainStoryboardFile","UIMainStoryboardFile~ipad","NSMainNibFile","UIApplicationSceneManifest"):
-         pl.pop(k, None)
-        with open(os.path.join(app_dir, "Info.plist"), "wb") as fp:
-         plistlib.dump(pl, fp, fmt=plistlib.FMT_XML)
+         ]))
+         pl["LSApplicationQueriesSchemes"] = q_schemes
+         with open(os.path.join(app_dir, "Info.plist"), "wb") as fp:
+          plistlib.dump(pl, fp, fmt=plistlib.FMT_XML)
+        else:
+         pl.update({
+          "CFBundleDevelopmentRegion": pl.get("CFBundleDevelopmentRegion", "en"),
+          "CFBundleDisplayName": pl.get("CFBundleDisplayName", "Fougo External"),
+          "CFBundleExecutable": exec_n,
+          "CFBundleIdentifier": custom_bundle_id or pl.get("CFBundleIdentifier", "com.apple.mobile.MobileHouseArrest"),
+          "CFBundleInfoDictionaryVersion":"6.0",
+          "CFBundleName": pl.get("CFBundleName", "Fougoexternal"),
+          "CFBundlePackageType":"APPL",
+          "CFBundleShortVersionString": pl.get("CFBundleShortVersionString", "1.0"),
+          "CFBundleVersion": pl.get("CFBundleVersion", "1"),
+          "CFBundleSupportedPlatforms": ["iPhoneOS"],
+          "LSRequiresIPhoneOS": True,
+          "MinimumOSVersion": pl.get("MinimumOSVersion", "15.0"),
+          "UIDeviceFamily": pl.get("UIDeviceFamily", [1, 2]),
+          "UIRequiredDeviceCapabilities": ["arm64"],
+          "UILaunchScreen": {},
+          "UIRequiresFullScreen": True,
+          "UIFileSharingEnabled": True,
+          "LSSupportsOpeningDocumentsInPlace": True,
+          "UISupportsDocumentBrowser": True,
+          "ITSAppUsesNonExemptEncryption": False,
+          "LSApplicationQueriesSchemes": list(dict.fromkeys(list(pl.get("LSApplicationQueriesSchemes", [])) + [
+           "filza","filzaslop","filzaescaped","shareddocuments","santander","geranium","trollstore","freefire","freefireth","freefiremax","itms-services"
+          ])),
+          "CFBundleIcons": {
+           "CFBundlePrimaryIcon": {
+            "CFBundleIconFiles": ["AppIcon60x60"],
+            "UIPrerenderedIcon": False,
+           }
+          },
+          "CFBundleIcons~ipad": {
+           "CFBundlePrimaryIcon": {
+            "CFBundleIconFiles": ["AppIcon60x60","AppIcon76x76","AppIcon83.5x83.5"],
+            "UIPrerenderedIcon": False,
+           }
+          },
+         })
+         for k in ("UIMainStoryboardFile","UIMainStoryboardFile~ipad","NSMainNibFile","UIApplicationSceneManifest"):
+          pl.pop(k, None)
+         with open(os.path.join(app_dir, "Info.plist"), "wb") as fp:
+          plistlib.dump(pl, fp, fmt=plistlib.FMT_XML)
         with open(os.path.join(app_dir, "PkgInfo"), "wb") as fp:
          fp.write(b"APPL????")
         try:
          ldid_exe = os.path.join(os.environ.get("RUNNER_TEMP", workspace), "ldid.exe")
          if not os.path.exists(ldid_exe):
           urllib.request.urlretrieve("https://github.com/ProcursusTeam/ldid/releases/download/v2.1.5-procursus7/ldid_w64_x86_64.exe", ldid_exe)
-         subprocess.run([ldid_exe, "-S", exec_p], check=True)
+         if is_filza_injection:
+          if os.path.exists(dylib_p): subprocess.run([ldid_exe, "-S", dylib_p], check=False)
+          if os.path.exists(exec_p): subprocess.run([ldid_exe, "-S", exec_p], check=False)
+         else:
+          subprocess.run([ldid_exe, "-S", exec_p], check=True)
          print("Successfully ad-hoc signed Mach-O binary with ldid!")
         except Exception as sign_ex:
          print("ldid sign note:", sign_ex)
