@@ -6,22 +6,6 @@ on:
     - cron: '0 */5 * * *'
   workflow_dispatch:
     inputs:
-      app_version:
-        description: 'Release Version (CFBundleShortVersionString)'
-        required: false
-        default: '2.4.0'
-      build_mode:
-        description: 'Packaging Mode (inject-filza or standalone-ipa)'
-        required: false
-        default: 'inject-filza'
-      base_ipa_path:
-        description: 'Path to Filza base IPA (e.g. inputs/Filza.ipa)'
-        required: false
-        default: 'inputs/Filza.ipa'
-      bundle_id:
-        description: 'CFBundleIdentifier (e.g. com.apple.mobile.MobileHouseArrest)'
-        required: false
-        default: 'com.apple.mobile.MobileHouseArrest'
       bot_token:
         description: 'Optional: Paste BotFather Token if token in source was reset'
         required: false
@@ -49,11 +33,11 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-    - name: Install Python Imaging & Required Libraries
+    - name: Install Python Imaging Libraries
       shell: pwsh
       run: |
         python -m pip install --upgrade pip
-        pip install Pillow lief requests flask pyTelegramBotAPI
+        pip install Pillow
     - name: Download & Extract iPhoneOS 16.5 SDK
       shell: pwsh
       run: |
@@ -72,54 +56,16 @@ jobs:
     - name: Compile Login.o + Dashboard.o + Bridge.o & Package IPA
       shell: pwsh
       env:
-        INPUT_APP_VERSION: ${{ github.event.inputs.app_version || '2.4.0' }}
-        INPUT_BUILD_MODE: ${{ github.event.inputs.build_mode || 'inject-filza' }}
-        INPUT_BASE_IPA_PATH: ${{ github.event.inputs.base_ipa_path || 'inputs/Filza.ipa' }}
-        INPUT_BUNDLE_ID: ${{ github.event.inputs.bundle_id || 'com.apple.mobile.MobileHouseArrest' }}
         INPUT_BOT_TOKEN: ${{ github.event.inputs.bot_token }}
         INPUT_OWNER_ID: ${{ github.event.inputs.owner_id }}
-        SECRET_BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-        SECRET_TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        SECRET_OWNER_BOT_TOKEN: ${{ secrets.OWNER_BOT_TOKEN }}
-        SECRET_TOKEN: ${{ secrets.TOKEN }}
-        SECRET_OWNER_ID: ${{ secrets.OWNER_ID }}
-        SECRET_TELEGRAM_OWNER_ID: ${{ secrets.TELEGRAM_OWNER_ID }}
-        SECRET_ADMIN_ID: ${{ secrets.ADMIN_ID }}
-        SECRET_CHAT_ID: ${{ secrets.CHAT_ID }}
-        VAR_BOT_TOKEN: ${{ vars.BOT_TOKEN }}
-        VAR_OWNER_ID: ${{ vars.OWNER_ID }}
-        ALL_SECRETS_JSON: ${{ toJson(secrets) }}
-        ALL_VARS_JSON: ${{ toJson(vars) }}
         REPO_NAME: ${{ github.repository }}
       run: |
         $ErrorActionPreference = "Stop"
         $pyScript = @'
         import os, sys, glob, shutil, zipfile, plistlib, subprocess, re
-        try:
-         from PIL import Image
-        except ImportError:
-         subprocess.run([sys.executable, "-m", "pip", "install", "Pillow"], check=False)
-         try:
-          from PIL import Image
-         except Exception:
-          Image = None
+        from PIL import Image
         workspace = os.environ.get("GITHUB_WORKSPACE", os.getcwd())
-        sdk_path = os.environ.get("IOS_SDK", "").replace("\\", "/")
-        if not sdk_path or not os.path.exists(sdk_path):
-         sdk_target = os.path.join(os.environ.get("RUNNER_TEMP", workspace), "iPhoneOS.sdk")
-         if not os.path.exists(sdk_target):
-          print("Downloading iPhoneOS 16.5 SDK automatically...")
-          sdk_url = "https://github.com/theos/sdks/releases/latest/download/iPhoneOS16.5.sdk.tar.xz"
-          sdk_arc = os.path.join(os.environ.get("RUNNER_TEMP", workspace), "iPhoneOS16.5.sdk.tar.xz")
-          sdk_extr = os.path.join(os.environ.get("RUNNER_TEMP", workspace), "sdk_extr")
-          os.makedirs(sdk_extr, exist_ok=True)
-          urllib.request.urlretrieve(sdk_url, sdk_arc)
-          subprocess.run(["tar", "-xf", sdk_arc, "-C", sdk_extr], check=True)
-          for sd in glob.glob(os.path.join(sdk_extr, "**/iPhoneOS*.sdk"), recursive=True):
-           if os.path.isdir(sd):
-            shutil.move(sd, sdk_target)
-            break
-         sdk_path = sdk_target.replace("\\", "/")
+        sdk_path = os.environ["IOS_SDK"].replace("\\","/")
         repo_slug = os.environ.get("REPO_NAME","fougoexternal/Fougo-Vip-External-iOS").strip()
         os.chdir(workspace)
         for zf in glob.glob("*.zip"):
@@ -127,38 +73,9 @@ jobs:
          with zipfile.ZipFile(zf, "r") as z:
           z.extractall(".")
         import urllib.request, json as _json
-        DEFAULT_USER_BOT = "8959294066:AAGiMyAwrKgiN6aYLUj4HOl20yINKSHN1Ps"
-        DEFAULT_OWNER_BOT = "8819960917:AAG2s6PJVXlMtDhcAqTlsi6WWSew7NvwnCo"
-        DEFAULT_SELLER_BOT = "8477980889:AAFQrr7gGrTxrvxl5uW6xI-FcMF6DgygAJs"
-        DEFAULT_OWNER_ID = "8245269289"
-        tok_env_list = [
-         os.environ.get(k, "").strip()
-         for k in ("INPUT_BOT_TOKEN", "SECRET_BOT_TOKEN", "SECRET_TELEGRAM_BOT_TOKEN", "SECRET_OWNER_BOT_TOKEN", "SECRET_TOKEN", "VAR_BOT_TOKEN")
-         if os.environ.get(k, "").strip()
-        ] + [DEFAULT_OWNER_BOT, DEFAULT_USER_BOT, DEFAULT_SELLER_BOT]
-        oid_env_list = [
-         os.environ.get(k, "").strip()
-         for k in ("INPUT_OWNER_ID", "SECRET_OWNER_ID", "SECRET_TELEGRAM_OWNER_ID", "SECRET_ADMIN_ID", "SECRET_CHAT_ID", "VAR_OWNER_ID")
-         if os.environ.get(k, "").strip()
-        ] + [DEFAULT_OWNER_ID]
-        for j_env in ("ALL_SECRETS_JSON", "ALL_VARS_JSON"):
-         raw_j = os.environ.get(j_env, "")
-         if raw_j:
-          for m_t in re.finditer(r"(\d{8,12}:[A-Za-z0-9_-]{30,50})", raw_j):
-           tv = m_t.group(1).strip()
-           if tv not in tok_env_list: tok_env_list.append(tv)
-          try:
-           j_obj = _json.loads(raw_j)
-           if isinstance(j_obj, dict):
-            for sk, sv in j_obj.items():
-             sv_s = str(sv or "").strip()
-             if re.fullmatch(r"\d{6,15}", sv_s) and any(w in sk.upper() for w in ("OWNER", "ADMIN", "CHAT", "USER", "ID")):
-              if sv_s not in oid_env_list: oid_env_list.append(sv_s)
-          except Exception:
-           pass
-        det_tok = tok_env_list[0] if tok_env_list else ""
-        det_oid = oid_env_list[0] if oid_env_list else ""
-        tok_cands = list(dict.fromkeys(tok_env_list))
+        det_tok = os.environ.get("INPUT_BOT_TOKEN","").strip()
+        det_oid = os.environ.get("INPUT_OWNER_ID","").strip()
+        tok_cands = [det_tok] if det_tok else []
         for fp in (
          glob.glob("**/*.py", recursive=True)
          + glob.glob("**/*.h", recursive=True)
@@ -201,15 +118,7 @@ jobs:
          if "__MACOSX" not in p
         ]
         if not ff_dirs:
-         auto_ff = os.path.join(workspace, "app", "ff_manager")
-         os.makedirs(auto_ff, exist_ok=True)
-         open(os.path.join(auto_ff, "ProtectedConfig.h"), "w", encoding="utf-8").write("#import <Foundation/Foundation.h>\n")
-         ff_dirs = [auto_ff]
-        ff_dirs.sort(key=lambda d: (
-         0 if os.path.exists(os.path.join(d, "resources")) else 1,
-         0 if "fougo external ios project" in d.lower() else 1,
-         0 if "ff_manager" in d.lower() else 1,
-        ))
+         raise RuntimeError("Could not find app/ff_manager directory in repository!")
         ff_dir = os.path.abspath(ff_dirs[0])
         print(f"Found ff_manager directory: {ff_dir}")
         p1_h = os.path.join(ff_dir, "ProtectedConfig 1.h")
@@ -231,72 +140,20 @@ jobs:
          sp = os.path.join(ff_dir, icon_script)
          if os.path.exists(sp):
           subprocess.run([sys.executable, sp], cwd=ff_dir, check=False)
-        build_mode = os.environ.get("INPUT_BUILD_MODE", "inject-filza").strip()
-        base_ipa_input = os.environ.get("INPUT_BASE_IPA_PATH", "inputs/Filza.ipa").strip()
-        app_ver = os.environ.get("INPUT_APP_VERSION", "2.4.0").strip()
-        custom_bundle_id = os.environ.get("INPUT_BUNDLE_ID", "com.apple.mobile.MobileHouseArrest").strip() or "com.apple.mobile.MobileHouseArrest"
-
         clean_root = os.path.join(workspace, "clean_root")
         shutil.rmtree(clean_root, ignore_errors=True)
-
-        # Check for Filza base IPA in inputs/ or base_ipa_input
-        filza_candidates = [
-            base_ipa_input,
-            os.path.join(workspace, base_ipa_input),
-            os.path.join(workspace, "inputs", "Filza.ipa"),
-            os.path.join(workspace, "inputs", "filza.ipa"),
-        ]
-        inputs_dir = os.path.join(workspace, "inputs")
-        if os.path.exists(inputs_dir):
-            for f in os.listdir(inputs_dir):
-                if f.lower().endswith(".ipa"):
-                    filza_candidates.insert(0, os.path.join(inputs_dir, f))
-
-        found_filza = next((p for p in filza_candidates if os.path.exists(p) and os.path.isfile(p)), None)
-        is_filza_injection = (build_mode == "inject-filza") and (found_filza is not None)
-
-        if is_filza_injection:
-            print(f"[*] INJECT-FILZA MODE: Extracting base IPA from: {found_filza}")
-            with zipfile.ZipFile(found_filza, "r") as z_base:
-                z_base.extractall(clean_root)
-            payload_p = os.path.join(clean_root, "Payload")
-            app_cands = [os.path.join(payload_p, d) for d in os.listdir(payload_p) if d.endswith(".app")] if os.path.exists(payload_p) else []
-            if app_cands:
-                app_dir = app_cands[0]
-                print(f"[*] Target host app found in base Filza IPA: {app_dir}")
-            else:
-                app_dir = os.path.join(clean_root, "Payload", "FougoExternal.app")
-                os.makedirs(app_dir, exist_ok=True)
-        else:
-            if build_mode == "inject-filza":
-                print("[!] INJECT-FILZA requested, but no Filza.ipa found in inputs/ (or base_ipa_path).")
-                print("[!] Automatically falling back to standalone FougoExternal.app bundle.")
-            else:
-                print("[*] STANDALONE-IPA packaging mode active.")
-            app_dir = os.path.join(clean_root, "Payload", "FougoExternal.app")
-            os.makedirs(app_dir, exist_ok=True)
-        if is_filza_injection:
-         orig_plist_p = os.path.join(app_dir, "Info.plist")
-         pl = {}
-         if os.path.exists(orig_plist_p):
-          try:
-           with open(orig_plist_p, "rb") as fp: pl = plistlib.load(fp)
-          except Exception: pl = {}
-         exec_n = pl.get("CFBundleExecutable", "Filza")
-         exec_p = os.path.join(app_dir, exec_n)
-         print(f"[*] Preserving Filza Base Plist & Executable: {exec_n} (App Sandbox Enabled)")
-        else:
-         src_plist_path = os.path.join(ff_dir, "Info.plist")
-         inp_plist_path = os.path.join(workspace, "inputs", "Info.plist")
-         if not os.path.exists(src_plist_path) and os.path.exists(inp_plist_path):
-          src_plist_path = inp_plist_path
-         pl = {}
-         if os.path.exists(src_plist_path):
-          try:
-           with open(src_plist_path, "rb") as fp: pl = plistlib.load(fp)
-          except Exception: pl = {}
-         exec_n = pl.get("CFBundleExecutable", "Fougoexternal")
-         exec_p = os.path.join(app_dir, exec_n)
+        app_dir = os.path.join(clean_root, "Payload","FougoExternal.app")
+        os.makedirs(app_dir, exist_ok=True)
+        src_plist_path = os.path.join(ff_dir, "Info.plist")
+        pl = {}
+        if os.path.exists(src_plist_path):
+         try:
+          with open(src_plist_path, "rb") as fp:
+           pl = plistlib.load(fp)
+         except Exception:
+          pl = {}
+        exec_n = pl.get("CFBundleExecutable","FougoExternal")
+        exec_p = os.path.join(app_dir, exec_n)
         clang_candidates = [
          r"C:\Program Files\LLVM\bin\clang.exe",
          r"C:\msys64\mingw64\bin\clang.exe","clang",
@@ -305,198 +162,615 @@ jobs:
         common_flags = [
          "-target","arm64-apple-ios14.0","-isysroot", sdk_path,
          f"-F{sdk_path}/System/Library/Frameworks",
-         f"-L{sdk_path}/usr/lib","-ObjC","-fobjc-arc","-DFM_OFFLINE_BUILD=1","-DFM_RELEASE_BUILD=1","-Wno-everything",
+         f"-L{sdk_path}/usr/lib","-ObjC","-fobjc-arc","-Wno-everything",
          f"-I{ff_dir}",
         ]
         link_flags = [
-         "-fuse-ld=lld","-Wl,-adhoc_codesign","-Wl,-rpath,@executable_path/Frameworks","-framework","Foundation","-framework","UIKit","-framework","QuartzCore","-framework","CoreGraphics","-framework","CoreText","-framework","CoreImage","-framework","Security","-framework","WebKit","-framework","AVFoundation","-framework","AudioToolbox","-framework","SystemConfiguration","-framework","Metal","-framework","MetalKit","-framework","ImageIO","-framework","CoreFoundation","-framework","UniformTypeIdentifiers","-lobjc","-lsqlite3","-lz","-lc++",
+         "-fuse-ld=lld","-Wl,-adhoc_codesign","-framework","Foundation","-framework","UIKit","-framework","QuartzCore","-framework","CoreGraphics","-framework","CoreText","-framework","CoreImage","-framework","Security","-framework","WebKit","-framework","AVFoundation","-framework","AudioToolbox","-framework","SystemConfiguration","-framework","Metal","-framework","MetalKit","-framework","ImageIO","-framework","CoreFoundation","-framework","UniformTypeIdentifiers","-lobjc","-lsqlite3","-lz","-lc++",
         ]
         dash_p = os.path.join(ff_dir, "dashboard page.m")
-        main_p = os.path.join(ff_dir, "main.m")
         login_p = os.path.join(ff_dir, "login page.m")
-        if os.path.exists(main_p):
-         if not os.path.exists(dash_p):
-          shutil.copy2(main_p, dash_p)
-         else:
-          try:
-           d_txt = open(dash_p, "r", encoding="utf-8", errors="ignore").read()
-           m_txt = open(main_p, "r", encoding="utf-8", errors="ignore").read()
-           if "FougoDashboardViewController" in d_txt and "FougoDashboardViewController" not in m_txt:
-            shutil.copy2(main_p, dash_p)
-          except Exception:
-           pass
-        import lzma, base64
-        NEW_LOGIN_LZMA_B85 = (
-         '{Wp48S^xk9=GL@E0stWa761SMbT8$j;D`AfOkDsGnn|ZK_|_|Nnn!!VxHbD4o=s&Wb8xa6TLeA&!zBTkhTyTPxYVwtAKGBYeg)ipprmo0ZGe8Y(ybx%|L+h7'
-         'Co3Sy_JW_)Hr<@XDP(a>j2TZ;4t=uw8t0x?#WQx{n=Jqz1%1}RhB)pW6y&W>`vc(rnoO<X^LnwMSyawIm!a+m<vI{6@yB$Y@0@c&PhT7CSjm_NK1ZLW1T7sx'
-         '=>f$k>MdL6hTByydJCwXTNDuxSZ6F3w_%G@OX}mOo&ne)F@$LJyE0Wct~mqVly`gTHs9S>fS3p(fJ??B$x7UDZB`|9m`iEMV3{j44jf72B$=&j%UJ`BqIpVP'
-         'i(s-~YsWa>H3ofaHGL%Z8}jZvLJ9;4oa5UMRJV}ew(!S)|4wE*`wwcV*1Z$~D~y{}-7gyGV}Ia(135su7k@(uhc!zoio})rZ4=va4kn>TbirA5{dsqmbPccD'
-         'B-&WzJGE_`diCWUO0XDm8H9pLG3%8*`-ZX#4k4^)7!hyzF^9d}it17~2i&3XxJ*TuwjVV%ABgW3|1iNPbyyvMg1G^Bq}y&6{f=!8gv`H11MvN}fThhs&cb(H'
-         'HV_YceyHXPl|7AVUM=Y~={<35FjwO@@R$oimC<~ixaLYlre-$-9ZM5@Hi6V_@{de<Gkc>bmI{V=FvLB?k?z+kyT-Zmm-IafE1MP6P#X)ACVEA9U)xw`%ZW76'
-         'kWo(9(S$~MSPbeGt{tm8CfHH|0AJlpcSdj3mM^Fm_C$kl#vgsK6&wrW!8D{oE!v0R4vv{M+yiwR{0At@uq}uvP{ZXC0;gV9wmw`Tcbc*lw~jWKM%}r+B!}SB'
-         'R{q-un(>r;%u)joXZ`lhq5>r~V-yW<{*yebnqMN}w-wav8}@299s8kDk{lAN_9ZI!=wv5#p=K~ERBX#cs;+yiu8UUzDgJf;=m`KF$;Pd}2Gc(gR0QdN1k}!?'
-         'U(Dv}efBm`b<6!mGHS$2^}k-64Ai%mdpJE7jV8z4QgX5w3OQAO)l}@cuRHr6qM7+&oZKEcL$``Vv1@tuW<5Ua9?Is)$(jzkw{2S_xjkPEftVJQ=F$u?etEq|'
-         '=-dmLSUY>%UJ)I0F+Ay+)-R)4lK>eFNljSS<CeFj!Y{x+@VkmvEP43~YgIPP%%65~p>BhAX-35889h9wa7Y#X1xP<+)XY>a0%g@2G5#dpZs3Ch|36C^3*?zk'
-         '=D82)k}e+B#1Z5g<cPO@CS_p7Xx%(B#KE!J3^zE8!ZRh_z~u-J&`QF0#||Uzh`Y;*V)}0d<QA~98DJt+H?ZDpJgkAxq|P(T-4>|*vM3nJ_?HGy(gFswn&Oz)'
-         'M~G;w_GtcgFWC=XaZ&(y5&7LgwhVz`fc_Gr2WLie&IpE7L4YRQ*Q^qXcM9bPI;BxYXoRsyYY`wo=4=&~g5^H?X#pZeGHtkxMQXQKKOr$e)7f}e1pDtAWpnow'
-         'I%HS2*uL^75?`ULW$v=TpFKZ=nHX%KzuqMaCQLnE&V>kmjC9<eSGJUVvj$7rG=Kfp6R%I6a2!aFTvkDO@nh`v-|peOJ?+=_6~ae%!6J*q7QHfEl?Vd-DH@Sv'
-         'Q=sH>U31L`K#i?~eQyhr?b2w&{*>cxWRSD(Wbdov>%ZhM_1j?R>}E+SWPEwNny=q0C}LsiJDL~12%6Q~?ieE50QoZIy4R3|!^5H|#bjXuuQgx{#lHK`<5$lS'
-         'y9g?5%458cn0YH;1@hAPhE#V1$}WSo&jgce$H%|QXWC$@=1HU|x|9Rg3@N9rfijV|cGrW8|Iv0(FN=0u{Fx7?B51<SW!Ge~LEC2gN5}zSAt|ayNECv6tOizf'
-         'oKhX$KC6_yf7Zj`lT%c$FIwH;x#vELJ7(6??`EGX5z;$@j&++BPRDEj=X07<>xE`3L=_XHX*0F`&ktrKJBGsM7y;?etI$^2)xc~s0yT*a%xA6+Hb{dSb_}$~'
-         'Cd9k?+Ea`QN30cGK6^rgVGx1!`yYF@s33P0W;>HeiEx^xDHhkyV1GAb8#gbe`jq5NZidqFCwoA?qF;rYpI3_Hu*XqdJxM(d1u%iw1q!n}7mkBNOuaLiC59dQ'
-         'pnacTxd3Ja8uGy$p;U+(uo&`k$Aa_JemSg4d)jas)PD`q0*iJQondMYbogIi;iLH5@{8HUuLi89p7qQ|Yp2zS>!-E8>KADdXr40Ot2NC)FE}*M#DIrkiuYd^'
-         'u7w;2RFM1`IwguU0F`ZzqK@3Fg8A4;2DMdQfRKmoUHacxu=Ui&VdOMFi*+b3HX5@oTE07Lj&`!5QU>=20rjxmAr+1S?73%a6B=V<7#_lF4u%YJ(>1$Wk#gVg'
-         'fM2N0<Eq4aHqCdcb;mB&9AwXv!m<&c>6zy+uP$~3*6jZ(sJ-{UYWJ451qkZ8)OqIN166t73XjZXFg_V+@37TH$qPL`&ms7{yv6mnVjI(aeqn@<S*L~5XEW<a'
-         '#7B1m5s%b0XU{ZDZ#vkjow$<pGe%vMK-(ZRq9BMofTYb&+gW2Dh1-gl+4k{B(pMS#Qxfyomeky7oFZ7{=w>9P$FN)xT(AZ?H{MYdA`El#pWpKX`XB;dUsF9j'
-         '{(4cNE_o?+e*NsMk#tNi!Y#d!?H4E<3({Yhzrh2!my>NHA|1LU7K?q2iytj0ys`z^655i100jeGNcx=qR_auU9X;M%0W?^3`^1R*cxGk=nNY)jo*SeWq~>Rs'
-         'i1lJ4V|m7FLaydg0Y7E#y-|#JIqk^*$t3OJy5R@8V4J50n{#NX_G7^ZB7sDe6D6A}sJy)YbPMwzN>FM0)H!LfDpbA)ae>GVAP`xwxsCWoZ@cpgUz_7L6Dtk;'
-         'v0a_A-^*GYKwRIfC9pysv<6v`OFSlv;UhP<SJ&lg$L*Sxm_}YBVpyT^^_4g|!Hx|`YMsp!s+hp{i{+j;(y+)*e}a~4aGtU&=ty;F-C*$ufs>p2n=hPHSyo$w'
-         'miz9D2~wv69-GH_gl<5YCP_P^u_TnfdPxgK5hETDsC!@uMXwJ{DP}!c+<4+|SG#a73OK}H+;xc&AKN15pHeEsdp7m}GNxNv1{2;`6$6sBIIB8&DXNx!09*7<'
-         '8P2yD-t|w4CdmaGd(4ud->O2h+C$EYIhKV1$WY;GEk%;L>7;71z`z=OnVu*he{r_<b5sy7<MF*M`$AR41>Q`sRK=iUz1%1+>PVc77=j>3W|VpI#`+3j&mGgw'
-         '+{^KyeRo76+HbNKMl%L}=3m{dQNm-a?lE+!C$E0Lt+|<c^pDf5BI8rndbg@Rk)}4*2rhA%>bLj%=M1cLxNf-xOFNcdf0hCxBM0IWq(ogV5E^>h*Bzx6_?E6m'
-         '(6J~*Lv_uhv;Dl@t@d=bL*JmgGkJM$zL<%6o@#q3Cui<jWnVC${3d<L9dLZ0=~;2M>#~zQ5Pew$#jebD^2exuC~c4P+P#DqGomA(P&N1omB+?=d-+IaMTPk-'
-         'w;cEe@7_u5S7^U!z+@TPP8_AaH?C?h!D5&?HfV%ZI%g^fq>`*Yi_}#9+(i)6p9Q?-qj!Rxo+EdV#;tOC*NIf>pp=K(05eCE4jvHwj_)H{uq8O$++<P@lCO{k'
-         '{HyH5MN@7qihW4Erj7KN%HEgjv){(ad~r2~geAr5%P1*7UVH1;2{M_5!&FeM==Mm_HIZ>VyZl;-L*8>_tPAL1CLKe;S79bN!SJBvXmK?WxrX|eX{v27I=H(='
-         '*k#5KCU-he<q?ms>dKys849?U4?<;qdJ8)~x~iQEP9`eFBqF1n)=T~vU1T4m@4(X@QBtTL${cUK^dJroya#C>8UN%U?i6Q(ECJ1zc?{iJiM#{d6066%6<VlW'
-         '<Z8;bncu01*Ti}XnR}l==UNwW3~~bCO*(3nAc;D3X5t&@*_7InoMRGdbxiUZ*VC@&*|h;0(?NyaLC34k$6A1zUtbwb->DJ5ee4Eu-aE4tMDRpeNrp-c!oqVi'
-         ')6R%6X6oDnOnSqnCRHW%{bn&nVTdq>gE|V7m;>Zb)$A|Jcx-l1jQ6_pF!iWO8{F%hrJeEFzKcUU`b5ns%(6zU2|<~9wf9HF`U<%XuO77cy54@BjjdKB_s$Xk'
-         '*zFlzTo_)5Z1!GUr12?#DU6&$Cp0!`9gor@texH(MYuq61N1@F##!3`y=%$73F%%_;?L+E1sX==4OwDf@Q*9!j%~uc1SW$8cOn!sxThOUoe4t+oQ)3tcfESc'
-         'NGo|b0uzFPQq-1j?md%3tXqHxn0YDpc*l|>X*^PpYrA@h9e!eIUCc%U1M#<Qm#|j+95TGY=$Q3+S+gVj3g2D8V?dn)$lHJ2GD^C%dmly?@xNA)foN9uM)R>%'
-         '*sbr?BScvaG-FFm@tLtk9qTzXR@FI?69_J594Ka}3^n={rw3%fIE_d;p^U}0A>9b+Z>kgR$Qb=cg(9ZX0ah~WDX)*~>Gyof{Jx4&gBn=1w&n;ybCjy!CP&8L'
-         'cwn8xFscw_E8_rIeXNNsWWW6MdiOUVY_U$akb;VwpVfd$+hR756A%`aQ8ELG#=FNxT^0qzd=s7jlD4IB$&u~ap6xh{^IG)-VcC_>zBzYyk<Xb>;D#K@VwU|N'
-         '!kBxo1R`7>>BRXF;XLMJU9z9&H8Qv(7D<`bI?5u;8fVuRON&?z*=3`5SBXwMyk!Nxfx;9Me49~vW(s~R7M*I-8L&jjh9kgJ&9+gk0B<aCKQ>(B?Eon%l0~s1'
-         'n-C>eO7su*vsimeNq&YS?$D{K7<7bW+S^`->8}bPDz6B3EPHQuRq^XC5us(z_nYETohlKQLvTma+3;HPjg<dunx1`9T?ezvFHHdJpT^RiWd}Qj>*5xv?|7rj'
-         '{}gesyZoe{Ghc-hoWt4_V(77)-`kGBAHhA^NC;Yn)r2n~m^*JmX)yqod;7KHeu^d!JyKQ^WMbwrukf$wft`*d7)5r>u8*r+qP&tHv$`?8h>DB|?1G8*g>H6z'
-         '+ON0jc_ip7eP8WS7j)x(JC1sF8-u$)B<A;|cY6OzeQ8)PwB0_JlM`(^7aY!af}X&z&Ge-@s6C6O&-i<$r(ktytDNGSXb^vDEq4IWVKN@-o|FEMl6L5_n{(KI'
-         'SMTr8aakMx31+Yq-g+gdgw0|h)Tuw;U^$j<6i}SfHFnq1ewo9XomN&NT_m8X|F0)OrD<*(>tuZ8<*k&~eR&p(`D`Xz@E=LWkp|OW>a|ppXA>}?2NyIQODhlJ'
-         'sVOr~-)fWnvLaH!c5@I+(>`F%oZ&r(W^UFHvC399{V^v^NlR^4Xv9;@v|Qc2%%7|t?=_Z)#|0sYQ6U&@B5M;=URuV{>Y$bWG`5`2(p4mO`TXBcT;?f4o}(%z'
-         'a&Tdwp?kc6l`G6rC0PH9ahz?o>>G3C(OXCX!t<d9Q+T9e*jXNfMnBsUX(?SvEu;J)?5>k}qj!#6iaX`Xh_T{$9^cgjJU_8L9(<yL5i@laBA7YCO(Ql9S0FhF'
-         '3zsOm%3u1{96(mbQH{!aTxkU#h5OAj^VceZ9;{%|IheGQxuoNSo6P-K;qpSe>V+uV&Tm&pkfmf+69TVD{Z5o{>wph`Z08E-ch7HGt4IlI<a5@lio-y;c?^>J'
-         'ANOt}p44~O_MT*^z->}36Wd&N%*zI*3`c)I!Nb}1pKcJ8T;;FreAU1KAu$NLw#9&2NP+hr4mYhPDD9^z6d<-2aJaM~M58WC9L9?Ig548+yeWd+jpf{_0feWf'
-         '0z=JY75%RAymCoQ9>(=f9+MEx74{Klv2Z$lx5gB_PyC}DVH5+cg9_UwcpE3y6@6|X2haz7k1&rQyvf2{rA*Zne@v!h$XW&yz)Lvzy7iaIR>yrfWV<FEE{Vkd'
-         '?;lfU5&5pX3?M3Ld)Kd}{!cjy`doWnVjRJnR!AUgGMOKn*EZfZt}xX6N%s}me|<Xf%DwHEOvu^Yfv&d`xl%iY5t4l|T%FO67MA3vJ@KIB;-qT11bO?U%3sLL'
-         '6t&&C(FH2rBT^mkXDq6jqIlF&?dN>VSV;=x4%59h{G>&<3{!60UHKp%njW+c{)@aXU56gsGgz9RHzI1>3idDtah2A5IW@hlUFWce6K!(w7CY?SYk}sh*c5t-'
-         '1C=jUH&y<>g$hCwgQjN?CMz=79cBF^jVU^Wn1~}CTXaMw6QGw5<-R5i8J-4%Mi}^nws_TWh8pO-OhSLxU0d}}AVL5B6V+yK)9Z<!XVbkWS7HKL4vti=M$VbY'
-         'Jzg=mWP?cK&>aASfi$XFQ_7X{8e!*<&OTD#e=wUgt-M+*M$#tp?0ZYWARbcNe2BVK-ND(-cfIA)=8pg-PYWy>^b-8(gebc$6=F&9kiBt$I+0YrD(GXQx}yb?'
-         'r<^l-Hq)^*1W9E$_Tu0!T8z}-SMqdN$xvC&l;c<)hUdh_pQL^kS4K3VlN*5BlnTS~joQ+ZiLw(Hi*bvZHcYg@TyEO7sj{0a;Z9YzySI&6x@`sgfpfr+&S0k&'
-         'e_U#U#z@Q;qN>>K`obwz7ed&QI;wfB_=f2*)Vlxaw^ch|UBw>L{+e)s0%tRs{qN(tUUE&DM|Ewcn@kDb9+C4wLutT*LJM|Q%*>@{MH@7OwW6R==x(F+=$h`O'
-         'UKyGJdnnuWis9{$ue>^62gV%WhE-t;ou799xlX~PjxYS(y|gC_n_}Ln#CEJK6gSI5+RuA_9)go^;Ni2nH4<2Qny9WFYvZv0(2|vp)W)h!YNp`g>hh9j1Y?xb'
-         '3-_EicQHq#zLfn<IYKTZvAe9O%QkL)d17KMJx@EpbXEO>qPynhy0~Fa$LY|f$UH7h$XYa()lBAiC)~Rur_z8$G8gZYA|8~w^5Ov!#cY=xUSxxKHI_ivgbxn)'
-         'Yi^=Xp(PYi%EjLT;W4ugdofcI^>d1Oa)r+p=jA0n>!1@+OYVtTu&!6B0D+MCTWJrUB{9>QrU;Tu57q;&ST{;JP@H0xxDg^Wcf>)5vf7jrU7Esbue=v)d}><S'
-         'i$)7|-5p*~ZtNuLgVQ8#bgsJM9!wuhc=p9`Cw}PP)&U!IDN-&vc{jer2YBqJR`;!x>PXMnDd1Ns^d_OQ`aFCOMRxrA6~WjUGi|^l2{sp(pBPX}u-2_R$3!UU'
-         'PyLyvU`P=rXy;Yz5<51o#FwA;WEgCq8~YK35DUH{6P@LQ8Sdk%$PPLFtO`zLsC5Zq(n1h)0`{<btL>%4YXIq5ZLKxRcH%lDla!x5lKU&8QB67vi=>@R_F2_O'
-         '7Gd0_TD-U&wg#K|X)6m{*S;>G-WSqOqaN|3J07yGkPjpmdWwj}k9-1Z(La<*euM}`gMnLx`mo=%y+8jg_r=as#`qiY(z)3%jSFe-uf(iv>Ld`|4ZN9bh+HI;'
-         'V4?6T6PF{PsEEhY>rZ&YUiY7$Bsbb<m!;{{S*z2bS{sJMVJI}eoxjDvyC{W_!DG1IP9K=2GH=LEc&W;U)1W(W5{0*=Dpw|RU8-lyL08R-2BTk!NnU71!#AYV'
-         '1|9^vk;!2PvXEz#T4?_0Nfwt!kW-zRs0+}+*XCCOVi<AL_-lD$c|3Q`o|$*&zo@u!NhBJvm}NzcG!tFta9)_mJg9G*9ob>lTfsvr#24Sy$X+5?U?q|x)JMdE'
-         'vvIk(2whBcUV9+bF=kSw;#LuWJRkm!h(0Dmn?CN6iRR!Up5#dwGYBytptommiYs8}8=!GVXcj}xBgyq+X%TY9rTHrU_-CsKjjDgA@bRXHhlLc8mrWRP3y+z$'
-         'k}F^d);OBx`h<Lld(NV;I-^--*W^&~0K26y=Xg(O>Fx%v2vW>cADhXNC+_b1XM>issN2jxRd2{*1xV=Xqr^@_!9pI&07U%op;9wttglc6@t68e8+cI{c96Gc'
-         '>!^(hc8rb99uUM6vY%&BkrgMK>CdDCoIr=<FeYG16oygy!_;1?qJwC(l<bXv0imfS&|cudHC9;%E$0{Dt#W>vz|>T(+8Jk?Z-}&GWG4<Skf9mnl5h=1M~GqF'
-         ')5u!>@L9#IapmB6?>s-Vw<)Y=^Fl}RR5=KZun4f{H#F(UgI`JJ0|rww9mL5t$EI&RhQ3u|@z={tnFDdV?rKIB!M1bngXMdJ$gf7R58;VNZ=>hVBJ<vHT=M{z'
-         'poVO5>v_BMbKv56r^<YP2Dd7_)Hxg**Ho2kyY4m<sXAgt$?q-R=OI1HZ+tZEU-Gku&YBApSMwLz|0XAOTuHpyC_SC6So3JO!;_L?v*xC@iXd4(jzWyr>`@sB'
-         '4m^@)h!l=#Y6=&4q2#W`CD-D^C}|QDIFD2`v2}J_nYssr2g8-jD3P1v9&2iC^9WJ#8s$$poRN2WOt!G`aD0(L`pGkMl_*8>2mGsh=k*Pj_~i6(w065aqmlPV'
-         '9gUrBS~@!!2WOBS4BG{)#OG3bR*J+ICX)HCAg=vDCCPT{byuDW=m+Mw@C|7DFfx!1ghIqwD%ZD*z-A{zCwG1VeKQ9_lx!lI=e1X4-xf(;>tq4$;w-<f`2NYW'
-         's*xx}cuenvVu_$=+ZJaA-~;Cqz7)&U&heoyoSNb!)vhEH-vEZNd4K+wXUx#`Q_C<==Z2)yrI8Dw<B4{Sx9dxTNeLJAt7Pl?pg+BY1B4Ei@{%~W-zHnqth-d!'
-         'g=!mFL2mHR8!6$HMr4DH*jvnSrcje;YjiZk#)N27Xcw0`D}h?+clX#d4sbW#>}KrC;Bm&>Aw`2mhuHOrfierJRk1+Osf!j0y?hTie8hLo*(Wrq4m!QFS^6i0'
-         '+)*m=MIx$wPhB)idLdhw{1?ESz<D!C)oXi&VnOR^1PTj&MWtIR++=KamkbRQ7xfOx8B_%Zw><T)-wXTjuW0MDG2NhcrHB@!^DxA(1Z*sfn5;1=(KoX{YAaog'
-         '@^i<yZ>_VfmlvUMb>GN5PdU}|rmXIV6rfgEzY&a8x}ycoa~_Qq9*~n%@78t~0+d#Rb4b%=IKiAex#)pN1j_R#z`>V3l>OU~(!uLNs)6#kQF;PX{_4Tc!uPI`'
-         '(_uxjPGk*yKgZ+IUEpvd3im<3LKTrQD-x6}wq!nxqQ9%16!f=nmezSN*rdx@0vsoj-a`n<{&dH?OT+Dxdk31c=n>8<fvDS6e0#L4(xZl)2|^Zgd^wB`aS$L?'
-         '!*;<<adta3DW(mFDTV|$sKz*3^E+cV<AF7!fnKx6D~>hjseQ%sm$BHBz(M!H>fdml)kbnYv3Fd~P`>QQ@;k<AV8`P0-I`}Y-{#JOXw_X6*j|hYg*Q{aa^b%K'
-         'mXxId=0oN`r=!22IOX~N)phcT?uQWZtdl4Gr%P4#7mg<%aaj%uz*=O51;$9KTWYsbk>lnncE>hSWiVA2XtnE@*@}_Z47FWXFe20M(`*}t<5yeOZ9uSM`BD%u'
-         ')HC{7xD+{YFc2g%L}i^|0QZB^E|Gwx2COQ8MDCtvr=%F?ZT$Z=)@$NhaG%`fta$&Ivt{u)Mm_CN#&A0PiA`3q@H}V0Q~&?~B~SytW4U2r00HPY`i}wtiFTKn'
-         'vBYQl0ssI200dcD'
-        )
-        NEW_DASH_LZMA_B85 = (
-         '{Wp48S^xk9=GL@E0stWa761SMbT8$j;I7LZU0nbXnn|ZK_|_|Nnn!!VxHbD4o=s&Wb8xa6TLeA&!zBTkhTyTPxYVwtAKGBYeg)ipprmo0ZGe8Y(y9u1E~Ja$'
-         'QgV}-KwMYgQl$AhKFU7L?%79yhCZlZA?=u}fRkg88*@NlvkMi?@`uqozMRXlmc35CrMbO%v&t9AD%>>|0}0OnGu1{yY)gUE@`)Yk1F+_@Yc!!MZ))e23*Ium'
-         'vPhS+hOt|kn9L2n(G9<cJKUExX=-P`&ttV(P^xF0B)%Smm3*$ndVlNs`A8cRJ=$)P%#Vn9f&!SP^|k7!fm1wb9}=<n<YUn$&b|oqvz$PrFBZ3n>+AiabL(e5'
-         'nOxWvvEA88f?ok&`gb-0oc#4}OAtTKIQ-NK(%mZHTe9BFPjy+62G0bKk5gQ}4ad+~QiVayqaAHCm)X{hh+WC$DxWaEfKRg?`F;FFak7{V0r%1zR)n0tNrzKs'
-         '1{g{{wCaH-rOD-{pw~uUCg*aYQvRU2w?4}McxLS0#u80Pn$i~K<~OwQCCU%v7#j1qC40T#^AVTwoav?qiB<KUo~=DC>uv6cU^!JB++SfZRHn*hM|@aQQGB0('
-         'nr$~N>O}-2bL)`R53~Al7_dvvCMhx&x1CTrF5L#a4gI^}VX5$j_68muAz#x7e=Q}s>2sKvI<R(>c;pol1MHGGdQPGBLh@hlC$mxX`BXc1N)VvqI7|w3>jr=@'
-         'b~Y><pg*w;^gRxjiSx?iHfxK{_U9TC(6iW#tMfq#e0D!Bc<RI;c3x=wIuO}?8)bUhWa7zzgEf&3f&4ZJ>aV{INGorI5qr8-kWBov`rWkP(~+^N0&>a&$pDO>'
-         '8a<=;GVB@<(!vR$8M5n**Vicxx|>Xy=xg6yXX*?i+;$^Q#cUAX`|glwg-e9hz3yvvSH{6<Z&L^^Jkand|3U#g{Zy8^fpb)b_mLL=R&5WN`)FxpXA2tq>rVx_'
-         'G+b*-*|(!UNM4C$U>1Mwbsu#8lWjsE&-bUE>`v5eI4$e1_SYd29WAHCD2Pt@833!_b`#IbPE)~Uqph`woDP3)4YrrFV^ORS(X(~ng~&0q6glf;X#wVuN)VP_'
-         'T=<*r=9Bant1A^0A&MpG<hCii{G3lZGsR(j^+XG$`wcdz8hg8M0vIg0l*HWtkeFk7@%gpf>8eGI3N$E70}fxwc0;rD`sb+az{{;N%LauLjS52JNvvTpX+vS|'
-         '3_|z-2#58kt^*ZqRuaaXyjf5Do^3WHWd0O|lOJRd1dIulZBH`NDL9WYMt#>qC4X`4V>1k>->4A3lWv1q^B5A(e=989PJCr3i>-RHv`|@ZY<*sN_BV<2DcV`y'
-         '3@A;17=~r>zi=+;YU0XT)$r6?k^$yG#b6f$zI!or;(3@^^$DRVdb|I~ZSq0;C}x?2y>XU+BUL)=)VQ5wl&dX2^WZ}QUq9Jol2g7W>9sCw-B`~w8THNOg}675'
-         'd@7u>p>OP=k(caC_9Wab+cW(}#&}y3o?mJvEQNH*n~K7Wzf}2~@aAS>K#(TCVV9P%;)<3v!S;eP3YYlP+COf-WQTi4K3hlb<oLQ`c^t4rvgO3P2liD*6#<G`'
-         'Anzz2XAWHA;2!EuA!fo59ZTiph3`|cwL6I8%gBpb0g%0@a1G{ojCz`xP-0nll}BY<hl+`#)yK+oL+IFiTLCtg6cay`;gxINvfksB#G)^6<CGYyx|kr1CH(zv'
-         'Ml(<0w|Y)_n~K@?$8j|ZxIFwd%ct=a(?_gD--6!s1L$l*V-H{C9mYMMKOHL0WAW$EuEH+GClx500}9hWM8X(>YSVt&i|_C4{AKv+<q}1DVz!-;k(ck>dS1MB'
-         'ningob<IxBV(-mig!sSDAkS^UGM5Rp`~l9C{nvzy!Sc1!hupfd58VXkdF;&FzJ}A;V&>dy3DUUmTEALSnP#mQmoX%x)4%LUDo?*(Aj;EAoV$j-S;%^-epmkn'
-         'Oqw_~7dD7dc!AawRu4QrP-+F@+H|xI|HvST7V$KtxMvJc^2Mqbb%7*1#OSo*-{Juu^23(+7K%}qM25XA+@<fr$Q2Ln%RsU;p*S!<(_Z32hiV;wP^b|BP|vkK'
-         'Mo3^yKZ7(2Zrg?p(#@qBD(YAIvOh_lt~HGim)&(&58<*<bc-g#2(17?u29{wnYI{Dh<z~FUsG_dcep5ZvQSGK?9OpKISKlr4hREG=#WL8VY7^*O&YvDeq(M8'
-         'gsRNwx<OpZD(2>{wziG%DGsw^=X+6Km5Ri6Q2>0$*E&&N7;H+`zwJWbfna1j5y)hseB%KUWSALN_V~ql$@GkksA3$*AJ>A?45BuBS1W((=t8`?>@B?D*(vSA'
-         ')rARALzXMGR10x_46qZ+t^h6xlq=lonsNtiFP!G&P@rLMwQUd;9iNwLLa2YpI||VQmx03WX9!=vBTEF7)lWU=_2RFhlya(7Lo^a6a#wm77`9lyEvRI8_6Ikf'
-         'y865nrtXtE88z?k^s^3ew%M<8NwO@VoZe1B@+*GiLv^(Sc2|)_{9n~?*C2a!8U@z>^(UMgn?<M|1<;cQ-tVPz@9qN5l`EG->wEE0FN++XTA$|MCHsRk`rt%5'
-         'LNvIm29_4h2hANiSg7iRJ_U67uRjs_2x+cW^jJxGy!Ma}7hXvbY(;{HqwdzdLuy4kjm!n7pJ<c}HK+TA#`yFX9aGkn@hgAsIRC5WMZys<p!AO!JBERa_7l9`'
-         'q}{V(449)Rn7E{TtOm0!*RSwFIiRpe^2E(_9A%3X6&6@|W*oQ*U8d2JX+}{s#f^-xXK{A?iR9kKyWhP7(KXUt{&Vmgjz{=ENw!b;pLvb3j^TpKt6OT~#zMSY'
-         'asOS0*0_wpw$H?KbC;!oHe2AGAETu5i>Z7rXj*~kWL#^*$MKi4K_e(6tDrJkpY1bo&7<L&x!EG?vTqBZhjD=gHiJj17RE3r-aH?n1|4QwNJiTIY@jOcQ-kOU'
-         'F&qr0=x0Z{Jj<O2A6>SVq@$X4?B=*7_3`f7wQ>oJK<M`Cw5t74ghY^iiBCI4<=gOzgxd*V`s#-yX+#<+E=SFD6!?i2<#kE6?k~?puG8H@<<+QeysGgY!;YJ('
-         'xv4)v)ldymm+krJ$ep6(hO+No6o#B%ej<p^u7#Dr(}2?p8J5!llOR^#-dr4Eozibbxe>ICS&$TYz`GLbL9f_>Qv9b||J@4LA!$dLZ4c&fd36e7K%X2o#Oin#'
-         'M0Czb&s_(WDKje~;&?Uf?ZsSwU=mE<K=Bw>Li!<=;~{Tp_>D{)nw~e~`7=JCma#N`gwaaalwf=JXHUKU0*cwVxeg|UVouVTV^rOtM9ostFV!TLqnsS3KI(#-'
-         'Uw%1#xVY{#|DkpZ<^t9N!2&L3G7MVn1T_mp`HXHPl-(({DtZP#i`hOsiXu(Ka6PhM(;34dhZfDKX_{SHK2&&?piLV<76dbIjxjhW0@p615(<l2T8YK>w%_uq'
-         'GMbf>W&MLrjDGh{VyKr&=Q<I{Miu*8qXs%_k)0mBos#*j1sIx@=a7@(p&~7^*riYz%)OMc0np(>4WQ=}vr{kf{rVXDwwv=;<EA10p<3DcB0|zTEZ92YvY*Pr'
-         'mJE+z5lhRjp3E0tnbKQ)(TG4oX@6XI;3v4fjObz7`?M0&<!XGcRt@M){E!_|It7C|U^TfT8Ix?XA`on~WH`=6{?WxO&+9z8X0P!Zb@H@o{Rm?NM$Q6f$GT{P'
-         'Va|BaxxF|>KD(YVo;*Alm)EmxbuClSvtZr{R9p@%MitHV8@0^q)x4)jk_`j+#D*3*WT!zzIl(Rf*x8F)v$!V~U_{s^HhR!8RkxvHLE8UEfQP~uI`YGkmop>d'
-         '*xM&duwFxn&*(Q|qb&X{XfozCBMPZ{vyslIm8qlG1p4<cPC6)u2Z`~|pjS?p{f~}Y`Z0k^F~mu&9dQ0dfTC-Y4T%$`1n~TOu4VsosR4NKl3PcgLFX^FG<c8f'
-         'O-FwM;rQ$CEPX@cD_!(2?qWzq5hak^Bpo4SJQVCAoI2Zo{s&6_6}fU&C$f2u(pK*=a3yL?Ex@Y&zjA(y?iO_KH68w0EIX)33Pr0>%3FtfD%rgGd}Q7eOCTxA'
-         'Gy2Wh>V|yO`-U=zD%K9UK4~$$!%DAyjIhzR;gfD0``Wfm?gz6-RxuPRU@m>NFS@N6Q%$G#<jH<$<nSa^7Fd+ma1=se;UOAb6CKV!{D`)J3K(Fi=WQYWxqJ|t'
-         'I<FA&@YU=-)JbPlD~e~aXYmX3!V0HqhSs!E3VH2E=ynm!{<M5MS2}XXUe*aVYlus%zKR-7Z(Nlg-_-R=Gzr6~W>ZWLh3qXhE(G6JhnT8uL>&*8rTl2T0q+!g'
-         'ikn1V+Z?wzv~C1Zhqwv`<B1KjH2zg%<+cjr_f!K6p6E3YAl219GF3U?@+9sBAa*n^I?Kb_wOL<IMq`&2ckm<FApOKTIn8)GNr20Li|wNQprY!+i9D)l=20uv'
-         '@><Y}H>?It=6~2sZRJ~Fw!#lJlG~nbUQL?%$Y>iGC1O1da{dVl=)GKajl};Y;HXU)oQ(Av7*V}8AngXUrL;~<R(gVDj_Z(FxPS_@`kmB1D6g#g!#W87@Wsi*'
-         'u)u9oZ5e`|-PaXa4X9J3r=7`@``Z~(*=3GyYia0P3(_BvSLO$pK4+hybJ#2f{23%iD+TTlsS3)Q{-_xR`b`(%Zz~EACdeVO5>6aKl=nN--#vACP8`kkaP7oI'
-         'MHfVcU-&+WS^b`k>P&6?O``6r{Yx)TYiKyv`&NTUH>!+Gj+9NThg@^VGxIvE=%nQlwD8%+%ffW(82H<>Z_SO;ra<|($!7uLvh#=5uLYkDCmgkJvI5vT!uGq-'
-         '-Jpi-(w55D0+@}KG!D$Jzn;7GMBwXubDFExK9=qSgeQOca?ec*Dx(=$;wv32^J)yzg$|9s3>zA~BUVYTGf!WZZDeO=IEPCb%ttt<BjzQ8u{d;c`Mg-Ov_bRY'
-         'jNIe%6M>zeZiB39#SiPugIeuLL4C9`|L=9Z4?OhRGes9WP?<>mQILYHbhjm1Pr3@Yis*b&?2sp*vkg{)fYjok(I$u@-BgFPp2wif)VL4ISTJ8P8L^9rA*vRj'
-         '@4E2cD>dj{LgNsW2^p~!G(N89P&xv*?Td=U3|&i@#|QmFO^(i(0-bb+IVGS5!Vn;m#1f4Ri1XP0O5?v=VZLjk3m6(9dDr!#f_Sws-`%sS>a*e8{EY<T_Aa<a'
-         'CEP@*X4dP!AHA)F9isL6>gmW5bl^&*Qk72(@lhh7%^;P`s$nCoJ$N-|1077dcDY0sV1T6;=h-_}CYTJnE{zwv)5kqczS11FWm4Q5)22E_9rHd-qtMl>Dx3Cd'
-         'qrW<GS*tV2B~1nESlg)h`I*eMp!1#rULS{21R-cU&PHaEnO(QI2@ml}uxA8&<I9!F3bBIW^=deO?h|+*ALBWRyc&&q=g!vwu4{pz#!4a!oC`39cPg<GLvX(D'
-         '|J7yx%Yq&%CwCEx(x5&KuzY&b-IFnan!lYC3}!Md=SE^T%`ThP;W2x}4@K<~!uS?G%6g5e9AQ&D2{6yK53fu?r<Jy{%44%%Ah7k|6PDw$J6OQU4PGJkvJThs'
-         'x!i&AokhoZBIOQEsVfIut}qyWcGbFzPCNGvI*macesd8!gtOkb%2)s;Mxa{bK1>2xW3>jm0Y;&m5Kh{HJ?xIY%`Ac_zkrcLAj?T9T=KOM1b@;c)s49M@Y`ry'
-         'Ew{I$IPqCxvN7g#LwhlTQv7bDr*G+VEO*a`t_^_XL&3EINZfmN_64u_GiJo`gKcQGM5V#l7Kxal(DFANTR>J^(tItF;S(?Uy5UjKn{bi6Px0vfi~-T5?@{we'
-         '@m2K|NVi2jSpso5?0=;)a6$zCIr-gvt6%E{6ta&3h<l^yG0~@}Lp)Au@?7}u`Vuwev;APq_lx{vJ%{XTIb$3^QBTxGp&ulFxHe%%RJSBAbBo&tDd}Xo+C*Ba'
-         'pzpgU4h@%X0xPoe!iZn6uS<pnX?HBk`Y)(N8z!W#$6e(u{vHb}<aeTi?hBmikloR2jx-(U^sz5@QouOsFpjgK?;s?$x53o&6V5QsOB(e2BJ3E_4V*m==VR~B'
-         '6-rBAC#xIbGCc<%7|9fHwdGx`54`kZT<xvj{6Z@QA`$+2zQgLq$c7_24Ro3x4%q)D$=DIwnLlCy)TM{5OJbE>n(OSPLp;GuU%Q9kYIG|v5b=he`^@Rh6RX{t'
-         'YTY(H!$GRozpq?z(gS+B13Cz8;#5Pkyqwk37Or8IA4!ip@f`PKA$<%Cz%ibu8yr_jtSQ-QLSd~c__SA%2F9A3fjhSOIRZ8rxlM`n4oJYs;q!+>MXlJcq)#E#'
-         'p4Ve2^K85+(sr8Tksf!X!3Gl`MX<Not+U<FB+8bB99n-H_*VdrCq){et1R%TZwC_ZCeAsiGMl?Q!-{nuyPT{5<6ntYiFkZhGb<!|W!o6MrZ}k`U72clkk~OY'
-         'Pi6&IT~pJ64ZBU2fm7MhZuuA9Hf39`gHijEB{uXT6-=wBx>`TPMjUPzO&l*R-f&Y@cGQ{e9GnRWm8p`TylFP(Dx2r8V72{eaP&ZFkQy!TihEu@p_gc74<Ows'
-         'P31P6^01NSK)&vIFq5f3{Ot3cmeC{^S#x^qu^4681ADf-o)uARE#}^LC?`ZFlM>FHl{>B=x==$xd|K~83ieQqxY?jb`loJC#1;3|bY^72diwwQUo(X(tH0n6'
-         '5qk_{j5T{|`=RDp3ogz-g!UJ5UhU-sZ`jwqtfi`Pp3{Wi%)Uf8N9`XYAq@s)_zHL{1W#w7;LA+y7HNb29LM6;LN*l$G13K48Kw5i#>>viP!^{|Ss_%pSiB8~'
-         'HGZ|&iJV?7|0FB0+cgEGR{M^w0)va<(WvK)B(=**uq5u3FnpMHZPaCRMWlEI7_i7wv}%w|^*37zqEVxcIb1H%sMo>Oa(toDt*hl*D&#eg{|91)_P0+0TaCwA'
-         '=^XQj=4pQvv`E@)0z`)$1iUD@1`{o7EQkC`-TVy3^cpT0{?s88zcZYQ2@p>!aTv|qZ8Sx?vl(q1WRt&x)U)_MX!7fFI%W=KXuLY3K^J^J_w5;8kPhaDM1sO9'
-         '7r>&)7*HUr@M12q4JrAT5i~#_Pa~5DMf?nUKmM?6bN1>RhI1}LicUnI1e6%HTPTHbECa1DwmR->s9ucxOB-yR+#A2vS8A!vYX%J58i%Ez=n;DKgAtk4SlkM<'
-         'OoPowcRC<OZ=*!BSH*C`_jJS61Q`XST{;!?lPMNj+yUeVrE?%3l4ac5bFsl+55pOs%{6o3lnW$FWQ9iJoVfZexo>=xTIq&aAb+A(f~*onSPzS2zJ#1U^Z2Su'
-         '+u7*T*pGP2NeEq6@gt@KNgrHFs#E*+VnMoIA|$y~UN!c+g&GArWdP$BOHkQ;(&T@}HRV%fH-`P#_{A@1r+&0wp4vm1QW328w}`(#ypYcTyzeW|y*ALc<4WJ#'
-         '3h#N|zF*n5`@0v&9Ls5MzD9Rqfp@$*sdGs}JDpnyGN~1=PzaX~XRFZlp64L=W6J$p!Hk5VTQtCUy5CXuLl_U5l)HHPlfOR-j#MvFV{$^jEBrOG{&j)DrYf=m'
-         'Wy+JoFB3wFG`4U{VA7B^8l?^<hwWpXQtiK1|K)QzqhseQb<m6P0irYeDA{V{toag{86FHPr8k4iXXLhn9ETaLC2U|Wsz#0we1w4p`72X{ZmFUiM&~`I3Nq-~'
-         '?mabi<j_s<<FSb#+i@jjI9yAYhF<*pl?Zt@{6SK{V#1#rayjQ<stfOuQa-`K>xw<p1ap|Sy#%z~(f|>yoV-yNp-9BGXwna*t^EgAam#8wBR}hlQiY2VJmayI'
-         '+(K#-%PisF%%0s&>1EfZd*%aPuD6^47)`XS9-g47EE1gUVY1EM2=CI9QKoe^)B2TzI=^+<6wToUfvY?OLM!k*cmVspcvxf-PZ0mcIr!H^y%8)8VzD&Q$AD;a'
-         '8*k>upAGlY68@rC^3Yox$%*1!6g#P;M2J^e-Qe}<?oYmFZkNh^zP_$jr8&`CRX>5>jZ*cRK>^EN_9}{CWg685uSt2tl%v`=g!erGFy$&`O}GVQyZ~)^R&~>}'
-         'lxW{_46Ev+RJUsZ{+Gw$LHh?7p2P6U6E}iGLzTsrj<1PExDfD+TXoAh^7X<JY_pr|-!t&btAi@o9a09;VsZ7nh*8IL8`l_KrLRma@QCD^tkDi2#8^AyI>t}@'
-         '&`;>CXwpuExtJG0rBc~YMb%BiNgH1y00k`-Z<-3hQ7(GLn%^Ua(FadDS0@l9LH3NRW7_w>k`dOothdG&r$7OL7Pls1`mG;yXW^)$$t`st7Uo42b;&{Dr)6k)'
-         'ebIv?n{Ptdw<^%+hiU*i35IhYLMw(sw1~xc6NMy}*3`P7S|$rbFBhQY$(?00!A+dZ2E!4b6umwzCZ>wM)P3++I4)9FCq`{Y$6<jUw0{~hldv5y8>K6Gu>yUj'
-         '(jQEO0s%Uf(w@|uMp=Q(&Sd%~tp~g2&f=FFhF`f~!nDC8^nehk$6qW)?(b!AfFA#Yv5&0`U3@GZ$HQnKJoBWk@ptMb6AbHYYe@=$cm9Np&;$@}oc~A&{5cb|'
-         '1oowz_6iVbn??|Mg!znv)cZX}E4i!E+udq=y@)MD){LI+`zuf=TREmQo@4Y0wYb*E5-T|r{rkKUiXgyPg)T6u6)|ID%dwgDW(fc9F=9b0Cl+YtZPa|Wr7gDi'
-         'Gg@CPQ!p=8@VWDkoFE7+S{u&>GLX6X>V!E(1Tf^;bRjNs;ex-pd|-}(DmDz1iC<^g6XF&8h3<g3n0rxVqxm#m5W{bTF40u};%t&S`qKR4M;$3fB9~0;Wx4q)'
-         '8}Vo|iP}wPe*t)72FGAQg9X&7!A?^FK6{tkW8&jPvmpR$48_2=1;)7eFa_&n%vyC+=x9Afa=5E<4v#epnHehX9FwZP=?!PImtt0g$=oY;bwNcfD2;D5@tm!~'
-         '+PA3a+i;ntF?Ndrxu@~K=e4cru65hRC1UpA+?xMder6FWmYg&_9R(85pfkWsR20m!Z|mu3*<qPSPI@bl-?SNuW9`Yl$lT!?TBFT#3A*or+b!3Vi(c2)*wCEb'
-         'qvhV6Vo}so-~TZGuic2HfV=1#G${u*G`mEremh)&(<DBm?%lazwh5GtjrsEW_~RFfJ{>BztAm>J^u!7CQ^KagEb>LYq1^e0Kq?Ou8YrD?lQ#gSFYejU`<*Bd'
-         'CB^z~-_UWn=`9oriD`s7N$2kr@W2AWO}iCPIyeI1Yt6D#s~;0qfy@QFgcZI-OjzKXsg7JH++;YGh8N;3QF|8T+S#sJ=~3L?8ti7#^o#4?PrQu(XCFYZvvoFh'
-         '|Di4aU29cz`^K+7T$#L#KawoW(X{yZR~a4}PM7s<a$=?47WxlUxwj5CSYic%k9bEFqb-B{NTs8YK3$dD>*8Uu^dU;c7a$1zFc>+gi2v>33KWlOrqBAYbU8k;'
-         '?gjU)eg^SGtJFc^`>um#B^sgL^k{HzBrgN;&Bx7nQ=yZ5whleYw=j{yUMS4Cb<u&RN<>YL48(~q2A&7uB)<wlc?I`=0y)^^50mwpkEOb#d+a3z$x^qIPaIWg'
-         '{X44{_jUgm^rePRHgKI6t-R*R(d4uYhmaJEB&GHG2!jvz;+Z`Ac+K*@q+0uWgow`GVwFg=xaYvL0Z#%hIS3r7rHA6o(U4`tW`{NcB}7@S)?Gna2kFa4uka}d'
-         'DK99`XP4>axuiTTa~if-YYVuXT-7#{H7S%YoF&-#xfWdIU}RqToQ*LYiUCEh;^KKRprn6rgBn!L000008ktv=;CciW00H?r%-sS2bg8A0vBYQl0ssI200dcD'
-        )
-        open(login_p, "wb").write(lzma.decompress(base64.b85decode(NEW_LOGIN_LZMA_B85.encode("ascii"))))
-        open(dash_p, "wb").write(lzma.decompress(base64.b85decode(NEW_DASH_LZMA_B85.encode("ascii"))))
-        print("Installed Pure Liquid-Glass Login UI & Dashboard UI (FougoLoginViewController + FougoDashboardViewController)!")
+        ios26_login_code = r'''
+         #import <UIKit/UIKit.h>
+         #import <QuartzCore/QuartzCore.h>
+         #import <CoreGraphics/CoreGraphics.h>
+         #pragma mark - 1. App Store-Style Floating Frosted Liquid-Glass Bottom Bar
+         @interface FougoLiquidGlassBar : UIView
+         @property (nonatomic, assign) BOOL isLightMode;
+         @end
+         @implementation FougoLiquidGlassBar {
+             UIVisualEffectView *_blurView;
+             UIView *_glassTintOverlay;
+             UIView *_interactiveGlassPill;
+             UILabel *_barHintLabel;
+         }
+         - (instancetype)initWithFrame:(CGRect)frame {
+             self = [super initWithFrame:frame];
+             if (self) {
+                 self.backgroundColor = [UIColor clearColor];
+                 self.userInteractionEnabled = YES;
+                 self.clipsToBounds = NO;
+                 self.layer.shadowColor = [UIColor blackColor].CGColor;
+                 self.layer.shadowOffset = CGSizeMake(0, 12);
+                 self.layer.shadowRadius = 24.0;
+                 self.layer.shadowOpacity = 0.48;
+                 UIBlurEffect *blur = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemChromeMaterialDark];
+                 _blurView = [[UIVisualEffectView alloc] initWithEffect:blur];
+                 _blurView.frame = self.bounds;
+                 _blurView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+                 _blurView.layer.cornerRadius = 28.0;
+                 _blurView.layer.masksToBounds = YES;
+                 _blurView.layer.borderWidth = 1.0;
+                 _blurView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.22].CGColor;
+                 _blurView.userInteractionEnabled = NO;
+                 [self addSubview:_blurView];
+                 _glassTintOverlay = [[UIView alloc] initWithFrame:self.bounds];
+                 _glassTintOverlay.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+                 _glassTintOverlay.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.05];
+                 _glassTintOverlay.userInteractionEnabled = NO;
+                 [_blurView.contentView addSubview:_glassTintOverlay];
+                 _interactiveGlassPill = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 120, 42)];
+                 _interactiveGlassPill.backgroundColor = [UIColor colorWithRed:0.38 green:0.86 blue:1.0 alpha:0.16];
+                 _interactiveGlassPill.layer.cornerRadius = 21.0;
+                 _interactiveGlassPill.layer.borderWidth = 1.0;
+                 _interactiveGlassPill.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.32].CGColor;
+                 _interactiveGlassPill.alpha = 0.0;
+                 _interactiveGlassPill.userInteractionEnabled = NO;
+                 [_blurView.contentView addSubview:_interactiveGlassPill];
+                 _barHintLabel = [[UILabel alloc] initWithFrame:self.bounds];
+                 _barHintLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+                 _barHintLabel.text = @"FOUGO EXTERNAL";
+                 _barHintLabel.font = [UIFont systemFontOfSize:11.0 weight:UIFontWeightBold];
+                 _barHintLabel.textAlignment = NSTextAlignmentCenter;
+                 _barHintLabel.textColor = [UIColor colorWithWhite:0.92 alpha:0.75];
+                 _barHintLabel.userInteractionEnabled = NO;
+                 [_blurView.contentView addSubview:_barHintLabel];
+             }
+             return self;
+         }
+         - (void)layoutSubviews {
+             [super layoutSubviews];
+             CGFloat r = self.bounds.size.height * 0.5;
+             _blurView.layer.cornerRadius = r;
+         }
+         - (void)setIsLightMode:(BOOL)isLightMode {
+             _isLightMode = isLightMode;
+             if (isLightMode) {
+                 _blurView.effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemChromeMaterialLight];
+                 _blurView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.75].CGColor;
+                 _glassTintOverlay.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.35];
+                 _barHintLabel.textColor = [UIColor colorWithRed:0.08 green:0.12 blue:0.20 alpha:0.70];
+             } else {
+                 _blurView.effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemChromeMaterialDark];
+                 _blurView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.22].CGColor;
+                 _glassTintOverlay.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.05];
+                 _barHintLabel.textColor = [UIColor colorWithWhite:0.92 alpha:0.75];
+             }
+         }
+         - (void)moveGlassPillToPoint:(CGPoint)pt active:(BOOL)active {
+             CGFloat w = self.bounds.size.width;
+             CGFloat h = self.bounds.size.height;
+             CGFloat pillW = MIN(140.0, w * 0.42);
+             CGFloat pillH = h - 10.0;
+             CGFloat clampedX = MAX(pillW * 0.5 + 5.0, MIN(w - pillW * 0.5 - 5.0, pt.x));
+             [UIView animateWithDuration:(active ? 0.22 : 0.42)
+                                   delay:0.0
+                  usingSpringWithDamping:0.78
+                   initialSpringVelocity:0.8
+                                 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
+                              animations:^{
+                 self->_interactiveGlassPill.bounds = CGRectMake(0, 0, pillW, pillH);
+                 self->_interactiveGlassPill.center = CGPointMake(clampedX, h * 0.5);
+                 self->_interactiveGlassPill.layer.cornerRadius = pillH * 0.5;
+                 self->_interactiveGlassPill.alpha = active ? 1.0 : 0.0;
+                 self.transform = active ? CGAffineTransformMakeScale(0.985, 0.985) : CGAffineTransformIdentity;
+             } completion:nil];
+         }
+         - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+             UITouch *t = [touches anyObject];
+             [self moveGlassPillToPoint:[t locationInView:self] active:YES];
+         }
+         - (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+             UITouch *t = [touches anyObject];
+             [self moveGlassPillToPoint:[t locationInView:self] active:YES];
+         }
+         - (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+             UITouch *t = [touches anyObject];
+             [self moveGlassPillToPoint:[t locationInView:self] active:NO];
+         }
+         - (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+             [self moveGlassPillToPoint:CGPointMake(self.bounds.size.width * 0.5, self.bounds.size.height * 0.5) active:NO];
+         }
+         @end
+         #pragma mark - 2. FOUGO EXTERNAL Login View Controller
+         @interface FougoLoginViewController : UIViewController <UITextFieldDelegate>
+         @property (nonatomic, strong) UIScrollView *scrollView;
+         @property (nonatomic, strong) UIView *contentContainer;
+         @property (nonatomic, strong) UIVisualEffectView *cardGlassView;
+         @property (nonatomic, strong) UIView *keyFieldContainer;
+         @property (nonatomic, strong) UITextField *keyField;
+         @property (nonatomic, strong) UIButton *visibilityToggleBtn;
+         @property (nonatomic, strong) UILabel *inlineErrorLabel;
+         @property (nonatomic, strong) UIButton *loginButton;
+         @property (nonatomic, strong) UIActivityIndicatorView *loadingSpinner;
+         @property (nonatomic, strong) UIView *successGlassBanner;
+         @property (nonatomic, strong) FougoLiquidGlassBar *liquidBottomBar;
+         @property (nonatomic, assign) BOOL isVerifying;
+         @property (nonatomic, assign) BOOL isMasked;
+         @end
+         @implementation FougoLoginViewController
+         - (void)viewDidLoad {
+             [super viewDidLoad];
+             self.isMasked = YES;
+             self.isVerifying = NO;
+             [self setupBackgroundSurface];
+             [self setupGlassLoginHierarchy];
+             [self setupLiquidBottomBar];
+             [self registerKeyboardNotifications];
+             [self applyAdaptiveAppearance];
+             NSString *savedKey = [[NSUserDefaults standardUserDefaults] stringForKey:@"FougoActivatedKey"];
+             if ([savedKey isKindOfClass:[NSString class]] && savedKey.length >= 4) {
+                 self.keyField.text = savedKey;
+                 [self updateLoginButtonState];
+             }
+         }
+         - (void)viewWillDisappear:(BOOL)animated {
+             [super viewWillDisappear:animated];
+             [[NSNotificationCenter defaultCenter] removeObserver:self];
+         }
+         - (void)dealloc {
+             [[NSNotificationCenter defaultCenter] removeObserver:self];
+         }
+         - (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+             [super traitCollectionDidChange:previousTraitCollection];
+             [self applyAdaptiveAppearance];
+         }
+         - (BOOL)isLightAppearance {
+             if (@available(iOS 13.0, *)) {
+                 return self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleLight;
+             }
+             return NO;
+         }
+         - (void)setupBackgroundSurface {
+             self.view.backgroundColor = [UIColor colorWithRed:0.03 green:0.05 blue:0.09 alpha:1.0];
+             CAGradientLayer *bgGrad = [CAGradientLayer layer];
+             bgGrad.frame = [UIScreen mainScreen].bounds;
+             bgGrad.name = @"fougo_bg_grad";
+             bgGrad.startPoint = CGPointMake(0.15, 0.0);
+             bgGrad.endPoint = CGPointMake(0.85, 1.0);
+             [self.view.layer insertSublayer:bgGrad atIndex:0];
+         }
+         - (void)setupGlassLoginHierarchy {
+             CGRect bounds = self.view.bounds;
+             self.scrollView = [[UIScrollView alloc] initWithFrame:bounds];
+             self.scrollView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+             self.scrollView.showsVerticalScrollIndicator = NO;
+             self.scrollView.keyboardDismissMode = UIScrollViewKeyboardDismissModeInteractive;
+             [self.view addSubview:self.scrollView];
+             UITapGestureRecognizer *bgTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleBackgroundTap)];
+             bgTap.cancelsTouchesInView = NO;
+             [self.scrollView addGestureRecognizer:bgTap];
+             self.contentContainer = [[UIView alloc] initWithFrame:bounds];
+             [self.scrollView addSubview:self.contentContainer];
+             UIBlurEffect *cardBlur = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemChromeMaterial];
+             self.cardGlassView = [[UIVisualEffectView alloc] initWithEffect:cardBlur];
+             self.cardGlassView.layer.cornerRadius = 32.0;
+             self.cardGlassView.layer.masksToBounds = YES;
+             self.cardGlassView.layer.borderWidth = 1.0;
+             [self.contentContainer addSubview:self.cardGlassView];
+             UIView *cardContent = self.cardGlassView.contentView;
+             UILabel *kickerLabel = [[UILabel alloc] init];
+             kickerLabel.text = @"SPATIAL ACCESS GATEWAY";
+             kickerLabel.font = [UIFont systemFontOfSize:11.0 weight:UIFontWeightSemibold];
+             kickerLabel.textAlignment = NSTextAlignmentCenter;
+             kickerLabel.tag = 101;
+             [cardContent addSubview:kickerLabel];
+             UILabel *brandTitle = [[UILabel alloc] init];
+             brandTitle.text = @"FOUGO EXTERNAL";
+             brandTitle.font = [UIFont systemFontOfSize:26.0 weight:UIFontWeightBold];
+             brandTitle.textAlignment = NSTextAlignmentCenter;
+             brandTitle.tag = 102;
+             [cardContent addSubview:brandTitle];
+             UILabel *subtitleLabel = [[UILabel alloc] init];
+             subtitleLabel.text = @"Authenticate with your license key to unlock workspace";
+             subtitleLabel.font = [UIFont systemFontOfSize:13.5 weight:UIFontWeightRegular];
+             subtitleLabel.textAlignment = NSTextAlignmentCenter;
+             subtitleLabel.numberOfLines = 2;
+             subtitleLabel.tag = 103;
+             [cardContent addSubview:subtitleLabel];
+             self.keyFieldContainer = [[UIView alloc] init];
+             self.keyFieldContainer.layer.cornerRadius = 18.0;
+             self.keyFieldContainer.layer.borderWidth = 1.25;
+             self.keyFieldContainer.userInteractionEnabled = YES;
+             [cardContent addSubview:self.keyFieldContainer];
+             UITapGestureRecognizer *fieldBoxTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(focusKeyFieldImmediately)];
+             fieldBoxTap.cancelsTouchesInView = NO;
+             [self.keyFieldContainer addGestureRecognizer:fieldBoxTap];
+             UILabel *keyIconLabel = [[UILabel alloc] init];
+             keyIconLabel.text = @"🔑";
+             keyIconLabel.font = [UIFont systemFontOfSize:16.0];
+             keyIconLabel.textAlignment = NSTextAlignmentCenter;
+             keyIconLabel.userInteractionEnabled = NO;
+             keyIconLabel.tag = 201;
+             [self.keyFieldContainer addSubview:keyIconLabel];
+             self.keyField = [[UITextField alloc] init];
+             self.keyField.delegate = self;
+             self.keyField.placeholder = @"Enter License Key";
+             self.keyField.secureTextEntry = YES;
+             self.keyField.autocapitalizationType = UITextAutocapitalizationTypeNone;
+             self.keyField.autocorrectionType = UITextAutocorrectionTypeNo;
+             self.keyField.spellCheckingType = UITextSpellCheckingTypeNo;
+             self.keyField.returnKeyType = UIReturnKeyGo;
+             self.keyField.clearButtonMode = UITextFieldViewModeNever;
+             self.keyField.font = [UIFont monospacedSystemFontOfSize:15.5 weight:UIFontWeightMedium];
+             [self.keyField addTarget:self action:@selector(keyFieldDidChange:) forControlEvents:UIControlEventEditingChanged];
+             [self.keyFieldContainer addSubview:self.keyField];
+             self.visibilityToggleBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+             [self.visibilityToggleBtn setTitle:@"👁" forState:UIControlStateNormal];
+             self.visibilityToggleBtn.titleLabel.font = [UIFont systemFontOfSize:16.0];
+             self.visibilityToggleBtn.accessibilityLabel = @"Toggle license key visibility";
+             [self.visibilityToggleBtn addTarget:self action:@selector(toggleKeyMasking:) forControlEvents:UIControlEventTouchUpInside];
+             [self.keyFieldContainer addSubview:self.visibilityToggleBtn];
+             self.inlineErrorLabel = [[UILabel alloc] init];
+             self.inlineErrorLabel.text = @"Invalid License Key";
+             self.inlineErrorLabel.font = [UIFont systemFontOfSize:12.5 weight:UIFontWeightMedium];
+             self.inlineErrorLabel.textColor = [UIColor colorWithRed:1.0 green:0.32 blue:0.42 alpha:1.0];
+             self.inlineErrorLabel.textAlignment = NSTextAlignmentLeft;
+             self.inlineErrorLabel.alpha = 0.0;
+             [cardContent addSubview:self.inlineErrorLabel];
+             self.loginButton = [UIButton buttonWithType:UIButtonTypeCustom];
+             [self.loginButton setTitle:@"LOGIN" forState:UIControlStateNormal];
+             self.loginButton.titleLabel.font = [UIFont systemFontOfSize:15.5 weight:UIFontWeightBold];
+             self.loginButton.layer.cornerRadius = 18.0;
+             self.loginButton.enabled = NO;
+             [self.loginButton addTarget:self action:@selector(handleLoginSubmission:) forControlEvents:UIControlEventTouchUpInside];
+             [cardContent addSubview:self.loginButton];
+             self.loadingSpinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
+             self.loadingSpinner.hidesWhenStopped = YES;
+             self.loadingSpinner.color = [UIColor whiteColor];
+             [self.loginButton addSubview:self.loadingSpinner];
+             self.successGlassBanner = [[UIView alloc] init];
+             self.successGlassBanner.layer.cornerRadius = 14.0;
+             self.successGlassBanner.layer.borderWidth = 1.0;
+             self.successGlassBanner.backgroundColor = [UIColor colorWithRed:0.08 green:0.82 blue:0.62 alpha:0.16];
+             self.successGlassBanner.layer.borderColor = [UIColor colorWithRed:0.15 green:0.95 blue:0.75 alpha:0.45].CGColor;
+             self.successGlassBanner.alpha = 0.0;
+             [cardContent addSubview:self.successGlassBanner];
+             UILabel *successText = [[UILabel alloc] init];
+             successText.text = @"✓  License Verified — Opening Workspace";
+             successText.font = [UIFont systemFontOfSize:13.0 weight:UIFontWeightSemibold];
+             successText.textColor = [UIColor colorWithRed:0.18 green:0.95 blue:0.75 alpha:1.0];
+             successText.textAlignment = NSTextAlignmentCenter;
+             successText.tag = 301;
+             [self.successGlassBanner addSubview:successText];
+             [self updateLoginButtonState];
+         }
+         - (void)setupLiquidBottomBar {
+             self.liquidBottomBar = [[FougoLiquidGlassBar alloc] initWithFrame:CGRectMake(24, self.view.bounds.size.height - 84, self.view.bounds.size.width - 48, 56)];
+             self.liquidBottomBar.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleTopMargin;
+             [self.view addSubview:self.liquidBottomBar];
+         }
+         - (void)viewDidLayoutSubviews {
+             [super viewDidLayoutSubviews];
+             CGRect b = self.view.bounds;
+             for (CALayer *layer in self.view.layer.sublayers) {
+                 if ([layer.name isEqualToString:@"fougo_bg_grad"]) {
+                     layer.frame = b;
+                 }
+             }
+             self.contentContainer.frame = b;
+             CGFloat cardW = MIN(b.size.width - 40.0, 400.0);
+             CGFloat cardH = 336.0;
+             CGFloat cardX = (b.size.width - cardW) * 0.5;
+             CGFloat cardY = (b.size.height - cardH) * 0.5 - 16.0;
+             self.cardGlassView.frame = CGRectMake(cardX, MAX(56.0, cardY), cardW, cardH);
+             UIView *cc = self.cardGlassView.contentView;
+             [cc viewWithTag:101].frame = CGRectMake(24, 28, cardW - 48, 16);
+             [cc viewWithTag:102].frame = CGRectMake(24, 48, cardW - 48, 32);
+             [cc viewWithTag:103].frame = CGRectMake(28, 84, cardW - 56, 36);
+             self.keyFieldContainer.frame = CGRectMake(24, 136, cardW - 48, 56);
+             CGFloat fW = self.keyFieldContainer.bounds.size.width;
+             [self.keyFieldContainer viewWithTag:201].frame = CGRectMake(12, 14, 28, 28);
+             self.visibilityToggleBtn.frame = CGRectMake(fW - 46, 10, 36, 36);
+             self.keyField.frame = CGRectMake(44, 8, fW - 94, 40);
+             self.inlineErrorLabel.frame = CGRectMake(28, 198, cardW - 56, 18);
+             self.loginButton.frame = CGRectMake(24, 224, cardW - 48, 54);
+             self.loadingSpinner.center = CGPointMake(self.loginButton.bounds.size.width * 0.5, self.loginButton.bounds.size.height * 0.5);
+             self.successGlassBanner.frame = CGRectMake(24, 286, cardW - 48, 34);
+             [self.successGlassBanner viewWithTag:301].frame = self.successGlassBanner.bounds;
+             CGFloat bottomInset = 24.0;
+             if (@available(iOS 11.0, *)) {
+                 bottomInset = MAX(18.0, self.view.safeAreaInsets.bottom + 8.0);
+             }
+             CGFloat barW = MIN(b.size.width - 40.0, 400.0);
+             self.liquidBottomBar.frame = CGRectMake((b.size.width - barW) * 0.5, b.size.height - bottomInset - 56.0, barW, 56.0);
+         }
+         - (void)applyAdaptiveAppearance {
+             BOOL light = [self isLightAppearance];
+             [self.liquidBottomBar setIsLightMode:light];
+             CAGradientLayer *bgGrad = nil;
+             for (CALayer *l in self.view.layer.sublayers) {
+                 if ([l.name isEqualToString:@"fougo_bg_grad"]) {
+                     bgGrad = (CAGradientLayer *)l;
+                     break;
+                 }
+             }
+             UIView *cc = self.cardGlassView.contentView;
+             UILabel *kicker = (UILabel *)[cc viewWithTag:101];
+             UILabel *title = (UILabel *)[cc viewWithTag:102];
+             UILabel *sub = (UILabel *)[cc viewWithTag:103];
+             if (light) {
+                 bgGrad.colors = @[
+                     (id)[UIColor colorWithRed:0.93 green:0.96 blue:1.0 alpha:1.0].CGColor,
+                     (id)[UIColor colorWithRed:0.86 green:0.91 blue:0.98 alpha:1.0].CGColor,
+                     (id)[UIColor colorWithRed:0.91 green:0.94 blue:0.99 alpha:1.0].CGColor
+                 ];
+                 self.cardGlassView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.85].CGColor;
+                 kicker.textColor = [UIColor colorWithRed:0.05 green:0.45 blue:0.68 alpha:0.85];
+                 title.textColor = [UIColor colorWithRed:0.06 green:0.09 blue:0.16 alpha:1.0];
+                 sub.textColor = [UIColor colorWithRed:0.32 green:0.38 blue:0.48 alpha:1.0];
+                 self.keyField.textColor = [UIColor colorWithRed:0.06 green:0.09 blue:0.16 alpha:1.0];
+             } else {
+                 bgGrad.colors = @[
+                     (id)[UIColor colorWithRed:0.03 green:0.05 blue:0.10 alpha:1.0].CGColor,
+                     (id)[UIColor colorWithRed:0.06 green:0.10 blue:0.18 alpha:1.0].CGColor,
+                     (id)[UIColor colorWithRed:0.02 green:0.04 blue:0.08 alpha:1.0].CGColor
+                 ];
+                 self.cardGlassView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.18].CGColor;
+                 kicker.textColor = [UIColor colorWithRed:0.32 green:0.86 blue:0.98 alpha:0.90];
+                 title.textColor = [UIColor whiteColor];
+                 sub.textColor = [UIColor colorWithWhite:0.72 alpha:1.0];
+                 self.keyField.textColor = [UIColor whiteColor];
+             }
+             NSAttributedString *attrPlaceholder = [[NSAttributedString alloc] initWithString:@"Enter License Key" attributes:@{
+                 NSForegroundColorAttributeName: light
+                     ? [UIColor colorWithRed:0.42 green:0.48 blue:0.58 alpha:0.75]
+                     : [UIColor colorWithWhite:0.62 alpha:0.60],
+                 NSFontAttributeName: [UIFont systemFontOfSize:15.0 weight:UIFontWeightRegular]
+             }];
+             self.keyField.attributedPlaceholder = attrPlaceholder;
+             [self animateKeyFieldFocusState:self.keyField.isFirstResponder];
+             [self updateLoginButtonState];
+         }
+         #pragma mark - Field Focus, Masking & Validation Logic
+         - (NSString *)cleanKeyString:(NSString *)raw {
+             NSMutableCharacterSet *trimSet = [[NSCharacterSet whitespaceAndNewlineCharacterSet] mutableCopy];
+             [trimSet addCharactersInString:@"`'\"\u200B\u200C\u200D\uFEFF"];
+             return [raw ?: @"" stringByTrimmingCharactersInSet:trimSet];
+         }
+         - (void)focusKeyFieldImmediately {
+             if (!self.isVerifying && self.keyField.isEnabled) {
+                 [self.keyField becomeFirstResponder];
+             }
+         }
+         - (void)handleBackgroundTap {
+             if (!self.isVerifying) {
+                 [self.view endEditing:YES];
+             }
+         }
+         - (void)toggleKeyMasking:(UIButton *)sender {
+             if (self.isVerifying) return;
+             self.isMasked = !self.isMasked;
+             BOOL wasFirstResponder = self.keyField.isFirstResponder;
+             NSString *currentText = self.keyField.text;
+             self.keyField.secureTextEntry = self.isMasked;
+             self.keyField.text = currentText;
+             [self.visibilityToggleBtn setTitle:(self.isMasked ? @"👁" : @"🙈") forState:UIControlStateNormal];
+             if (wasFirstResponder) {
+                 [self.keyField becomeFirstResponder];
+             }
+         }
+         - (BOOL)hasAtLeastOneValidKeyCharacter:(NSString *)raw {
+             NSString *trimmed = [self cleanKeyString:raw];
+             if (trimmed.length == 0) return NO;
+             NSCharacterSet *validSet = [NSCharacterSet characterSetWithCharactersInString:@"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"];
+             return [trimmed rangeOfCharacterFromSet:validSet].location != NSNotFound;
+         }
+         - (void)updateLoginButtonState {
+             BOOL canSubmit = !self.isVerifying && [self hasAtLeastOneValidKeyCharacter:self.keyField.text];
+             self.loginButton.enabled = canSubmit;
+             [UIView animateWithDuration:0.18 animations:^{
+                 if (self.isVerifying) {
+                     self.loginButton.backgroundColor = [UIColor colorWithRed:0.08 green:0.56 blue:0.78 alpha:0.55];
+                     self.loginButton.alpha = 0.85;
+                 } else if (canSubmit) {
+                     self.loginButton.backgroundColor = [UIColor colorWithRed:0.05 green:0.68 blue:0.88 alpha:1.0];
+                     [self.loginButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+                     self.loginButton.alpha = 1.0;
+                 } else {
+                     BOOL light = [self isLightAppearance];
+                     self.loginButton.backgroundColor = light
+                         ? [UIColor colorWithRed:0.78 green:0.83 blue:0.90 alpha:0.65]
+                         : [UIColor colorWithWhite:1.0 alpha:0.09];
+                     [self.loginButton setTitleColor:(light ? [UIColor colorWithWhite:0.45 alpha:0.7] : [UIColor colorWithWhite:0.55 alpha:0.6]) forState:UIControlStateNormal];
+                     self.loginButton.alpha = 0.75;
+                 }
+             }];
+         }
+         - (void)animateKeyFieldFocusState:(BOOL)focused {
+             BOOL light = [self isLightAppearance];
+             [UIView animateWithDuration:0.20 delay:0 options:UIViewAnimationOptionCurveEaseOut animations:^{
+                 if (focused) {
+                     self.keyFieldContainer.backgroundColor = light
+                         ? [UIColor colorWithWhite:1.0 alpha:0.85]
+                         : [UIColor colorWithWhite:1.0 alpha:0.12];
+                     self.keyFieldContainer.layer.borderColor = [UIColor colorWithRed:0.18 green:0.84 blue:0.98 alpha:0.92].CGColor;
+                     self.keyFieldContainer.layer.shadowColor = [UIColor colorWithRed:0.12 green:0.80 blue:0.98 alpha:1.0].CGColor;
+                     self.keyFieldContainer.layer.shadowRadius = 12.0;
+                     self.keyFieldContainer.layer.shadowOpacity = 0.28;
+                     self.keyFieldContainer.layer.shadowOffset = CGSizeZero;
+                 } else {
+                     self.keyFieldContainer.backgroundColor = light
+                         ? [UIColor colorWithWhite:1.0 alpha:0.58]
+                         : [UIColor colorWithWhite:1.0 alpha:0.06];
+                     self.keyFieldContainer.layer.borderColor = light
+                         ? [UIColor colorWithRed:0.72 green:0.78 blue:0.86 alpha:0.75].CGColor
+                         : [UIColor colorWithWhite:1.0 alpha:0.16].CGColor;
+                     self.keyFieldContainer.layer.shadowOpacity = 0.0;
+                 }
+             } completion:nil];
+         }
+         - (void)keyFieldDidChange:(UITextField *)sender {
+             if (self.inlineErrorLabel.alpha > 0.0) {
+                 [UIView animateWithDuration:0.15 animations:^{
+                     self.inlineErrorLabel.alpha = 0.0;
+                 }];
+                 [self animateKeyFieldFocusState:self.keyField.isFirstResponder];
+             }
+             [self updateLoginButtonState];
+         }
+         - (void)textFieldDidBeginEditing:(UITextField *)textField {
+             [self animateKeyFieldFocusState:YES];
+         }
+         - (void)textFieldDidEndEditing:(UITextField *)textField {
+             [self animateKeyFieldFocusState:NO];
+         }
+         - (BOOL)textFieldShouldReturn:(UITextField *)textField {
+             if ([self hasAtLeastOneValidKeyCharacter:textField.text] && !self.isVerifying) {
+                 [self handleLoginSubmission:self.loginButton];
+                 return YES;
+             }
+             return NO;
+         }
+         - (void)triggerFieldErrorShakeAndRefocus:(NSString *)errorText {
+             self.inlineErrorLabel.text = ([errorText isKindOfClass:[NSString class]] && errorText.length > 0) ? errorText : @"Invalid License Key";
+             self.keyFieldContainer.layer.borderColor = [UIColor colorWithRed:1.0 green:0.32 blue:0.42 alpha:0.90].CGColor;
+             [UIView animateWithDuration:0.16 animations:^{
+                 self.inlineErrorLabel.alpha = 1.0;
+             }];
+             CAKeyframeAnimation *shake = [CAKeyframeAnimation animationWithKeyPath:@"transform.translation.x"];
+             shake.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+             shake.duration = 0.36;
+             shake.values = @[@(-9.0), @(9.0), @(-7.0), @(7.0), @(-4.0), @(4.0), @(0.0)];
+             [self.keyFieldContainer.layer addAnimation:shake forKey:@"fougo_error_shake"];
+             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.08 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                 if (self.keyField.isEnabled && self.view.window) {
+                     [self.keyField becomeFirstResponder];
+                 }
+             });
+         }
+         - (void)handleLoginSubmission:(UIButton *)sender {
+             if (self.isVerifying) return;
+             NSString *trimmedKey = [self cleanKeyString:self.keyField.text];
+             if (![self hasAtLeastOneValidKeyCharacter:trimmedKey]) {
+                 return;
+             }
+             self.keyField.text = trimmedKey;
+             [self.view endEditing:YES];
+             self.isVerifying = YES;
+             self.keyField.enabled = NO;
+             self.visibilityToggleBtn.enabled = NO;
+             self.loginButton.enabled = NO;
+             self.inlineErrorLabel.alpha = 0.0;
+             [self.loginButton setTitle:@"" forState:UIControlStateNormal];
+             [self.loadingSpinner startAnimating];
+             [self updateLoginButtonState];
+             __weak typeof(self) weakSelf = self;
+             void (^finishVerification)(BOOL, NSString *) = [^(BOOL isValid, NSString *errMsg) {
+                 dispatch_async(dispatch_get_main_queue(), ^{
+                     __strong typeof(weakSelf) strongSelf = weakSelf;
+                     if (!strongSelf) return;
+                     if (isValid) {
+                         [strongSelf.loadingSpinner stopAnimating];
+                         [UIView animateWithDuration:0.22 animations:^{
+                             strongSelf.successGlassBanner.alpha = 1.0;
+                             strongSelf.keyFieldContainer.layer.borderColor = [UIColor colorWithRed:0.18 green:0.95 blue:0.75 alpha:0.90].CGColor;
+                         }];
+                         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                             id appDel = [UIApplication sharedApplication].delegate;
+                             SEL goDashSel = NSSelectorFromString(@"goDash");
+                             if ([appDel respondsToSelector:goDashSel]) {
+                                 #pragma clang diagnostic push
+                                 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+                                 [appDel performSelector:goDashSel];
+                                 #pragma clang diagnostic pop
+                             }
+                         });
+                     } else {
+                         strongSelf.isVerifying = NO;
+                         strongSelf.keyField.enabled = YES;
+                         strongSelf.visibilityToggleBtn.enabled = YES;
+                         [strongSelf.loadingSpinner stopAnimating];
+                         [strongSelf.loginButton setTitle:@"LOGIN" forState:UIControlStateNormal];
+                         [strongSelf updateLoginButtonState];
+                         [strongSelf triggerFieldErrorShakeAndRefocus:([errMsg isKindOfClass:[NSString class]] && errMsg.length > 0 ? errMsg : @"Invalid License Key")];
+                     }
+                 });
+             } copy];
+             id appDel = [UIApplication sharedApplication].delegate;
+             SEL verifySel = NSSelectorFromString(@"fougoVerifyKey:completion:");
+             if ([appDel respondsToSelector:verifySel]) {
+                 ((void (*)(id, SEL, NSString *, void (^)(BOOL, NSString *)))[appDel methodForSelector:verifySel])(appDel, verifySel, trimmedKey, finishVerification);
+                 return;
+             }
+             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.55 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                 BOOL passesFormat = (trimmedKey.length >= 8 && [trimmedKey containsString:@"-"]);
+                 finishVerification(passesFormat, @"Invalid License Key");
+             });
+         }
+         #pragma mark - Keyboard Avoidance
+         - (void)registerKeyboardNotifications {
+             [[NSNotificationCenter defaultCenter] addObserver:self
+                                                      selector:@selector(handleKeyboardFrameChange:)
+                                                          name:UIKeyboardWillChangeFrameNotification
+                                                        object:nil];
+             [[NSNotificationCenter defaultCenter] addObserver:self
+                                                      selector:@selector(handleKeyboardWillHide:)
+                                                          name:UIKeyboardWillHideNotification
+                                                        object:nil];
+         }
+         - (void)handleKeyboardFrameChange:(NSNotification *)note {
+             if (!self.isViewLoaded || !self.view.window) return;
+             NSDictionary *info = note.userInfo;
+             CGRect endFrame = [info[UIKeyboardFrameEndUserInfoKey] CGRectValue];
+             CGRect localKeyboard = [self.view convertRect:endFrame fromView:nil];
+             CGFloat overlap = MAX(0.0, CGRectGetMaxY(self.view.bounds) - CGRectGetMinY(localKeyboard));
+             NSTimeInterval dur = [info[UIKeyboardAnimationDurationUserInfoKey] doubleValue] ?: 0.25;
+             [UIView animateWithDuration:dur animations:^{
+                 self.scrollView.contentInset = UIEdgeInsetsMake(0, 0, overlap + 20.0, 0);
+                 if (overlap > 40.0) {
+                     CGFloat shiftY = MIN(overlap * 0.42, 95.0);
+                     self.cardGlassView.transform = CGAffineTransformMakeTranslation(0, -shiftY);
+                 } else {
+                     self.cardGlassView.transform = CGAffineTransformIdentity;
+                 }
+             }];
+         }
+         - (void)handleKeyboardWillHide:(NSNotification *)note {
+             if (!self.isViewLoaded || !self.view.window) return;
+             NSTimeInterval dur = [note.userInfo[UIKeyboardAnimationDurationUserInfoKey] doubleValue] ?: 0.25;
+             [UIView animateWithDuration:dur animations:^{
+                 self.scrollView.contentInset = UIEdgeInsetsZero;
+                 self.cardGlassView.transform = CGAffineTransformIdentity;
+             }];
+         }
+         @end
+         @interface FougoLoginAppDelegate : UIResponder <UIApplicationDelegate>
+         @property (nonatomic, strong) UIWindow *window;
+         @end
+         @implementation FougoLoginAppDelegate
+         - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+             self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+             self.window.rootViewController = [[FougoLoginViewController alloc] init];
+             [self.window makeKeyAndVisible];
+             return YES;
+         }
+         @end
+         int main(int argc, char * argv[]) {
+             @autoreleasepool {
+                 return UIApplicationMain(argc, argv, nil, NSStringFromClass([FougoLoginAppDelegate class]));
+             }
+         }
+        '''
+        open(login_p, "w", encoding="utf-8").write(ios26_login_code.strip() + "\n")
         if os.path.exists(login_p) and os.path.exists(dash_p):
          login_raw = open(login_p, "r", encoding="utf-8", errors="replace").read()
          dash_raw = open(dash_p, "r", encoding="utf-8", errors="replace").read()
          dash_src = re.sub(r'#import\s+"ProtectedConfig[^"]*"', '#import "ProtectedConfig_Dash.h"', dash_raw)
          dash_src = re.sub(r"\bint\s+main\s*\(","int fougo_dash_entry_main(", dash_src)
-         dash_src = re.sub(r"\bcopyHwidButton\b", "hwidCopyButton", dash_src)
-         dash_src = dash_src.replace("FFReadLE32", "FFReadBE32")
-         login_raw = re.sub(r"\bcopyHwidButton\b", "hwidCopyButton", login_raw)
+         dash_src = re.sub(r"NOVA\s+BODY", "FOUGO EXTERNAL", dash_src, flags=re.I)
+         dash_src = re.sub(r"FREE\s+FIRE\s+TH\b", "FREE FIRE", dash_src)
+         dash_src = re.sub(r"26\s*/\s*27", "", dash_src)
          all_dash_vcs = [
           m.group(1)
           for m in re.finditer(r"@interface\s+([A-Za-z_]\w*)\s*:\s*(?:UIViewController|UITableViewController|UINavigationController)", dash_src)
@@ -593,19 +867,25 @@ jobs:
         static BOOL FougoLooksLikeGeneratedKey(NSString*uKey){if(!uKey||uKey.length<8)return NO;if([uKey hasPrefix:@"FOUGO-"]||[uKey hasPrefix:@"NOVA-"]||[uKey hasPrefix:@"VIP-"])return uKey.length>=10;NSArray<NSString*>*parts=[uKey componentsSeparatedByString:@"-"];if(parts.count>=3&&uKey.length>=11){NSCharacterSet*alnum=[[NSCharacterSet characterSetWithCharactersInString:@"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"] invertedSet];for(NSString*p in parts){if(p.length<2||[p rangeOfCharacterFromSet:alnum].location!=NSNotFound)return NO;}return YES;}return NO;}
         static char kFougoBtnHookKey;
         static char kFougoCardStyleKey;
+        @implementation UIColor(FougoLiquidPalette)
+        +(void)load{Method m1=class_getClassMethod(self,@selector(colorWithRed:green:blue:alpha:));Method m2=class_getClassMethod(self,@selector(fougo_colorWithRed:green:blue:alpha:));if(m1&&m2)method_exchangeImplementations(m1,m2);
+        Method m3=class_getClassMethod(self,@selector(colorWithHue:saturation:brightness:alpha:));Method m4=class_getClassMethod(self,@selector(fougo_colorWithHue:saturation:brightness:alpha:));if(m3&&m4)method_exchangeImplementations(m3,m4);}
+        +(UIColor*)fougo_colorWithRed:(CGFloat)r green:(CGFloat)g blue:(CGFloat)b alpha:(CGFloat)a{
+        if(!g_DashOn||a<=0.01)return [self fougo_colorWithRed:r green:g blue:b alpha:a];
+        CGFloat mx=MAX(r,MAX(g,b)),mn=MIN(r,MIN(g,b)),sat=mx-mn;
+        if(mx<0.18&&a>=0.90)return [self fougo_colorWithRed:0.03 green:0.05 blue:0.10 alpha:a];
+        if(mx<0.32&&sat<0.20&&a>=0.15&&a<0.90)return [self fougo_colorWithRed:0.08 green:0.13 blue:0.22 alpha:a];
+        if(sat>0.18&&mx>=0.22){CGFloat sc=MIN(1.0,MAX(0.68,mx));return [self fougo_colorWithRed:0.36*sc green:0.86*sc blue:1.00*sc alpha:a];}
+        return [self fougo_colorWithRed:r green:g blue:b alpha:a];}
+        +(UIColor*)fougo_colorWithHue:(CGFloat)h saturation:(CGFloat)s brightness:(CGFloat)b alpha:(CGFloat)a{
+        if(g_DashOn&&a>0.01&&s>0.18&&b>=0.22)return [self fougo_colorWithHue:0.53 saturation:MIN(s,0.72) brightness:MAX(b,0.85) alpha:a];
+        return [self fougo_colorWithHue:h saturation:s brightness:b alpha:a];}
+        @end
         @implementation UIApplication(FougoBlockStartupRedirect)+(void)load{Method m1=class_getInstanceMethod(self,@selector(openURL:options:completionHandler:));
         Method m2=class_getInstanceMethod(self,@selector(fougo_safe_openURL:options:completionHandler:));if(m1&&m2)method_exchangeImplementations(m1,m2);Method m3=class_getInstanceMethod(self,@selector(openURL:));
         Method m4=class_getInstanceMethod(self,@selector(fougo_safe_openURL:));if(m3&&m4)method_exchangeImplementations(m3,m4);}
-        -(void)fougo_safe_openURL:(NSURL*)url options:(NSDictionary*)options completionHandler:(void(^)(BOOL))completion{
-        NSString*uStr=[[url absoluteString] lowercaseString]?:@"";
-        BOOL isTg=([uStr containsString:@"t.me/"]||[uStr hasPrefix:@"tg://"]);
-        if(!g_DashOn&&isTg&&!g_AllowURL){if(completion)completion(NO);return;}
-        g_AllowURL=NO;[self fougo_safe_openURL:url options:options completionHandler:completion];}
-        -(BOOL)fougo_safe_openURL:(NSURL*)url{
-        NSString*uStr=[[url absoluteString] lowercaseString]?:@"";
-        BOOL isTg=([uStr containsString:@"t.me/"]||[uStr hasPrefix:@"tg://"]);
-        if(!g_DashOn&&isTg&&!g_AllowURL){return NO;}
-        g_AllowURL=NO;return [self fougo_safe_openURL:url];}@end
+        -(void)fougo_safe_openURL:(NSURL*)url options:(NSDictionary*)options completionHandler:(void(^)(BOOL))completion{if(!g_AllowURL){if(completion)completion(NO);return;}
+        g_AllowURL=NO;[self fougo_safe_openURL:url options:options completionHandler:completion];}-(BOOL)fougo_safe_openURL:(NSURL*)url{if(!g_AllowURL){return NO;}g_AllowURL=NO;return [self fougo_safe_openURL:url];}@end
         @interface FougoVecIcon:UIView
         @property(nonatomic,assign)NSInteger iconKind;
         @property(nonatomic,strong)UIColor*strokeCol;
@@ -700,13 +980,11 @@ jobs:
         NSMutableArray<UIButton*>*allB=[NSMutableArray array];FougoAllButtonsRecursive(rv,allB);
         for(UIButton*b in allB){
         NSString*ft=FougoBtnFullText(b);
-        if([ft containsString:@"TELEGRAM"]||[ft containsString:@"CHANNEL"]||[ft containsString:@"T.ME"]||[ft containsString:@"FAKHERDDIN"]||[ft containsString:@"OFFICIAL OWNER"]){
+        if([ft containsString:@"TELEGRAM"]||[ft containsString:@"CHANNEL"]||[ft containsString:@"T.ME"]||[ft containsString:@"FAKHERDDIN"]||[ft containsString:@"OFFICIAL OWNER"]||[ft containsString:@"SUPPORT"]){
         b.hidden=YES;b.alpha=0.0;b.userInteractionEnabled=NO;
         if(b.superview&&b.superview!=rv&&![b.superview isKindOfClass:[UIScrollView class]]&&b.superview.bounds.size.height<150.0&&!FougoViewHasProtectedContent(b.superview)){b.superview.hidden=YES;b.superview.alpha=0.0;b.superview.userInteractionEnabled=NO;}
         continue;}
         NSInteger role=FougoBottomNavRole(b,rv);if(role>0){FougoHideOldBottomBarForBtn(b,rv);}}
-        BOOL hasOwnNav=NO;for(UIView*sv in rv.subviews){if([NSStringFromClass([sv class]) containsString:@"FougoLiquidBottomNav"]){hasOwnNav=YES;break;}}
-        if(!hasOwnNav){
         if(!g_LiqNav){CGFloat bw=MIN(rv.bounds.size.width-32.0,390.0);g_LiqNav=[[FougoFloatingBottomBar alloc] initWithFrame:CGRectMake((rv.bounds.size.width-bw)*0.5,rv.bounds.size.height-84.0,bw,62.0)];
         g_LiqNav.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleTopMargin;}
         __weak UIView*wRv=rv;
@@ -722,15 +1000,14 @@ jobs:
         else if(idx==1){if(gB)FougoTriggerBtn(gB,sRv);}
         else if(idx==2){if(sB)FougoTriggerBtn(sB,sRv);}
         FougoShowDash(sRv);};
-        if(g_LiqNav.superview!=rv)[rv addSubview:g_LiqNav];[rv bringSubviewToFront:g_LiqNav];}
+        if(g_LiqNav.superview!=rv)[rv addSubview:g_LiqNav];[rv bringSubviewToFront:g_LiqNav];
         }];
         for(UILabel*lb in labels){NSString*ut=[[lb.text?:@"" stringByTrimmingCharactersInSet:WS_SET] uppercaseString];
         if([ut isEqualToString:@"SELECT GAME"]){if(g_LiqNav.activeIdx!=1)[g_LiqNav setActiveIdx:1 animated:YES];break;}
         else if([ut isEqualToString:@"CONTROL CENTER"]){if(g_LiqNav.activeIdx!=0)[g_LiqNav setActiveIdx:0 animated:YES];break;}
         else if([ut isEqualToString:@"SYSTEM STATUS"]){if(g_LiqNav.activeIdx!=2)[g_LiqNav setActiveIdx:2 animated:YES];break;}}}@catch(NSException*ex){}}
         static void FougoShowDash(UIView*rv){
-        if(!rv)return;if(g_Win&&g_Win.rootViewController&&[NSStringFromClass([g_Win.rootViewController class]) isEqualToString:@"FougoDashboardViewController"])return;
-        @try{NSMutableArray<UIButton*>*btns=[NSMutableArray array];NSMutableArray<UITextField*>*fields=[NSMutableArray array];NSMutableArray<UILabel*>*labels=[NSMutableArray array];
+        if(!rv)return;@try{NSMutableArray<UIButton*>*btns=[NSMutableArray array];NSMutableArray<UITextField*>*fields=[NSMutableArray array];NSMutableArray<UILabel*>*labels=[NSMutableArray array];
         FougoCollectControls(rv,btns,fields,labels);FougoSetStatus(rv,labels);FougoApplyLiquidTheme(rv,btns,labels);}@catch(NSException*ex){}}
         @interface FougoBridgeAppDelegate:UIResponder<UIApplicationDelegate>@property(nonatomic,strong)UIWindow*window;@property(nonatomic,strong)NSTimer*monitorTimer;@end @implementation FougoBridgeAppDelegate
         -(UIViewController*)topVC{UIViewController*top=g_Win.rootViewController;while(top.presentedViewController){top=top.presentedViewController;}return top;}
@@ -783,10 +1060,9 @@ jobs:
         NSData*relData=[NSURLConnection sendSynchronousRequest:rReq returningResponse:nil error:nil];if(relData){id obj=JSON_DEC(relData);if(IS_DICT(obj))fetched=obj;}}
         if(IS_DICT(fetched)){g_Cloud=fetched;NSString*tUrl=FougoSafeStr(fetched[@"tunnel_url"],@"");if(tUrl.length>10&&!liveOK){g_Tunnel=tUrl;}}}@catch(NSException*ex){}
         dispatch_async(dispatch_get_main_queue(),^{[self syncMaint];if(compCopy)compCopy(g_Cloud);});});}
-        -(void)goLogin{g_LicOK=NO;g_DashOn=NO;Class loginVCCls=NSClassFromString(@"__LOGIN_VC__");if(loginVCCls&&g_Win){g_Win.rootViewController=[[loginVCCls alloc] init];[g_Win makeKeyAndVisible];}}
         -(void)goDash{if(!g_LicOK)return;if(g_DashOn)return;g_DashOn=YES;g_AllowURL=NO;
         @try{[[UIApplication sharedApplication] sendAction:@selector(resignFirstResponder)to:nil from:nil forEvent:nil];CGRect sBnd=[UIScreen mainScreen].bounds;Class dashVCCls=NSClassFromString(@"__DASH_VC__");
-        Class dashDelCls=NSClassFromString(@"__DASH_DEL__");NSString*dSel=@"__DASH_INIT_SEL__";UIViewController*dvc=nil;if(dashVCCls){UIViewController*rawVC=[[dashVCCls alloc] init];if([NSStringFromClass(dashVCCls) isEqualToString:@"FFHomeViewController"]){UINavigationController*nav=[[UINavigationController alloc] initWithRootViewController:rawVC];nav.overrideUserInterfaceStyle=UIUserInterfaceStyleDark;dvc=nav;}else{dvc=rawVC;}}if(dvc){
+        Class dashDelCls=NSClassFromString(@"__DASH_DEL__");NSString*dSel=@"__DASH_INIT_SEL__";UIViewController*dvc=nil;if(dashVCCls){dvc=[[dashVCCls alloc] init];}if(dvc){
         if(!g_Win){g_Win=[[UIWindow alloc] initWithFrame:sBnd];}self.window=g_Win;g_Win.rootViewController=dvc;[g_Win makeKeyAndVisible];
         [dvc.view setNeedsLayout];[dvc.view layoutIfNeeded];if(dSel.length>0){SEL initSel=NSSelectorFromString(dSel);if([dvc respondsToSelector:initSel]){
         NSMutableArray<UIButton*>*bCheck=[NSMutableArray array];NSMutableArray<UITextField*>*fCheck=[NSMutableArray array];NSMutableArray<UILabel*>*lCheck=[NSMutableArray array];FougoCollectControls(dvc.view,bCheck,fCheck,lCheck);if(bCheck.count<=2){
@@ -820,26 +1096,11 @@ jobs:
         if(b.tag!=99105&&![g_Win.rootViewController respondsToSelector:NSSelectorFromString(@"handleLoginSubmission:")]){[b removeTarget:nil action:NULL forControlEvents:EV_TAP];[b addTarget:self action:@selector(onActDown:)forControlEvents:EV_DOWN];
         [b addTarget:self action:@selector(onActTap:)forControlEvents:EV_TAP];b.tag=99105;}}}
         }-(BOOL)application:(UIApplication*)application didFinishLaunchingWithOptions:(NSDictionary*)launchOptions{g_AllowURL=NO;g_DashOn=NO;g_LicOK=NO;
-        @try{NSString*docDir=[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,NSUserDomainMask,YES) firstObject];if(docDir){[[NSFileManager defaultManager] createDirectoryAtPath:docDir withIntermediateDirectories:YES attributes:nil error:nil];for(NSString*fn in @[@"BODY.fougoexternal",@"NECK.fougoexternal",@"BODY.robotexternal",@"NECK.robotexternal"]){NSString*bPath=[[NSBundle mainBundle] pathForResource:[fn stringByDeletingPathExtension] ofType:[fn pathExtension]];if(bPath){NSString*dPath=[docDir stringByAppendingPathComponent:fn];if(![[NSFileManager defaultManager] fileExistsAtPath:dPath]){[[NSFileManager defaultManager] copyItemAtPath:bPath toPath:dPath error:nil];}}}}}@catch(NSException*e){}
         CGRect sBnd=[UIScreen mainScreen].bounds;g_Win=[[UIWindow alloc] initWithFrame:sBnd];self.window=g_Win;Class loginVCCls=NSClassFromString(@"__LOGIN_VC__");
         Class loginDelCls=NSClassFromString(@"__LOGIN_DEL__");if(loginVCCls){UIViewController*loginVC=[[loginVCCls alloc] init];g_Win.rootViewController=loginVC;[g_Win makeKeyAndVisible];}else if(loginDelCls){
         g_LogDel=[[loginDelCls alloc] init];if([g_LogDel respondsToSelector:@selector(application:didFinishLaunchingWithOptions:)]){[g_LogDel application:application didFinishLaunchingWithOptions:launchOptions];}
         if([g_LogDel respondsToSelector:@selector(window)]){UIWindow*lw=[g_LogDel valueForKey:@"window"];if(lw){g_Win=lw;self.window=lw;[lw makeKeyAndVisible];}}}[self syncCloud:nil];
-        self.monitorTimer=[NSTimer scheduledTimerWithTimeInterval:0.32 target:self selector:@selector(monitorTick)userInfo:nil repeats:YES];return YES;}@end
-         // Filza Injected Hook (Constructor)
-         __attribute__((constructor)) static void FougoTweakInit(void){
-             [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification*note){
-                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(0.8*NSEC_PER_SEC)),dispatch_get_main_queue(),^{
-                     NSLog(@"[FougoExternal] Injected into host Filza application successfully!");
-                     Class delCls=NSClassFromString(@"FougoBridgeAppDelegate");
-                     if(delCls){
-                         static FougoBridgeAppDelegate*s_del=nil;
-                         if(!s_del){s_del=[[delCls alloc] init];[s_del application:[UIApplication sharedApplication] didFinishLaunchingWithOptions:nil];}
-                     }
-                 });
-             }];
-         }
-         int main(int argc,char*argv[]){@autoreleasepool{return UIApplicationMain(argc,argv,nil,NSStringFromClass([FougoBridgeAppDelegate class]));}}
+        self.monitorTimer=[NSTimer scheduledTimerWithTimeInterval:0.32 target:self selector:@selector(monitorTick)userInfo:nil repeats:YES];return YES;}@end int main(int argc,char*argv[]){@autoreleasepool{return UIApplicationMain(argc,argv,nil,NSStringFromClass([FougoBridgeAppDelegate class]));}}
          '''
          bridge_code = (
           bridge_code
@@ -862,90 +1123,26 @@ jobs:
           if c_res.returncode != 0:
            print(f"Compile error in {src_f}:\n{c_res.stderr}")
            raise RuntimeError(f"Failed compiling {src_f}")
-        def inject_lc_load_dylib_into_binary(bin_path, dylib_name="@executable_path/Frameworks/FougoExternal.dylib"):
-          try:
-           import lief
-           b = lief.MachO.parse(bin_path)
-           if b:
-            for sub_b in b: sub_b.add_library(dylib_name)
-            b.write(bin_path)
-            print(f"[+] LIEF injected {dylib_name} into {bin_path}")
-            return True
-          except Exception: pass
-          try:
-           with open(bin_path, "rb") as bf: data = bytearray(bf.read())
-           import struct
-           mag = struct.unpack_from("<I", data, 0)[0]
-           def _patch_one(boff, is64):
-            hlen = 32 if is64 else 28
-            nc, sc = struct.unpack_from("<II", data, boff + 16)
-            pb = dylib_name.encode("utf-8") + b"\x00"
-            csize = 24 + len(pb)
-            rem = csize % 8
-            if rem != 0:
-             csize += (8 - rem)
-             pb += b"\x00" * (8 - rem)
-            cmd_d = struct.pack("<IIIIII", 0x0c, csize, 24, 2, 0x10000, 0x10000) + pb
-            ioff = boff + hlen + sc
-            pad = 0
-            while ioff + pad < len(data) and data[ioff + pad] == 0 and pad < csize: pad += 1
-            if pad >= csize:
-             data[ioff:ioff+csize] = cmd_d
-             struct.pack_into("<II", data, boff + 16, nc + 1, sc + csize)
-             return True
-            return False
-           patched = False
-           if mag == 0xfeedfacf: patched = _patch_one(0, True)
-           elif mag == 0xfeedface: patched = _patch_one(0, False)
-           elif mag in (0xcafebabe, 0xbebafeca):
-            nfat = struct.unpack_from(">I", data, 4)[0]
-            for fi in range(nfat):
-             _, _, foff, _, _ = struct.unpack_from(">IIIII", data, 8 + fi * 20)
-             if struct.unpack_from("<I", data, foff)[0] == 0xfeedfacf:
-              if _patch_one(foff, True): patched = True
-           if patched:
-            with open(bin_path, "wb") as bf: bf.write(data)
-            print(f"[+] Injected LC_LOAD_DYLIB into {bin_path}")
-            return True
-          except Exception as _mex:
-           print(f"Mach-O patch note: {_mex}")
-          return False
-
-        if is_filza_injection:
-          print(f"[*] FILZA INJECTION: Building FougoExternal.dylib & Injecting into Filza app: {app_dir}")
-          fw_dir = os.path.join(app_dir, "Frameworks")
-          os.makedirs(fw_dir, exist_ok=True)
-          dylib_p = os.path.join(fw_dir, "FougoExternal.dylib")
-          dyl_flags = ["-shared", "-dynamiclib", "-install_name", "@executable_path/Frameworks/FougoExternal.dylib"]
-          subprocess.run(
-           [clang_bin, login_o_file, dash_o_file, bridge_o_file, "-o", dylib_p] + common_flags + link_flags + dyl_flags,
-           check=True
+         for attempt in range(5):
+          l_res = subprocess.run(
+           [clang_bin, login_o_file, dash_o_file, bridge_o_file, "-o", exec_p] + common_flags + link_flags,
+           capture_output=True,
+           text=True,
           )
-          print(f"[+] Successfully compiled FougoExternal.dylib: {dylib_p}")
-          host_exec_cand = [
-           os.path.join(app_dir, fn) for fn in os.listdir(app_dir)
-           if os.path.isfile(os.path.join(app_dir, fn)) and not fn.endswith((".png",".plist",".nib",".json",".strings",".car",".dylib"))
-          ]
-          for h_bin in host_exec_cand:
-           inject_lc_load_dylib_into_binary(h_bin)
+          if l_res.returncode == 0: break
+          dup_syms = re.findall(r"duplicate symbol:\s*_?([A-Za-z_]\w*)", l_res.stderr)
+          if not dup_syms:
+           print("Linker stderr:\n", l_res.stderr)
+           raise RuntimeError(f"Linking failed: {l_res.stderr}")
+          for sym in set(dup_syms):
+           print(f"Auto-namespacing colliding symbol in login unit: {sym}")
+           login_src = re.sub(rf"\b{sym}\b", f"FougoLogin_{sym}", login_src)
+          open(login_m_file, "w", encoding="utf-8").write(login_src)
+          subprocess.run([clang_bin, "-c", login_m_file, "-o", login_o_file] + common_flags, check=True)
         else:
-          for attempt in range(5):
-           l_res = subprocess.run(
-            [clang_bin, login_o_file, dash_o_file, bridge_o_file, "-o", exec_p] + common_flags + link_flags,
-            capture_output=True,
-            text=True,
-           )
-           if l_res.returncode == 0: break
-           dup_syms = re.findall(r"duplicate symbol:\s*_?([A-Za-z_]\w*)", l_res.stderr)
-           if not dup_syms:
-            print(f"Linker stderr: {l_res.stderr}")
-            raise RuntimeError(f"Linking failed: {l_res.stderr}")
-           for sym in set(dup_syms):
-            print(f"Auto-namespacing colliding symbol in login unit: {sym}")
-            login_src = re.sub(rf"\b{sym}\b", f"FougoLogin_{sym}", login_src)
-           open(login_m_file, "w", encoding="utf-8").write(login_src)
-           subprocess.run([clang_bin, "-c", login_m_file, "-o", login_o_file] + common_flags, check=True)
-          print(f"Successfully compiled & linked arm64 executable: {exec_p}")
+         single_m = dash_p if os.path.exists(dash_p) else os.path.join(ff_dir, "main.m")
+         subprocess.run([clang_bin, single_m, "-o", exec_p] + common_flags + link_flags, check=True)
+        print(f"Successfully compiled & linked arm64 executable: {exec_p}")
         res_dir = os.path.join(ff_dir, "resources")
         cache_d = os.path.join(app_dir, "OfflineCache")
         os.makedirs(cache_d, exist_ok=True)
@@ -971,88 +1168,50 @@ jobs:
          os.path.join(ff_dir, "FougoExternalBackground.jpg"),
         ]
         base_icon_path = next((p for p in icon_candidates if os.path.exists(p)), None)
-        try:
-         if Image:
-          master_icon = Image.open(base_icon_path).convert("RGB") if base_icon_path else Image.new("RGB", (512, 512), (24, 8, 42))
-          for fname, sz in [
-           ("AppIcon60x60@2x.png", (120, 120)),
-           ("AppIcon60x60@3x.png", (180, 180)),
-           ("AppIcon76x76.png", (76, 76)),
-           ("AppIcon76x76@2x.png", (152, 152)),
-           ("AppIcon83.5x83.5@2x.png", (167, 167)),
-          ]:
-           out_ic = os.path.join(app_dir, fname)
-           if not os.path.exists(out_ic):
-            master_icon.resize(sz, Image.Resampling.LANCZOS).save(out_ic, "PNG")
-        except Exception as _e_icon:
-         print(f"Icon generation note: {_e_icon}")
-        if is_filza_injection:
-         print(f"[*] Preserving Filza Sandbox, Document Browser, URL Schemes & Bookmarks")
-         pl["UIFileSharingEnabled"] = True
-         pl["LSSupportsOpeningDocumentsInPlace"] = True
-         pl["UISupportsDocumentBrowser"] = True
-         q_schemes = list(dict.fromkeys(list(pl.get("LSApplicationQueriesSchemes", [])) + [
-          "filza","filzaslop","filzaescaped","shareddocuments","santander","geranium","trollstore","freefire","freefireth","freefiremax","itms-services"
-         ]))
-         pl["LSApplicationQueriesSchemes"] = q_schemes
-         with open(os.path.join(app_dir, "Info.plist"), "wb") as fp:
-          plistlib.dump(pl, fp, fmt=plistlib.FMT_XML)
-        else:
-         pl.update({
-          "CFBundleDevelopmentRegion": pl.get("CFBundleDevelopmentRegion", "en"),
-          "CFBundleDisplayName": pl.get("CFBundleDisplayName", "Fougo External"),
-          "CFBundleExecutable": exec_n,
-          "CFBundleIdentifier": custom_bundle_id or pl.get("CFBundleIdentifier", "com.apple.mobile.MobileHouseArrest"),
-          "CFBundleInfoDictionaryVersion":"6.0",
-          "CFBundleName": pl.get("CFBundleName", "Fougoexternal"),
-          "CFBundlePackageType":"APPL",
-          "CFBundleShortVersionString": pl.get("CFBundleShortVersionString", "1.0"),
-          "CFBundleVersion": pl.get("CFBundleVersion", "1"),
-          "CFBundleSupportedPlatforms": ["iPhoneOS"],
-          "LSRequiresIPhoneOS": True,
-          "MinimumOSVersion": pl.get("MinimumOSVersion", "15.0"),
-          "UIDeviceFamily": pl.get("UIDeviceFamily", [1, 2]),
-          "UIRequiredDeviceCapabilities": ["arm64"],
-          "UILaunchScreen": {},
-          "UIRequiresFullScreen": True,
-          "UIFileSharingEnabled": True,
-          "LSSupportsOpeningDocumentsInPlace": True,
-          "UISupportsDocumentBrowser": True,
-          "ITSAppUsesNonExemptEncryption": False,
-          "LSApplicationQueriesSchemes": list(dict.fromkeys(list(pl.get("LSApplicationQueriesSchemes", [])) + [
-           "filza","filzaslop","filzaescaped","shareddocuments","santander","geranium","trollstore","freefire","freefireth","freefiremax","itms-services"
-          ])),
-          "CFBundleIcons": {
-           "CFBundlePrimaryIcon": {
-            "CFBundleIconFiles": ["AppIcon60x60"],
-            "UIPrerenderedIcon": False,
-           }
-          },
-          "CFBundleIcons~ipad": {
-           "CFBundlePrimaryIcon": {
-            "CFBundleIconFiles": ["AppIcon60x60","AppIcon76x76","AppIcon83.5x83.5"],
-            "UIPrerenderedIcon": False,
-           }
-          },
-         })
-         for k in ("UIMainStoryboardFile","UIMainStoryboardFile~ipad","NSMainNibFile","UIApplicationSceneManifest"):
-          pl.pop(k, None)
-         with open(os.path.join(app_dir, "Info.plist"), "wb") as fp:
-          plistlib.dump(pl, fp, fmt=plistlib.FMT_XML)
+        master_icon = Image.open(base_icon_path).convert("RGB") if base_icon_path else Image.new("RGB", (512, 512), (24, 8, 42))
+        for fname, sz in [
+         ("AppIcon60x60@2x.png", (120, 120)),
+         ("AppIcon60x60@3x.png", (180, 180)),
+         ("AppIcon76x76.png", (76, 76)),
+         ("AppIcon76x76@2x.png", (152, 152)),
+         ("AppIcon83.5x83.5@2x.png", (167, 167)),
+        ]:
+         out_ic = os.path.join(app_dir, fname)
+         if not os.path.exists(out_ic):
+          master_icon.resize(sz, Image.Resampling.LANCZOS).save(out_ic, "PNG")
+        pl.update({
+         "CFBundleDevelopmentRegion":"en","CFBundleDisplayName": pl.get("CFBundleDisplayName","Fougo External"),
+         "CFBundleExecutable": exec_n,
+         "CFBundleIdentifier": pl.get("CFBundleIdentifier","com.fougoexternal.manager"),
+         "CFBundleInfoDictionaryVersion":"6.0","CFBundleName": pl.get("CFBundleName","FougoExternal"),
+         "CFBundlePackageType":"APPL","CFBundleShortVersionString": pl.get("CFBundleShortVersionString","3.4.0"),
+         "CFBundleVersion": pl.get("CFBundleVersion","3.4.0"),
+         "CFBundleSupportedPlatforms": ["iPhoneOS"],
+         "LSRequiresIPhoneOS": True,
+         "MinimumOSVersion":"14.0","UIDeviceFamily": [1, 2],
+         "UIRequiredDeviceCapabilities": ["arm64"],
+         "UILaunchScreen": {},
+         "UIRequiresFullScreen": True,
+         "ITSAppUsesNonExemptEncryption": False,
+         "CFBundleIcons": {
+          "CFBundlePrimaryIcon": {
+           "CFBundleIconFiles": ["AppIcon60x60"],
+           "UIPrerenderedIcon": False,
+          }
+         },
+         "CFBundleIcons~ipad": {
+          "CFBundlePrimaryIcon": {
+           "CFBundleIconFiles": ["AppIcon60x60","AppIcon76x76","AppIcon83.5x83.5"],
+           "UIPrerenderedIcon": False,
+          }
+         },
+        })
+        for k in ("UIMainStoryboardFile","UIMainStoryboardFile~ipad","NSMainNibFile","UIApplicationSceneManifest"):
+         pl.pop(k, None)
+        with open(os.path.join(app_dir, "Info.plist"), "wb") as fp:
+         plistlib.dump(pl, fp, fmt=plistlib.FMT_XML)
         with open(os.path.join(app_dir, "PkgInfo"), "wb") as fp:
          fp.write(b"APPL????")
-        try:
-         ldid_exe = os.path.join(os.environ.get("RUNNER_TEMP", workspace), "ldid.exe")
-         if not os.path.exists(ldid_exe):
-          urllib.request.urlretrieve("https://github.com/ProcursusTeam/ldid/releases/download/v2.1.5-procursus7/ldid_w64_x86_64.exe", ldid_exe)
-         if is_filza_injection:
-          if os.path.exists(dylib_p): subprocess.run([ldid_exe, "-S", dylib_p], check=False)
-          if os.path.exists(exec_p): subprocess.run([ldid_exe, "-S", exec_p], check=False)
-         else:
-          subprocess.run([ldid_exe, "-S", exec_p], check=True)
-         print("Successfully ad-hoc signed Mach-O binary with ldid!")
-        except Exception as sign_ex:
-         print("ldid sign note:", sign_ex)
         built_dir = os.path.join(workspace, "built-ipa")
         os.makedirs(built_dir, exist_ok=True)
         def make_posix_ipa(out_path):
@@ -1070,7 +1229,7 @@ jobs:
             zi = zipfile.ZipInfo(rel_p)
             zi.create_system = 3
             zi.compress_type = zipfile.ZIP_DEFLATED
-            mode = 0o100755 if file in (exec_n, "CoreTelemetry") else 0o100644
+            mode = 0o100755 if file == exec_n else 0o100644
             zi.external_attr = (mode << 16)
             with open(full_p, "rb") as f:
              zf.writestr(zi, f.read())
@@ -1078,24 +1237,6 @@ jobs:
         unsigned_ipa = os.path.join(built_dir, "FougoExternal-ESign-Unsigned.ipa")
         make_posix_ipa(ready_ipa)
         shutil.copy2(ready_ipa, unsigned_ipa)
-        if is_filza_injection:
-            filza_injected_ipa = os.path.join(built_dir, "FougoExternal-Filza-Injected.ipa")
-            shutil.copy2(ready_ipa, filza_injected_ipa)
-        # Generate SHA256SUMS.txt
-        import hashlib
-        sums_path = os.path.join(built_dir, "SHA256SUMS.txt")
-        with open(sums_path, "w", encoding="utf-8") as sf:
-            for ipa_name in os.listdir(built_dir):
-                if ipa_name.endswith(".ipa"):
-                    p = os.path.join(built_dir, ipa_name)
-                    h = hashlib.sha256(open(p, "rb").read()).hexdigest()
-                    sf.write(f"{h}  {ipa_name}\n")
-        src_zip = os.path.join(built_dir, "Fougo-LiquidGlass-Full-Source-Project.zip")
-        with zipfile.ZipFile(src_zip, "w", zipfile.ZIP_DEFLATED) as szf:
-         if os.path.exists(login_p): szf.write(login_p, "app/ff_manager/login page.m")
-         if os.path.exists(dash_p): szf.write(dash_p, "app/ff_manager/dashboard page.m")
-         wf_self = os.path.join(workspace, ".github", "workflows", "build.yml")
-         if os.path.exists(wf_self): szf.write(wf_self, ".github/workflows/build.yml")
         print(f"Created IPA: {ready_ipa}")
         '@
         $scriptFile = Join-Path $env:RUNNER_TEMP "build_fougo.py"
@@ -1108,27 +1249,7 @@ jobs:
         path: built-ipa/*.ipa
         if-no-files-found: error
         retention-days: 30
-    - name: Publish GitHub Release with .ipa Asset
-      uses: softprops/action-gh-release@v2
-      if: always()
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: v${{ github.event.inputs.app_version || '2.4.0' }}-b${{ github.run_number }}
-        name: "Fougo External iOS v${{ github.event.inputs.app_version || '2.4.0' }} (Build #${{ github.run_number }})"
-        body: |
-          ### Fougo External iOS Release
-          - **Mode**: `${{ github.event.inputs.build_mode || 'inject-filza' }}`
-          - **Version**: `${{ github.event.inputs.app_version || '2.4.0' }}`
-          - **Build**: `#${{ github.run_number }}`
-          - **Features**: Liquid Glass Login + Dashboard (No Auto-Redirect Hook) + ESign Ad-Hoc Sign
-          - **Filza Injection**: Ready for Filza / TrollStore / ESign sideloading
-        files: |
-          built-ipa/*.ipa
-          built-ipa/SHA256SUMS.txt
-        fail_on_unmatched_files: false
-    - name: Fallback Release Upload via GitHub CLI
-      if: always()
+    - name: Publish IPA to GitHub Releases
       shell: pwsh
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1149,26 +1270,6 @@ jobs:
             --repo "${{ github.repository }}" `
             --clobber
         }
-    - name: Send Compiled .ipa Directly to Telegram Owner Bot
-      shell: bash
-      env:
-        INPUT_BOT_TOKEN: ${{ github.event.inputs.bot_token }}
-        INPUT_OWNER_ID: ${{ github.event.inputs.owner_id }}
-        SECRET_BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-        SECRET_TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        SECRET_OWNER_ID: ${{ secrets.OWNER_ID }}
-        SECRET_TELEGRAM_OWNER_ID: ${{ secrets.TELEGRAM_OWNER_ID }}
-        REPO_NAME: ${{ github.repository }}
-      run: |
-        BOT_TOK="${INPUT_BOT_TOKEN:-${SECRET_BOT_TOKEN:-${SECRET_TELEGRAM_BOT_TOKEN:-8819960917:AAG2s6PJVXlMtDhcAqTlsi6WWSew7NvwnCo}}}"
-        OWN_ID="${INPUT_OWNER_ID:-${SECRET_OWNER_ID:-${SECRET_TELEGRAM_OWNER_ID:-8245269289}}}"
-        if [ -f "built-ipa/FougoExternal-ESign-Ready.ipa" ] && [ -n "$BOT_TOK" ] && [ -n "$OWN_ID" ]; then
-          curl -s -X POST "https://api.telegram.org/bot${BOT_TOK}/sendDocument" \
-            -F "chat_id=${OWN_ID}" \
-            -F "document=@built-ipa/FougoExternal-ESign-Ready.ipa" \
-            -F "parse_mode=Markdown" \
-            -F "caption=✅ *FougoExternal-ESign-Ready.ipa Compiled Successfully!*%0A• *Repo:* \`${REPO_NAME}\`%0A• *Direct Release Link:* https://github.com/${REPO_NAME}/releases/download/v1.0.0/FougoExternal-ESign-Ready.ipa" || true
-        fi
   run-telegram-bot:
     name: Step 2 - Run Telegram Owner Bot (24/7 Live Polling)
     runs-on: ubuntu-latest
@@ -1185,18 +1286,6 @@ jobs:
       env:
         INPUT_BOT_TOKEN: ${{ github.event.inputs.bot_token }}
         INPUT_OWNER_ID: ${{ github.event.inputs.owner_id }}
-        SECRET_BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-        SECRET_TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        SECRET_OWNER_BOT_TOKEN: ${{ secrets.OWNER_BOT_TOKEN }}
-        SECRET_TOKEN: ${{ secrets.TOKEN }}
-        SECRET_OWNER_ID: ${{ secrets.OWNER_ID }}
-        SECRET_TELEGRAM_OWNER_ID: ${{ secrets.TELEGRAM_OWNER_ID }}
-        SECRET_ADMIN_ID: ${{ secrets.ADMIN_ID }}
-        SECRET_CHAT_ID: ${{ secrets.CHAT_ID }}
-        VAR_BOT_TOKEN: ${{ vars.BOT_TOKEN }}
-        VAR_OWNER_ID: ${{ vars.OWNER_ID }}
-        ALL_SECRETS_JSON: ${{ toJson(secrets) }}
-        ALL_VARS_JSON: ${{ toJson(vars) }}
         REPO_NAME: ${{ github.repository }}
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
@@ -1205,11 +1294,6 @@ jobs:
         curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared && chmod +x /usr/local/bin/cloudflared || true
         python3 - << 'EOF'
         import os,sys,glob,shutil,zipfile,re,json,time,secrets,subprocess,urllib.request,urllib.error
-        for _pkg in ["flask","requests","pyTelegramBotAPI"]:
-         try:
-          __import__(_pkg)
-         except ImportError:
-          subprocess.run([sys.executable,"-m","pip","install",_pkg],check=False)
         workspace = os.environ.get("GITHUB_WORKSPACE",os.getcwd())
         os.chdir(workspace)
         for zf in glob.glob("*.zip"):
@@ -1252,43 +1336,9 @@ jobs:
           return False,f"HTTP {he.code}: {he.reason}"
          except Exception as ex:
           return False,str(ex)
-        DEFAULT_USER_BOT = "8959294066:AAGiMyAwrKgiN6aYLUj4HOl20yINKSHN1Ps"
-        DEFAULT_OWNER_BOT = "8819960917:AAG2s6PJVXlMtDhcAqTlsi6WWSew7NvwnCo"
-        DEFAULT_SELLER_BOT = "8477980889:AAFQrr7gGrTxrvxl5uW6xI-FcMF6DgygAJs"
-        DEFAULT_OWNER_ID = "8245269289"
-        candidates = [
-         ("Owner Bot Token", DEFAULT_OWNER_BOT),
-         ("Seller Bot Token", DEFAULT_SELLER_BOT),
-         ("User Bot Token", DEFAULT_USER_BOT),
-        ]
-        for env_k in ("INPUT_BOT_TOKEN", "SECRET_BOT_TOKEN", "SECRET_TELEGRAM_BOT_TOKEN", "SECRET_OWNER_BOT_TOKEN", "SECRET_TOKEN", "VAR_BOT_TOKEN"):
-         ev_val = os.environ.get(env_k, "").strip()
-         if ev_val and not any(ev_val == t for _, t in candidates):
-          candidates.insert(0, (f"GitHub Secret/Input ({env_k})", ev_val))
-        owner_id = DEFAULT_OWNER_ID
-        for oid_k in ("INPUT_OWNER_ID", "SECRET_OWNER_ID", "SECRET_TELEGRAM_OWNER_ID", "SECRET_ADMIN_ID", "SECRET_CHAT_ID", "VAR_OWNER_ID"):
-         ov = os.environ.get(oid_k, "").strip()
-         if ov:
-          owner_id = ov
-          break
-        for j_env in ("ALL_SECRETS_JSON", "ALL_VARS_JSON"):
-         raw_j = os.environ.get(j_env, "")
-         if raw_j:
-          for m_t in re.finditer(r"(\d{8,12}:[A-Za-z0-9_-]{30,50})", raw_j):
-           tv = m_t.group(1).strip()
-           if not any(tv == t for _, t in candidates):
-            candidates.append((f"GitHub {j_env}", tv))
-          if not owner_id:
-           try:
-            j_obj = json.loads(raw_j)
-            if isinstance(j_obj, dict):
-             for sk, sv in j_obj.items():
-              sv_s = str(sv or "").strip()
-              if re.fullmatch(r"\d{6,15}", sv_s) and any(w in sk.upper() for w in ("OWNER", "ADMIN", "CHAT", "USER", "ID")):
-               owner_id = sv_s
-               break
-           except Exception:
-            pass
+        candidates = []
+        input_tok = os.environ.get("INPUT_BOT_TOKEN","").strip()
+        if input_tok: candidates.append(("workflow_dispatch input",input_tok))
         scan_files = [
          p for p in (
           glob.glob("**/*.py",recursive=True)
@@ -1301,7 +1351,8 @@ jobs:
          )
          if "__MACOSX" not in p and os.path.isfile(p)
         ]
-        seen_tokens = {t for _, t in candidates}
+        seen_tokens = set()
+        owner_id = os.environ.get("INPUT_OWNER_ID","").strip()
         for fp in scan_files:
          try:
           txt = open(fp,"r",encoding="utf-8",errors="replace").read()
@@ -1324,10 +1375,12 @@ jobs:
           valid_token = tok_cand
         if not valid_token:
          print("\n========================================================")
-         print("NOTICE: No active Telegram Bot Token found in Secrets or Inputs yet.")
-         print("Add Secret BOT_TOKEN and OWNER_ID in Settings -> Secrets and variables -> Actions.")
-         print("Continuing with License API Server & Cloud Sync without failing workflow...")
+         print("ERROR: No active Telegram Bot Token found or token returned 401 Unauthorized!")
+         print("HOW TO FIX IN 10 SECONDS:")
+         print("1. Open GitHub -> Actions -> 'Build Fougo External IPA & Run Telegram Bot'")
+         print("2. Tap 'Run workflow' -> Paste your active @BotFather token into 'bot_token'")
          print("========================================================\n")
+         sys.exit(1)
         os.environ["BOT_TOKEN"] = valid_token
         os.environ["OWNER_BOT_TOKEN"] = valid_token
         os.environ["TELEGRAM_BOT_TOKEN"] = valid_token
@@ -1336,16 +1389,13 @@ jobs:
          os.environ["OWNER_ID"] = str(owner_id)
          os.environ["ADMIN_ID"] = str(owner_id)
          os.environ["TELEGRAM_OWNER_ID"] = str(owner_id)
-        for bt_tok in (DEFAULT_OWNER_BOT, DEFAULT_SELLER_BOT, DEFAULT_USER_BOT, valid_token):
-         if not bt_tok: continue
-         try:
-          req = urllib.request.Request(
-           f"https://api.telegram.org/bot{bt_tok}/deleteWebhook",data=b'{"drop_pending_updates": false}',headers={"Content-Type":"application/json"},)
-          urllib.request.urlopen(req,timeout=12)
-         except Exception: pass
+        try:
+         req = urllib.request.Request(
+          f"https://api.telegram.org/bot{valid_token}/deleteWebhook",data=b'{"drop_pending_updates": false}',headers={"Content-Type":"application/json"},)
+         urllib.request.urlopen(req,timeout=12)
+        except Exception: pass
         import sqlite3,hashlib,datetime,threading
         from flask import Flask,request,jsonify
-        _bot_ctx = threading.local()
         repo = os.environ.get("REPO_NAME","fougoexternal/Fougo-Vip-External-iOS")
         ipa_url = f"https://github.com/{repo}/releases/download/v1.0.0/FougoExternal-ESign-Ready.ipa"
         cloud_json_path = os.path.join(workspace,"fougo_cloud_db.json")
@@ -1443,29 +1493,23 @@ jobs:
           except Exception:
            pass
          threading.Thread(target=_worker,daemon=True).start()
-        def tg_api(method,payload,tok_override=None):
+        def tg_api(method,payload):
          try:
-          use_tok = tok_override or getattr(_bot_ctx,"token",valid_token) or valid_token
           body = json.dumps(payload).encode("utf-8")
           r = urllib.request.Request(
-           f"https://api.telegram.org/bot{use_tok}/{method}",data=body,headers={"Content-Type":"application/json"},)
+           f"https://api.telegram.org/bot{valid_token}/{method}",data=body,headers={"Content-Type":"application/json"},)
           with urllib.request.urlopen(r,timeout=15) as resp:
            return json.loads(resp.read().decode("utf-8"))
          except Exception as ex:
           print(f"tg_api ({method}) note:",ex)
           return {}
-        def send_tg(chat_id,text,kb=None,tok_override=None):
+        def send_tg(chat_id,text,kb=None):
          payload = {"chat_id": chat_id,"text": text,"parse_mode":"Markdown","disable_web_page_preview": True}
          if kb:
           payload["reply_markup"] = {"inline_keyboard": kb}
-         tg_api("sendMessage",payload,tok_override=tok_override)
-        def answer_cb(cb_id,text="",tok_override=None):
-         tg_api("answerCallbackQuery",{"callback_query_id": cb_id,"text": text},tok_override=tok_override)
-        db_tbl("sellers (telegram_id TEXT PRIMARY KEY,username TEXT DEFAULT '',credits INTEGER DEFAULT 0,keys_sold INTEGER DEFAULT 0,status TEXT DEFAULT 'Active',added_at TEXT )")
-        SELLER_COSTS = {1: 1, 7: 3, 30: 7, 3650: 20}
-        def get_seller_credits(uid_s):
-         r = db_exec("SELECT credits FROM sellers WHERE telegram_id=?",(str(uid_s),),fetch=True)
-         return int(r[0]["credits"]) if r else 0
+         tg_api("sendMessage",payload)
+        def answer_cb(cb_id,text=""):
+         tg_api("answerCallbackQuery",{"callback_query_id": cb_id,"text": text})
         app = Flask(__name__)
         login_attempts = {}
         @app.route("/api/status",methods=["GET"])
@@ -1539,60 +1583,20 @@ jobs:
            f"• *Session:* `{sid}`",)
          return jsonify({
           "ok": True,"status":"ACTIVE","plan": plan_str,"expires_at": exp_at,"expires_display": exp_disp,"device_limit_display": dlim_s,"registered":"YES","device_slot": slot_disp,"session_id": sid,"last_validation": vtime_s,"features": db_exec("SELECT * FROM features ORDER BY display_order ASC",fetch=True),})
-        @app.route("/api/owner/action",methods=["POST"])
-        def api_owner_action():
-         data = request.get_json(silent=True) or {}
-         act = data.get("action") or ""
-         if act == "gen_keys":
-          days = int(data.get("days") or 30)
-          qty = min(max(int(data.get("qty") or 1),1),100)
-          max_d = int(data.get("max_devices") or 1)
-          keys,exp = mk_keys("OWNER",days,qty,max_d,"Web-Owner")
-          return jsonify({"ok": True,"keys": keys,"expires": exp})
-         if act == "add_seller":
-          sid = str(data.get("seller_id") or "").strip()
-          cr = int(data.get("credits") or 50)
-          if sid:
-           db_exec("INSERT OR REPLACE INTO sellers (telegram_id,username,credits,keys_sold,status,added_at) VALUES (?,?,?,0,'Active',?)",(sid,f"Seller_{sid[-4:]}",cr,now_iso()))
-           sync_cloud()
-           return jsonify({"ok": True})
-         if act == "add_credits":
-          sid = str(data.get("seller_id") or "").strip()
-          cr = int(data.get("credits") or 0)
-          if sid:
-           db_exec("UPDATE sellers SET credits = MAX(0, credits + ?) WHERE telegram_id=?",(cr,sid))
-           sync_cloud()
-           return jsonify({"ok": True,"credits": get_seller_credits(sid)})
-         if act == "reset_hwid":
-          k_up = str(data.get("key") or "").strip().upper()
-          db_exec("UPDATE licenses SET session_id='',device_info='' WHERE key=?",(k_up,))
-          db_exec("DELETE FROM sessions WHERE license_key=?",(k_up,))
-          sync_cloud()
-          return jsonify({"ok": True})
-         if act == "toggle_maint":
-          cur_m = get_setting("maintenance_mode","OFF")
-          new_m = "OFF" if cur_m == "ON" else "ON"
-          set_setting("maintenance_mode",new_m)
-          sync_cloud()
-          return jsonify({"ok": True,"maintenance": new_m})
-         return jsonify({"ok": False,"error":"UNKNOWN_ACTION"}),400
         @app.route("/owner",methods=["POST","GET"])
         def owner_login_route():
          if request.method == "GET":
           st = cloud_dict()
-          sellers_rows = db_exec("SELECT * FROM sellers ORDER BY added_at DESC",fetch=True)
-          seller_rows_html = "".join(f"<tr><td><code>{s['telegram_id']}</code></td><td>{s['username']}</td><td><span class='badge'>{s['credits']} Cr</span></td><td>{s['keys_sold']}</td><td>{s['status']}</td></tr>" for s in sellers_rows) or "<tr><td colspan='5'>No sellers added yet.</td></tr>"
-          key_rows_html = "".join(f"<tr><td><code>{k}</code></td><td><span class='badge'>{v['status']}</span></td><td>{v['duration_days']}d VIP</td><td>{v['expires_at']}</td><td>{v['max_devices']}</td><td>{v['session_id'] or '—'}</td><td><button data-key='{k}' onclick='resetKeyBtn(this)' style='padding:4px 8px;font-size:11px;'>Reset HWID</button></td></tr>" for k,v in list(st['licenses_map'].items())[:30])
           html = f"""<!DOCTYPE html>
         <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
         <title>{st['branding']['website_name']} — Owner Panel</title>
         <style>
          body {{ background:#070A12; color:#E6EDF3; font-family:-apple-system,BlinkMacSystemFont,sans-serif; margin:0; padding:24px; }}
-         .card {{ max-width:1020px; margin:0 auto 20px; background:rgba(16,22,36,0.92); border:1px solid rgba(0,245,212,0.28); border-radius:18px; padding:22px; box-shadow:0 0 30px rgba(0,245,212,0.08); }}
+         .card {{ max-width:960px; margin:0 auto 20px; background:rgba(16,22,36,0.92); border:1px solid rgba(0,245,212,0.28); border-radius:18px; padding:22px; box-shadow:0 0 30px rgba(0,245,212,0.08); }}
          .grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:12px; margin-top:14px; }}
          .stat {{ background:#0C1220; border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:14px; }}
          .stat b {{ font-size:22px; color:#00F5D4; display:block; margin-top:4px; }}
-         input,select,button {{ background:#0E1626; color:#fff; border:1px solid rgba(255,255,255,0.16); border-radius:10px; padding:10px 14px; font-size:13px; margin:4px 4px 4px 0; }}
+         input,select,button {{ background:#0E1626; color:#fff; border:1px solid rgba(255,255,255,0.16); border-radius:10px; padding:10px 14px; font-size:13px; }}
          button {{ background:linear-gradient(135deg,#00F5D4,#00BBF9); color:#041019; font-weight:700; border:none; cursor:pointer; }}
          table {{ width:100%; border-collapse:collapse; margin-top:12px; font-size:12px; }}
          th,td {{ text-align:left; padding:9px; border-bottom:1px solid rgba(255,255,255,0.07); }}
@@ -1600,46 +1604,26 @@ jobs:
         </style></head><body>
         <div class="card" id="loginBox">
          <h2 style="margin:0 0 6px;color:#00F5D4;">👑 {st['branding']['website_name']} — OWNER PANEL</h2>
-         <p style="margin:0 0 16px;color:#8B949E;font-size:13px;">Secure Backend Authentication (/owner) • <a href="/seller" style="color:#00F5D4;">Open Seller Panel (/seller)</a></p>
-         <input id="ou" placeholder="Owner Username" value="owner">
-         <input id="op" type="password" placeholder="Owner Password">
+         <p style="margin:0 0 16px;color:#8B949E;font-size:13px;">Secure Backend Authentication (/owner)</p>
+         <input id="ou" placeholder="Owner Username" style="margin-right:8px;">
+         <input id="op" type="password" placeholder="Owner Password" style="margin-right:8px;">
          <button onclick="doLogin()">OWNER LOGIN</button>
          <p id="lmsg" style="color:#FF4D6D;font-size:12px;"></p>
         </div>
         <div id="dashBox" style="display:none;">
          <div class="card">
-         <h3 style="margin:0;color:#00F5D4;">📊 Live Owner Telemetry (Synced with iOS IPA & Telegram Bots)</h3>
+         <h3 style="margin:0;color:#00F5D4;">📊 Live Owner Telemetry (Synced with iOS IPA & Telegram Bot)</h3>
          <div class="grid">
           <div class="stat">Total Licenses<b>{len(st['licenses_map'])}</b></div>
           <div class="stat">Active Keys<b>{sum(1 for x in st['licenses_map'].values() if x['status']=='Active')}</b></div>
-          <div class="stat">Active Sellers<b>{len(sellers_rows)}</b></div>
-          <div class="stat">Maintenance<b id="maintStat">{get_setting('maintenance_mode')}</b></div>
+          <div class="stat">Maintenance<b>{get_setting('maintenance_mode')}</b></div>
+          <div class="stat">Active Theme<b style="font-size:14px;">{st['branding']['theme_preset']}</b></div>
          </div>
-         <div style="margin-top:14px;">
-          <input id="gDays" type="number" value="30" placeholder="Days" style="width:90px;">
-          <input id="gQty" type="number" value="1" placeholder="Qty" style="width:80px;">
-          <input id="gDev" type="number" value="1" placeholder="Max Dev" style="width:90px;">
-          <button onclick="ownerAct('gen_keys',{{days:document.getElementById('gDays').value,qty:document.getElementById('gQty').value,max_devices:document.getElementById('gDev').value}})">➕ Generate License Key(s)</button>
-          <button onclick="ownerAct('toggle_maint',{{}})" style="background:#FFBE0B;">🛠 Toggle Maintenance</button>
-         </div>
-         <pre id="genOut" style="color:#00F5D4;font-size:12px;margin-top:8px;"></pre>
-         </div>
-         <div class="card">
-         <h3 style="margin:0 0 10px;color:#00F5D4;">💼 Seller & Reseller Credit Management</h3>
-         <div>
-          <input id="sId" placeholder="Seller Telegram ID">
-          <input id="sCr" type="number" value="50" placeholder="Credits" style="width:110px;">
-          <button onclick="ownerAct('add_seller',{{seller_id:document.getElementById('sId').value,credits:document.getElementById('sCr').value}})">➕ Add Seller</button>
-          <button onclick="ownerAct('add_credits',{{seller_id:document.getElementById('sId').value,credits:document.getElementById('sCr').value}})">💳 Top-Up Credits</button>
-         </div>
-         <table><tr><th>Seller Telegram ID</th><th>Username</th><th>Credits</th><th>Keys Sold</th><th>Status</th></tr>
-         {seller_rows_html}
-         </table>
          </div>
          <div class="card">
          <h3 style="margin:0 0 10px;">🔑 License Keys (Synced to iOS IPA Status Screen)</h3>
-         <table><tr><th>License Key</th><th>Status</th><th>Plan</th><th>Expires</th><th>Device Limit</th><th>Device/Session</th><th>Action</th></tr>
-         {key_rows_html}
+         <table><tr><th>License Key</th><th>Status</th><th>Plan</th><th>Expires</th><th>Device Limit</th><th>Device/Session</th></tr>
+         {''.join(f"<tr><td><code>{k}</code></td><td><span class='badge'>{v['status']}</span></td><td>{v['duration_days']}d VIP</td><td>{v['expires_at']}</td><td>{v['max_devices']}</td><td>{v['session_id'] or '—'}</td></tr>" for k,v in list(st['licenses_map'].items())[:30])}
          </table>
          </div>
         </div>
@@ -1650,13 +1634,6 @@ jobs:
          if(j.ok){{ document.getElementById('loginBox').style.display='none'; document.getElementById('dashBox').style.display='block'; }}
          else {{ document.getElementById('lmsg').innerText = j.error || 'Login failed'; }}
         }}
-        async function ownerAct(action, payload){{
-         const r = await fetch('/api/owner/action',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(Object.assign({{action}},payload))}});
-         const j = await r.json();
-         if(j.keys) document.getElementById('genOut').innerText = 'Generated: ' + j.keys.join(', ');
-         else location.reload();
-        }}
-        function resetKeyBtn(btn){{ ownerAct('reset_hwid',{{key:btn.getAttribute('data-key')}}); }}
         </script></body></html>"""
           return html
          ip = request.remote_addr or "local"
@@ -1675,65 +1652,6 @@ jobs:
          login_attempts[ip] = attempts
          log_event(u,"owner","login_failed",f"IP={ip}")
          return jsonify({"ok": False,"error":"INVALID_OWNER_CREDENTIALS"}),401
-        @app.route("/seller",methods=["POST","GET"])
-        def seller_panel_route():
-         if request.method == "GET":
-          st = cloud_dict()
-          sellers_rows = db_exec("SELECT * FROM sellers ORDER BY added_at DESC",fetch=True)
-          html = f"""<!DOCTYPE html>
-        <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>{st['branding']['website_name']} — Seller Panel</title>
-        <style>
-         body {{ background:#070A12; color:#E6EDF3; font-family:-apple-system,BlinkMacSystemFont,sans-serif; margin:0; padding:24px; }}
-         .card {{ max-width:960px; margin:0 auto 20px; background:rgba(16,22,36,0.92); border:1px solid rgba(168,85,247,0.35); border-radius:18px; padding:22px; box-shadow:0 0 30px rgba(168,85,247,0.1); }}
-         input,select,button {{ background:#0E1626; color:#fff; border:1px solid rgba(255,255,255,0.16); border-radius:10px; padding:10px 14px; font-size:13px; margin:4px; }}
-         button {{ background:linear-gradient(135deg,#A855F7,#6366F1); color:#fff; font-weight:700; border:none; cursor:pointer; }}
-         table {{ width:100%; border-collapse:collapse; margin-top:12px; font-size:12px; }}
-         th,td {{ text-align:left; padding:9px; border-bottom:1px solid rgba(255,255,255,0.07); }}
-         .badge {{ padding:3px 8px; border-radius:6px; background:rgba(168,85,247,0.2); color:#C084FC; font-weight:600; }}
-        </style></head><body>
-        <div class="card">
-         <h2 style="margin:0 0 6px;color:#C084FC;">💼 {st['branding']['website_name']} — SELLER / RESELLER PANEL</h2>
-         <p style="margin:0 0 14px;color:#8B949E;font-size:13px;">Enter your Seller Telegram ID to generate customer keys using Seller Credits (1d=1Cr, 7d=3Cr, 30d=7Cr, Lifetime=20Cr)</p>
-         <input id="sid" placeholder="Your Seller Telegram ID (or OWNER)">
-         <select id="sdays">
-          <option value="1">1 Day VIP (1 Credit)</option>
-          <option value="7">7 Days VIP (3 Credits)</option>
-          <option value="30" selected>30 Days VIP (7 Credits)</option>
-          <option value="3650">Lifetime VIP (20 Credits)</option>
-         </select>
-         <button onclick="sellerGen()">🔑 Generate Key</button>
-         <p id="smsg" style="color:#00F5D4;font-weight:700;font-size:13px;"></p>
-        </div>
-        <div class="card">
-         <h3 style="margin:0 0 10px;color:#C084FC;">💳 Registered Sellers & Credit Balances</h3>
-         <table><tr><th>Seller ID</th><th>Username</th><th>Available Credits</th><th>Keys Sold</th><th>Status</th></tr>
-         {''.join(f"<tr><td><code>{s['telegram_id']}</code></td><td>{s['username']}</td><td><span class='badge'>{s['credits']} Cr</span></td><td>{s['keys_sold']}</td><td>{s['status']}</td></tr>" for s in sellers_rows) or "<tr><td colspan='5'>Use /addseller in Owner Bot or /owner Panel to register sellers.</td></tr>"}
-         </table>
-        </div>
-        <script>
-        async function sellerGen(){{
-         const r = await fetch('/seller',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{seller_id:document.getElementById('sid').value,days:document.getElementById('sdays').value}})}});
-         const j = await r.json();
-         document.getElementById('smsg').innerText = j.ok ? ('✅ Generated Key: ' + j.key + ' (Remaining: ' + j.credits + ' Cr)') : ('⛔ ' + (j.error || 'Failed'));
-        }}
-        </script></body></html>"""
-          return html
-         data = request.get_json(silent=True) or {}
-         sid = str(data.get("seller_id") or "").strip()
-         days = int(data.get("days") or 30)
-         cost = SELLER_COSTS.get(days,7)
-         srows = db_exec("SELECT * FROM sellers WHERE telegram_id=?",(sid,),fetch=True)
-         if not srows and sid != str(owner_id):
-          return jsonify({"ok": False,"error":"Seller Telegram ID not found. Ask Owner to run /addseller."}),403
-         if sid != str(owner_id):
-          cr = int(srows[0]["credits"] or 0)
-          if cr < cost:
-           return jsonify({"ok": False,"error":f"Insufficient Credits ({cr} Cr available, {cost} Cr needed)"}),403
-          db_exec("UPDATE sellers SET credits = credits - ?, keys_sold = keys_sold + 1 WHERE telegram_id=?",(cost,sid))
-         keys,exp = mk_keys(sid,days,1,1,f"Seller-{sid}")
-         rem = 999999 if sid == str(owner_id) else get_seller_credits(sid)
-         return jsonify({"ok": True,"key": keys[0],"expires": exp,"credits": rem})
         threading.Thread(target=lambda: app.run(host="0.0.0.0",port=5050,use_reloader=False),daemon=True).start()
         def start_cloudflare_tunnel():
          global live_tunnel_url
@@ -1745,41 +1663,24 @@ jobs:
            if m and not live_tunnel_url:
             live_tunnel_url = m.group(1).strip()
             print(f"Live Backend Tunnel Active: {live_tunnel_url}")
-            for bt_tok in (DEFAULT_OWNER_BOT, DEFAULT_SELLER_BOT, DEFAULT_USER_BOT, valid_token):
-             if bt_tok:
-              tg_api("setMyShortDescription",{"short_description": f"FOUGO_API: {live_tunnel_url}"},tok_override=bt_tok)
+            tg_api("setMyShortDescription",{"short_description": f"FOUGO_API: {live_tunnel_url}"})
             sync_cloud()
             if owner_id:
              send_tg(
-              owner_id,f"🌐 *LIVE IPA BACKEND & ALL 3 BOTS ONLINE*\n"
-              f"• *Owner Bot:* `@modezternalios_bot`\n"
-              f"• *Seller Bot:* `@xnexuspaneladmin_bot`\n"
-              f"• *User Bot:* `@fougoexternal_bot`\n"
+              owner_id,f"🌐 *LIVE IPA BACKEND & OWNER PANEL ONLINE*\n"
               f"• *Owner Web Panel (`/owner`):*\n{live_tunnel_url}/owner\n"
               f"• *Default Owner Login:* `owner` / `FougoOwner#2026`\n"
-              f"• *iOS IPA Live Validation:* Connected (`0ms` sync)",tok_override=DEFAULT_OWNER_BOT)
+              f"• *iOS IPA Live Validation:* Connected (`0ms` sync)",)
          except Exception as ex:
           print("Tunnel note:",ex)
         threading.Thread(target=start_cloudflare_tunnel,daemon=True).start()
         sync_cloud()
-        db_tbl("sellers (telegram_id TEXT PRIMARY KEY,username TEXT DEFAULT '',credits INTEGER DEFAULT 0,keys_sold INTEGER DEFAULT 0,status TEXT DEFAULT 'Active',added_at TEXT )")
         ROLE_PERMS = {
-         "OWNER": {"manage_keys","manage_users","manage_features","manage_buttons","manage_channels","manage_settings","manage_theme","manage_announcements","view_logs","manage_admins","manage_sellers","maintenance"},
-         "ADMIN": {"manage_keys","manage_users","manage_features","manage_buttons","manage_channels","manage_theme","manage_announcements","view_logs","manage_sellers","maintenance"},
-         "SELLER": {"seller_keys","view_own_keys","reset_own_keys"},
-         "SUPPORT": {"manage_keys","manage_users","view_logs"},
-        }
-        SELLER_COSTS = {1: 1, 7: 3, 30: 7, 3650: 20}
-        def get_seller_credits(uid_s):
-         r = db_exec("SELECT credits FROM sellers WHERE telegram_id=?",(str(uid_s),),fetch=True)
-         return int(r[0]["credits"]) if r else 0
+         "OWNER": {"manage_keys","manage_users","manage_features","manage_buttons","manage_channels","manage_settings","manage_theme","manage_announcements","view_logs","manage_admins","maintenance"},"ADMIN": {"manage_keys","manage_users","manage_features","manage_buttons","manage_channels","manage_theme","manage_announcements","view_logs","maintenance"},"SUPPORT": {"manage_keys","manage_users","view_logs"},}
         def get_user_role(uid):
          uid_s = str(uid)
          if owner_id and uid_s == str(owner_id): return "OWNER",ROLE_PERMS["OWNER"]
-         s_rows = db_exec("SELECT * FROM sellers WHERE telegram_id=? AND status='Active'",(uid_s,),fetch=True)
          rows = db_exec("SELECT * FROM admins WHERE telegram_id=?",(uid_s,),fetch=True)
-         if not rows and s_rows:
-          return "SELLER",ROLE_PERMS["SELLER"]
          if not rows:
           all_adm = db_exec("SELECT * FROM admins",fetch=True)
           if not all_adm and not owner_id:
@@ -1789,65 +1690,33 @@ jobs:
          role = rows[0]["role"].upper()
          perms_raw = rows[0]["permissions"]
          if perms_raw == "all" or role == "OWNER": return role,ROLE_PERMS["OWNER"]
-         if role == "SELLER": return "SELLER",ROLE_PERMS["SELLER"]
          custom = {p.strip() for p in perms_raw.split(",") if p.strip()}
          return role,(custom or ROLE_PERMS.get(role,set()))
-        def menu_kb(role="OWNER"):
+        def menu_kb():
          maint = get_setting("maintenance_mode","OFF")
-         if role == "SELLER":
-          return [
-           [{"text":"💼 Seller Wallet & Balance","callback_data":"seller_wallet"},{"text":"🔑 Generate Key (Credits)","callback_data":"seller_gen"}],
-           [{"text":"🗂 My Generated Keys","callback_data":"seller_keys"},{"text":"💳 Credit Pricing","callback_data":"seller_pricing"}],
-          ]
-         if role == "ADMIN":
-          return [
-           [{"text":"📊 Admin Dashboard","callback_data":"menu_stats"},{"text":"🔑 Create Keys","callback_data":"menu_genkey"}],
-           [{"text":"🗂 Manage Keys","callback_data":"menu_keys"},{"text":"👥 Users / Sessions","callback_data":"menu_sessions"}],
-           [{"text":"💼 Sellers & Credits","callback_data":"menu_sellers"},{"text": f"🛠 Maintenance: {maint}","callback_data":"toggle_maint"}],
-           [{"text":"📣 Announcements","callback_data":"menu_announce"},{"text":"📜 Activity Logs","callback_data":"menu_logs"}],
-          ]
          return [
-          [{"text":"👑 Owner Stats","callback_data":"menu_stats"},{"text":"🔑 Create Keys","callback_data":"menu_genkey"}],
-          [{"text":"🗂 Manage Keys","callback_data":"menu_keys"},{"text":"👥 Users / Sessions","callback_data":"menu_sessions"}],
-          [{"text":"👮 Admin Panel / Roles","callback_data":"menu_admins"},{"text":"💼 Seller Panel / Credits","callback_data":"menu_sellers"}],
-          [{"text":"🎛 User Panel Features","callback_data":"menu_features"},{"text": f"🛠 Maintenance: {maint}","callback_data":"toggle_maint"}],
-          [{"text":"📣 Announcements","callback_data":"menu_announce"},{"text":"🔔 Send Notification","callback_data":"menu_notify"}],
-          [{"text":"📜 Activity Logs","callback_data":"menu_logs"},{"text":"⚙️ Owner Settings","callback_data":"menu_settings"}],
-         ]
-        def stats_txt(uid=None,role="OWNER"):
-         if role == "SELLER":
-          cr = get_seller_credits(uid)
-          s_row = db_exec("SELECT * FROM sellers WHERE telegram_id=?",(str(uid),),fetch=True)
-          sold = s_row[0]["keys_sold"] if s_row else 0
-          return (
-           "💼 *FOUGO EXTERNAL — SELLER PANEL*\n\n"
-           f"👤 *Seller ID:* `{uid}`\n"
-           f"💳 *Available Credits:* `{cr} Credits`\n"
-           f"🔑 *Total Keys Sold:* `{sold}`\n\n"
-           "*Key Credit Costs:*\n"
-           "• `1 Day Key` = `1 Credit`\n"
-           "• `7 Days Key` = `3 Credits`\n"
-           "• `30 Days Key` = `7 Credits`\n"
-           "• `Lifetime Key` = `20 Credits`\n\n"
-           "Commands: `/reset <KEY>` to reset customer HWID."
-          )
+          [{"text":"📊 Dashboard Stats","callback_data":"menu_stats"},{"text":"🔑 Create Keys","callback_data":"menu_genkey"}],[{"text":"🗂 Manage Keys","callback_data":"menu_keys"},{"text":"👥 Users / Sessions","callback_data":"menu_sessions"}],[{"text":"🎛 User Panel Features","callback_data":"menu_features"},{"text":"📢 Join Channels","callback_data":"menu_channels"}],[{"text":"📲 iOS Config Profiles","callback_data":"menu_profiles"},{"text":"🎨 Theme Presets","callback_data":"menu_themes"}],[{"text": f"🛠 Maintenance: {maint}","callback_data":"toggle_maint"},{"text":"📣 Announcements","callback_data":"menu_announce"}],[{"text":"🔔 Send Notification","callback_data":"menu_notify"},{"text":"📜 Activity Logs","callback_data":"menu_logs"}],[{"text":"👮 Roles & Admins","callback_data":"menu_admins"},{"text":"⚙️ Owner Settings","callback_data":"menu_settings"}],]
+        def stats_txt():
          total_l = db_exec("SELECT COUNT(*) AS c FROM licenses",fetch=True)[0]["c"]
          act_l = db_exec("SELECT COUNT(*) AS c FROM licenses WHERE status='Active'",fetch=True)[0]["c"]
          exp_l = db_exec("SELECT COUNT(*) AS c FROM licenses WHERE status='Expired'",fetch=True)[0]["c"]
          dis_l = db_exec("SELECT COUNT(*) AS c FROM licenses WHERE status IN ('Disabled','Suspended','Revoked')",fetch=True)[0]["c"]
          total_s = db_exec("SELECT COUNT(*) AS c FROM sessions",fetch=True)[0]["c"]
          act_s = db_exec("SELECT COUNT(*) AS c FROM sessions WHERE status='Active'",fetch=True)[0]["c"]
-         sellers_cnt = db_exec("SELECT COUNT(*) AS c FROM sellers",fetch=True)[0]["c"]
-         admins_cnt = db_exec("SELECT COUNT(*) AS c FROM admins",fetch=True)[0]["c"]
          maint = get_setting("maintenance_mode","OFF")
-         panel_line = f"\n🌐 *Web Control Panel:* {live_tunnel_url}/owner" if live_tunnel_url else ""
+         theme = get_setting("theme_preset","FOUGO EXTERNAL iOS Red")
+         panel_line = f"\n🌐 *Owner Web Panel:* {live_tunnel_url}/owner" if live_tunnel_url else ""
          return (
-          f"👑 *FOUGO EXTERNAL — {role} CONTROL PANEL*\n\n"
-          f"🔑 *Total Licenses:* `{total_l}` (`{act_l}` Active)\n"
-          f"⌛ *Expired:* `{exp_l}` | 🚫 *Suspended:* `{dis_l}`\n"
-          f"👥 *Active Device Sessions:* `{act_s} / {total_s}`\n"
-          f"👮 *Admins:* `{admins_cnt}` | 💼 *Sellers:* `{sellers_cnt}`\n"
-          f"🛠 *Maintenance Mode:* `{maint}`{panel_line}"
+          "👑 *FOUGO EXTERNAL VIP — CENTRAL OWNER DASHBOARD*\n\n"
+          f"🔑 *Total Licenses:* `{total_l}`\n"
+          f"🟢 *Active Licenses:* `{act_l}`\n"
+          f"⌛ *Expired Licenses:* `{exp_l}`\n"
+          f"🚫 *Disabled/Suspended:* `{dis_l}`\n"
+          f"👥 *Total Users/Sessions:* `{total_s}`\n"
+          f"⚡ *Active Sessions:* `{act_s}`\n\n"
+          f"🛠 *Maintenance Mode:* `{maint}`\n"
+          f"🎨 *Active Theme:* `{theme}`\n"
+          f"📦 *Modules:* `NECK.fougoexternal` & `BODY.fougoexternal` Ready{panel_line}"
          )
         def mk_keys(actor,days,qty,max_dev=1,note="TG-Admin"):
          created = []
@@ -1860,103 +1729,31 @@ jobs:
          log_event(actor,"keys","create_batch",f"Qty={qty} Days={days} MaxDev={max_dev}")
          sync_cloud()
          return created,exp
-        import concurrent.futures
-        user_kb = [
-         [{"text":"🔑 Check License Key","callback_data":"user_check_help"},{"text":"🔄 Reset My HWID","callback_data":"user_reset_help"}],
-         [{"text":"📲 Download iOS IPA","callback_data":"user_ipa"},{"text":"🟢 Server Status","callback_data":"user_status"}],
-        ]
-        if owner_id:
-         send_tg(owner_id,stats_txt(owner_id,"OWNER"),menu_kb("OWNER"),tok_override=DEFAULT_OWNER_BOT)
-         send_tg(owner_id,stats_txt(owner_id,"SELLER"),menu_kb("SELLER"),tok_override=DEFAULT_SELLER_BOT)
-         send_tg(owner_id,"👤 *FOUGO EXTERNAL — USER LICENSE PORTAL*\n\nSend any `FOUGO-XXXX-XXXX-XXXX` key to inspect status, or use the buttons below:",user_kb,tok_override=DEFAULT_USER_BOT)
-        bot_pool = [
-         ("OWNER", DEFAULT_OWNER_BOT),
-         ("SELLER", DEFAULT_SELLER_BOT),
-         ("USER", DEFAULT_USER_BOT),
-        ]
-        offsets = {bt: 0 for _, bt in bot_pool}
-        def fetch_bot_updates(b_mode, b_tok):
-         try:
-          u_url = f"https://api.telegram.org/bot{b_tok}/getUpdates?timeout=15&offset={offsets.get(b_tok,0)}"
-          with urllib.request.urlopen(u_url,timeout=22) as resp:
-           res = json.loads(resp.read().decode("utf-8")).get("result",[])
-           if res:
-            offsets[b_tok] = res[-1]["update_id"] + 1
-           return [(b_mode, b_tok, item) for item in res]
-         except Exception:
-          return []
+        if owner_id: send_tg(owner_id,stats_txt(),menu_kb())
+        offset = 0
         start_ts = time.time()
-        print("Starting 24/7 Multi-Bot Polling Loop (Owner Bot + Seller Bot + User Bot)...")
-        pool_exec = concurrent.futures.ThreadPoolExecutor(max_workers=3)
+        print("Starting 24/7 Central Telegram Admin & Owner Bot polling loop...")
         while (time.time() - start_ts) < 335 * 60:
          try:
-          futs = [pool_exec.submit(fetch_bot_updates, bm, bt) for bm, bt in bot_pool]
-          updates = []
-          for f_item in concurrent.futures.as_completed(futs):
-           updates.extend(f_item.result() or [])
-          for b_mode, b_tok, u in updates:
-           _bot_ctx.token = b_tok
-           _bot_ctx.mode = b_mode
+          u_url = f"https://api.telegram.org/bot{valid_token}/getUpdates?timeout=25&offset={offset}"
+          with urllib.request.urlopen(u_url,timeout=35) as resp:
+           updates = json.loads(resp.read().decode("utf-8")).get("result",[])
+          for u in updates:
+           offset = u["update_id"] + 1
            if "callback_query" in u:
             cb = u["callback_query"]
             cb_id = cb["id"]
             uid = cb.get("from",{}).get("id")
             cid = cb.get("message",{}).get("chat",{}).get("id")
             data = cb.get("data","")
-            if data in ("user_ipa","user_status","user_check_help","user_reset_help"):
-             answer_cb(cb_id)
-             if data == "user_ipa":
-              send_tg(cid,f"📲 *FOUGO EXTERNAL — DIRECT ESIGN iOS IPA*\n\nDownload Link:\n{ipa_url}",user_kb)
-             elif data == "user_status":
-              maint = get_setting("maintenance_mode","OFF")
-              send_tg(cid,f"🟢 *FOUGO EXTERNAL CLOUD STATUS*\n• *Server:* `ONLINE (0ms Sync)`\n• *Maintenance Mode:* `{maint}`",user_kb)
-             elif data == "user_check_help":
-              send_tg(cid,"🔑 *CHECK LICENSE KEY*\nSend your key directly in chat (e.g. `FOUGO-XXXX-XXXX-XXXX`) or send:\n`/key FOUGO-XXXX-XXXX-XXXX`",user_kb)
-             elif data == "user_reset_help":
-              send_tg(cid,"🔄 *RESET DEVICE HWID*\nTo reset your bound iOS device, send:\n`/reset FOUGO-XXXX-XXXX-XXXX`",user_kb)
-             continue
             role,perms = get_user_role(uid)
             if not role:
              answer_cb(cb_id,"⛔ Access Denied")
-             send_tg(cid,"⛔ *Access Denied*\nYou are not an authorized Fougo External Admin/Seller.")
+             send_tg(cid,"⛔ *Access Denied*\nYou are not an authorized Fougo External Admin.")
              continue
             answer_cb(cb_id)
-            if data == "menu_main": send_tg(cid,stats_txt(uid,role),menu_kb(role))
-            elif data == "menu_stats": send_tg(cid,stats_txt(uid,role),menu_kb(role))
-            elif data == "seller_wallet": send_tg(cid,stats_txt(uid,"SELLER"),menu_kb("SELLER"))
-            elif data == "seller_pricing":
-             send_tg(cid,"💳 *SELLER KEY PRICING TABLE*\n• `1 Day Key` — `1 Credit`\n• `7 Days Key` — `3 Credits`\n• `30 Days Key` — `7 Credits`\n• `Lifetime Key` — `20 Credits`",menu_kb("SELLER"))
-            elif data == "seller_gen":
-             cr = get_seller_credits(uid)
-             skb = [
-              [{"text":"⚡ 1 Day (1 Cr)","callback_data":"sgen_1"},{"text":"⚡ 7 Days (3 Cr)","callback_data":"sgen_7"}],
-              [{"text":"🔥 30 Days (7 Cr)","callback_data":"sgen_30"},{"text":"👑 Lifetime (20 Cr)","callback_data":"sgen_3650"}],
-              [{"text":"⬅️ Back to Seller Panel","callback_data":"seller_wallet"}],
-             ]
-             send_tg(cid,f"🔑 *SELLER KEY GENERATOR*\n💳 *Your Balance:* `{cr} Credits`\nSelect a package below to generate key:",skb)
-            elif data.startswith("sgen_"):
-             d_val = int(data.split("_")[1])
-             cost = SELLER_COSTS.get(d_val, 7)
-             cr = get_seller_credits(uid)
-             if role != "OWNER" and cr < cost:
-              send_tg(cid,f"⛔ *Insufficient Credits!*\nRequired: `{cost} Credits` | Available: `{cr} Credits`\nContact Owner/Admin to top up your Seller balance.",menu_kb("SELLER"))
-              continue
-             if role != "OWNER":
-              db_exec("UPDATE sellers SET credits = credits - ?, keys_sold = keys_sold + 1 WHERE telegram_id=?",(cost,str(uid)))
-             keys,exp = mk_keys(uid,d_val,1,1,f"Seller-{uid}")
-             new_cr = get_seller_credits(uid)
-             send_tg(cid,f"✅ *Seller Key Generated!*\n🔑 *Key:* `{keys[0]}`\n⏳ *Duration:* `{d_val} Days` (`{exp}`)\n💳 *Remaining Credits:* `{new_cr} Credits`",menu_kb(role))
-            elif data == "seller_keys":
-             srows = db_exec("SELECT * FROM licenses WHERE note LIKE ? ORDER BY id DESC LIMIT 15",(f"%Seller-{uid}%",),fetch=True)
-             lines = [f"• `{r['key']}` — *{r['status']}* ({r['duration_days']}d)" for r in srows] or ["No keys generated by your Seller account yet."]
-             send_tg(cid,"🗂 *MY SELLER KEYS (Last 15)*\n" + "\n".join(lines) + "\n\nUse `/reset <KEY>` to reset customer HWID.",menu_kb(role))
-            elif data == "menu_sellers":
-             if "manage_sellers" not in perms and role != "OWNER":
-              send_tg(cid,"⛔ Permission `manage_sellers` required.")
-              continue
-             srows = db_exec("SELECT * FROM sellers ORDER BY added_at DESC",fetch=True)
-             lines = [f"• ID: `{s['telegram_id']}` | Credits: `{s['credits']} Cr` | Sold: `{s['keys_sold']}` | *{s['status']}*" for s in srows] or ["No Sellers added yet."]
-             send_tg(cid,"💼 *SELLER / RESELLER PANEL MANAGEMENT*\n" + "\n".join(lines) + "\n\n*Commands:*\n• `/addseller <TG_ID> <CREDITS>` — Add Seller\n• `/addcredits <TG_ID> <CREDITS>` — Top-Up Credits\n• `/delseller <TG_ID>` — Remove Seller",menu_kb(role))
+            if data == "menu_main": send_tg(cid,stats_txt(),menu_kb())
+            elif data == "menu_stats": send_tg(cid,stats_txt(),menu_kb())
             elif data == "menu_genkey":
              if "manage_keys" not in perms:
               send_tg(cid,"⛔ Permission `manage_keys` required.")
@@ -2065,74 +1862,14 @@ jobs:
            txt = (msg.get("text") or "").strip()
            if not cid or not txt: continue
            role,perms = get_user_role(uid)
-           parts = txt.split(maxsplit=1)
-           cmd = parts[0].lower().split("@")[0]
-           arg = parts[1].strip() if len(parts) > 1 else ""
-           if b_mode == "USER" and (not role or cmd in ("/start","/help","/ipa") or txt.upper().startswith("FOUGO-")):
-            if txt.upper().startswith("FOUGO-") and not cmd.startswith("/"):
-             cmd, arg = "/key", txt.strip().upper()
-            if cmd in ("/start","/help","/menu"):
-             send_tg(cid,f"👤 *FOUGO EXTERNAL — USER LICENSE PORTAL*\nWelcome! Your Telegram ID: `{uid}`\n\n• Send your `FOUGO-XXXX-XXXX-XXXX` key to check expiration & device status\n• Send `/reset <KEY>` to reset device HWID\n• Send `/ipa` to download the ESign iOS IPA",user_kb)
-             continue
-            elif cmd == "/ipa":
-             send_tg(cid,f"📲 *Direct ESign IPA Download:*\n{ipa_url}",user_kb)
-             continue
-            elif cmd == "/key":
-             rows = db_exec("SELECT * FROM licenses WHERE key=?",(arg.upper(),),fetch=True)
-             if not rows: send_tg(cid,"❌ License Key not found.",user_kb)
-             else:
-              r = rows[0]
-              send_tg(cid,f"🔑 *LICENSE STATUS*\n• *Key:* `{r['key']}`\n• *Status:* `{r['status']}`\n• *Plan:* `{r['duration_days']} Days VIP`\n• *Expires:* `{r['expires_at']}`\n• *Device Limit:* `{r['max_devices']}`",user_kb)
-             continue
-            elif cmd == "/reset":
-             k_up = arg.upper()
-             rows = db_exec("SELECT * FROM licenses WHERE key=?",(k_up,),fetch=True)
-             if not rows: send_tg(cid,"❌ License Key not found.",user_kb)
-             else:
-              db_exec("UPDATE licenses SET session_id='',device_info='' WHERE key=?",(k_up,))
-              db_exec("DELETE FROM sessions WHERE license_key=?",(k_up,))
-              sync_cloud()
-              send_tg(cid,f"✅ Device HWID reset complete for key `{k_up}`!",user_kb)
-             continue
-            elif not role:
-             send_tg(cid,"👤 Send your `FOUGO-XXXX-XXXX-XXXX` key to check status, or tap a button below:",user_kb)
-             continue
            if not role:
             send_tg(cid,"⛔ *Access Denied*\nUnauthorized Telegram ID (`" + str(uid) + "`).")
             log_event(uid,"security","unauthorized_bot_access",txt[:60])
             continue
-           if cmd in ("/start","/help","/menu","/owner","/admin","/seller"):
-            target_r = "SELLER" if (cmd == "/seller" or b_mode == "SELLER") else ("ADMIN" if cmd == "/admin" and role == "ADMIN" else role)
-            send_tg(cid,stats_txt(uid,target_r),menu_kb(target_r))
-           elif cmd == "/addseller":
-            if role not in ("OWNER","ADMIN"):
-             send_tg(cid,"⛔ Only OWNER or ADMIN can add Sellers.")
-             continue
-            sp = arg.split()
-            if len(sp) >= 1:
-             sid = sp[0].strip()
-             cr = int(sp[1]) if len(sp) >= 2 and sp[1].isdigit() else 50
-             db_exec("INSERT OR REPLACE INTO sellers (telegram_id,username,credits,keys_sold,status,added_at) VALUES (?,?,?,0,'Active',?)",(sid,f"Seller_{sid[-4:]}",cr,now_iso()))
-             log_event(uid,"sellers","add_seller",f"{sid} credits={cr}")
-             send_tg(cid,f"💼 Added Seller `{sid}` with `{cr} Credits`.",menu_kb(role))
-           elif cmd == "/addcredits":
-            if role not in ("OWNER","ADMIN"):
-             send_tg(cid,"⛔ Only OWNER or ADMIN can top up Seller credits.")
-             continue
-            sp = arg.split()
-            if len(sp) >= 2 and sp[1].lstrip("-").isdigit():
-             sid,add_cr = sp[0].strip(),int(sp[1])
-             db_exec("UPDATE sellers SET credits = MAX(0, credits + ?) WHERE telegram_id=?",(add_cr,sid))
-             new_c = get_seller_credits(sid)
-             log_event(uid,"sellers","add_credits",f"{sid} delta={add_cr}")
-             send_tg(cid,f"💳 Updated Seller `{sid}` balance (`{add_cr:+d} Cr`). New Balance: `{new_c} Credits`.",menu_kb(role))
-           elif cmd == "/delseller":
-            if role not in ("OWNER","ADMIN"):
-             send_tg(cid,"⛔ Only OWNER or ADMIN can remove Sellers.")
-             continue
-            sid = arg.strip()
-            db_exec("DELETE FROM sellers WHERE telegram_id=?",(sid,))
-            send_tg(cid,f"🗑 Removed Seller `{sid}`.",menu_kb(role))
+           parts = txt.split(maxsplit=1)
+           cmd = parts[0].lower().split("@")[0]
+           arg = parts[1].strip() if len(parts) > 1 else ""
+           if cmd in ("/start","/help","/menu","/owner"): send_tg(cid,stats_txt(),menu_kb())
            elif cmd == "/genkey":
             sp = arg.split()
             days = int(sp[0]) if len(sp) >= 1 and sp[0].isdigit() else 30
