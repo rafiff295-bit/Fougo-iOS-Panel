@@ -239,7 +239,7 @@ jobs:
         clean_root = os.path.join(workspace, "clean_root")
         shutil.rmtree(clean_root, ignore_errors=True)
 
-        # Check for Filza base IPA in inputs/ or base_ipa_input
+        # Check for Filza base IPA in inputs/, root workspace, or base_ipa_input
         filza_candidates = [
             base_ipa_input,
             os.path.join(workspace, base_ipa_input),
@@ -251,6 +251,9 @@ jobs:
             for f in os.listdir(inputs_dir):
                 if f.lower().endswith(".ipa"):
                     filza_candidates.insert(0, os.path.join(inputs_dir, f))
+        for f in os.listdir(workspace):
+            if f.lower().endswith(".ipa") and not f.startswith("."):
+                filza_candidates.append(os.path.join(workspace, f))
 
         found_filza = next((p for p in filza_candidates if os.path.exists(p) and os.path.isfile(p)), None)
         is_filza_injection = (build_mode == "inject-filza") and (found_filza is not None)
@@ -1375,7 +1378,11 @@ jobs:
          db_tbl("announcements (id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT,message TEXT,atype TEXT DEFAULT 'Global',enabled INTEGER DEFAULT 1,start_time TEXT,end_time TEXT )")
          db_tbl("notifications (id INTEGER PRIMARY KEY AUTOINCREMENT,target_type TEXT DEFAULT 'all',target_val TEXT DEFAULT '',title TEXT,message TEXT,ntype TEXT DEFAULT 'info',created_at TEXT,read_state INTEGER DEFAULT 0 )")
          db_tbl("activity_logs (id INTEGER PRIMARY KEY AUTOINCREMENT,actor TEXT,category TEXT,action TEXT,details TEXT,created_at TEXT )")
-         db_tbl("admins (telegram_id TEXT PRIMARY KEY,role TEXT DEFAULT 'ADMIN',permissions TEXT DEFAULT 'all',added_at TEXT )")
+         db_tbl("admins (telegram_id TEXT PRIMARY KEY,username TEXT DEFAULT '',role TEXT DEFAULT 'ADMIN',permissions TEXT DEFAULT 'all',added_at TEXT )")
+         db_tbl("sellers (telegram_id TEXT PRIMARY KEY,username TEXT DEFAULT '',credits INTEGER DEFAULT 0,keys_sold INTEGER DEFAULT 0,status TEXT DEFAULT 'Active',added_at TEXT )")
+         for col_sql in ["ALTER TABLE admins ADD COLUMN username TEXT DEFAULT ''","ALTER TABLE sellers ADD COLUMN username TEXT DEFAULT ''"]:
+          try: db_exec(col_sql)
+          except Exception: pass
          db_tbl("settings (k TEXT PRIMARY KEY,v TEXT )")
          defaults = {
           "owner_username":"owner","owner_password_hash": hash_pw("FougoOwner#2026"),"website_name":"FOUGO EXTERNAL VIP","login_title":"Fougo External License Gateway","subtitle":"iOS Arm64 External Control System","maintenance_mode":"OFF","allow_owner_maintenance":"ON","maintenance_title":"SYSTEM MAINTENANCE","maintenance_description":"We are currently performing scheduled maintenance. Please check back soon.","maintenance_return_time":"Soon","maintenance_btn":"Join Telegram Channel","maintenance_link":"https://t.me/cheatgnexusiphone","theme_preset":"FOUGO EXTERNAL iOS Red","primary_color":"#FF1E56","secondary_color":"#00F5D4","glow":"ON","channel_join_required":"ON",}
@@ -1399,6 +1406,10 @@ jobs:
             db_exec(
              "INSERT OR IGNORE INTO licenses (key,status,duration_days,max_devices,note,created_at,activated_at,expires_at,session_id,device_info) VALUES (?,?,?,?,?,?,?,?,?,?)",(
               k_str,l_obj.get("status","Active"),int(l_obj.get("duration_days",30)),int(l_obj.get("max_devices",1)),l_obj.get("note",""),l_obj.get("created_at",now_iso()),l_obj.get("activated_at",""),l_obj.get("expires_at",""),l_obj.get("session_id",""),l_obj.get("device_info",""),),)
+            for s_obj in (saved.get("sellers") or []):
+             db_exec("INSERT OR REPLACE INTO sellers (telegram_id,username,credits,keys_sold,status,added_at) VALUES (?,?,?,?,?,?)",(str(s_obj.get("telegram_id")),str(s_obj.get("username","")),int(s_obj.get("credits",0)),int(s_obj.get("keys_sold",0)),str(s_obj.get("status","Active")),str(s_obj.get("added_at",now_iso())),),)
+            for a_obj in (saved.get("admins") or []):
+             db_exec("INSERT OR REPLACE INTO admins (telegram_id,username,role,permissions,added_at) VALUES (?,?,?,?,?)",(str(a_obj.get("telegram_id")),str(a_obj.get("username","")),str(a_obj.get("role","ADMIN")),str(a_obj.get("permissions","all")),str(a_obj.get("added_at",now_iso())),),)
          except Exception as ex:
           print("Cloud DB restore note:",ex)
         init_db()
@@ -1415,6 +1426,10 @@ jobs:
             db_exec(
              "INSERT OR IGNORE INTO licenses (key,status,duration_days,max_devices,note,created_at,activated_at,expires_at,session_id,device_info) VALUES (?,?,?,?,?,?,?,?,?,?)",(
               k_str.strip().upper(),l_obj.get("status","Active"),int(l_obj.get("duration_days",30)),int(l_obj.get("max_devices",1)),l_obj.get("note",""),l_obj.get("created_at",now_iso()),l_obj.get("activated_at",""),l_obj.get("expires_at",""),l_obj.get("session_id",""),l_obj.get("device_info",""),),)
+            for s_obj in (saved.get("sellers") or []):
+             db_exec("INSERT OR REPLACE INTO sellers (telegram_id,username,credits,keys_sold,status,added_at) VALUES (?,?,?,?,?,?)",(str(s_obj.get("telegram_id")),str(s_obj.get("username","")),int(s_obj.get("credits",0)),int(s_obj.get("keys_sold",0)),str(s_obj.get("status","Active")),str(s_obj.get("added_at",now_iso())),),)
+            for a_obj in (saved.get("admins") or []):
+             db_exec("INSERT OR REPLACE INTO admins (telegram_id,username,role,permissions,added_at) VALUES (?,?,?,?,?)",(str(a_obj.get("telegram_id")),str(a_obj.get("username","")),str(a_obj.get("role","ADMIN")),str(a_obj.get("permissions","all")),str(a_obj.get("added_at",now_iso())),),)
          except Exception:
           pass
         def log_event(actor,category,action,details=""):
@@ -1431,7 +1446,7 @@ jobs:
          return {
           "tunnel_url": live_tunnel_url,"owner_username": get_setting("owner_username","owner"),"maintenance": maint == "ON","maintenance_info": {
            "title": get_setting("maintenance_title"),"description": get_setting("maintenance_description"),"return_time": get_setting("maintenance_return_time"),"button": get_setting("maintenance_btn"),"link": get_setting("maintenance_link"),},"branding": {
-           "website_name": get_setting("website_name"),"login_title": get_setting("login_title"),"subtitle": get_setting("subtitle"),"theme_preset": get_setting("theme_preset"),"primary_color": get_setting("primary_color"),"secondary_color": get_setting("secondary_color"),},"channels": db_exec("SELECT * FROM channels WHERE enabled=1 ORDER BY display_order ASC",fetch=True),"features": db_exec("SELECT * FROM features ORDER BY display_order ASC",fetch=True),"profiles": db_exec("SELECT * FROM profiles WHERE status='Active' ORDER BY display_order ASC",fetch=True),"announcements": db_exec("SELECT * FROM announcements WHERE enabled=1 ORDER BY id DESC",fetch=True),"notifications": db_exec("SELECT * FROM notifications ORDER BY id DESC LIMIT 30",fetch=True),"licenses_map": lic_map,}
+           "website_name": get_setting("website_name"),"login_title": get_setting("login_title"),"subtitle": get_setting("subtitle"),"theme_preset": get_setting("theme_preset"),"primary_color": get_setting("primary_color"),"secondary_color": get_setting("secondary_color"),},"channels": db_exec("SELECT * FROM channels WHERE enabled=1 ORDER BY display_order ASC",fetch=True),"features": db_exec("SELECT * FROM features ORDER BY display_order ASC",fetch=True),"profiles": db_exec("SELECT * FROM profiles WHERE status='Active' ORDER BY display_order ASC",fetch=True),"announcements": db_exec("SELECT * FROM announcements WHERE enabled=1 ORDER BY id DESC",fetch=True),"notifications": db_exec("SELECT * FROM notifications ORDER BY id DESC LIMIT 30",fetch=True),"licenses_map": lic_map,"sellers": db_exec("SELECT * FROM sellers",fetch=True),"admins": db_exec("SELECT * FROM admins",fetch=True),}
         def sync_cloud():
          def _worker():
           try:
@@ -1454,11 +1469,16 @@ jobs:
          except Exception as ex:
           print(f"tg_api ({method}) note:",ex)
           return {}
-        def send_tg(chat_id,text,kb=None,tok_override=None):
+        def send_tg(chat_id,text,kb=None,reply_kb=None,tok_override=None):
          payload = {"chat_id": chat_id,"text": text,"parse_mode":"Markdown","disable_web_page_preview": True}
-         if kb:
-          payload["reply_markup"] = {"inline_keyboard": kb}
-         tg_api("sendMessage",payload,tok_override=tok_override)
+         if kb is not None:
+          if isinstance(kb, dict):
+           payload["reply_markup"] = kb
+          else:
+           payload["reply_markup"] = {"inline_keyboard": kb}
+         elif reply_kb is not None:
+          payload["reply_markup"] = {"keyboard": reply_kb, "resize_keyboard": True, "is_persistent": True}
+         return tg_api("sendMessage",payload,tok_override=tok_override)
         def answer_cb(cb_id,text="",tok_override=None):
          tg_api("answerCallbackQuery",{"callback_query_id": cb_id,"text": text},tok_override=tok_override)
         db_tbl("sellers (telegram_id TEXT PRIMARY KEY,username TEXT DEFAULT '',credits INTEGER DEFAULT 0,keys_sold INTEGER DEFAULT 0,status TEXT DEFAULT 'Active',added_at TEXT )")
@@ -1770,34 +1790,60 @@ jobs:
          "SUPPORT": {"manage_keys","manage_users","view_logs"},
         }
         SELLER_COSTS = {1: 1, 7: 3, 30: 7, 3650: 20}
+        USER_STATE = {}
+
+        MAIN_BOTTOM_KEYBOARD = [
+         [{"text":"👑 Dashboard"},{"text":"🔑 Generate Keys"}],
+         [{"text":"💼 Sellers Panel"},{"text":"👮 Admins Panel"}],
+         [{"text":"🗂 Manage Keys"},{"text":"🗑 Delete Key"}],
+         [{"text":"🎛 Panel Features"},{"text":"🛠 Maintenance Mode"}]
+        ]
+        SELLER_BOTTOM_KEYBOARD = [
+         [{"text":"💼 Seller Balance"},{"text":"🔑 Generate VIP Key"}],
+         [{"text":"🗂 My Sold Keys"},{"text":"🔄 Refresh Status"}]
+        ]
+
         def get_seller_credits(uid_s):
-         r = db_exec("SELECT credits FROM sellers WHERE telegram_id=?",(str(uid_s),),fetch=True)
+         r = db_exec("SELECT credits FROM sellers WHERE telegram_id=? OR (username != '' AND LOWER(username)=?)",(str(uid_s),str(uid_s).lstrip("@").lower()),fetch=True)
          return int(r[0]["credits"]) if r else 0
-        def get_user_role(uid):
-         uid_s = str(uid)
+
+        def get_user_role(uid, username=""):
+         uid_s = str(uid) if uid else ""
+         u_clean = (username or "").lstrip("@").lower()
          if owner_id and uid_s == str(owner_id): return "OWNER",ROLE_PERMS["OWNER"]
-         s_rows = db_exec("SELECT * FROM sellers WHERE telegram_id=? AND status='Active'",(uid_s,),fetch=True)
-         rows = db_exec("SELECT * FROM admins WHERE telegram_id=?",(uid_s,),fetch=True)
-         if not rows and s_rows:
+         # Check sellers
+         s_rows = db_exec("SELECT * FROM sellers WHERE (telegram_id=? OR (username != '' AND LOWER(REPLACE(username,'@',''))=?)) AND status='Active'",(uid_s,u_clean),fetch=True) if (uid_s or u_clean) else []
+         if s_rows:
+          if uid_s and s_rows[0]["telegram_id"] != uid_s and not s_rows[0]["telegram_id"].isdigit():
+           db_exec("UPDATE sellers SET telegram_id=? WHERE username=?",(uid_s,s_rows[0]["username"]))
+           sync_cloud()
           return "SELLER",ROLE_PERMS["SELLER"]
-         if not rows:
-          all_adm = db_exec("SELECT * FROM admins",fetch=True)
-          if not all_adm and not owner_id:
-           db_exec("INSERT INTO admins (telegram_id,role,permissions,added_at) VALUES (?,'OWNER','all',?)",(uid_s,now_iso()))
-           return "OWNER",ROLE_PERMS["OWNER"]
-          return None,set()
-         role = rows[0]["role"].upper()
-         perms_raw = rows[0]["permissions"]
-         if perms_raw == "all" or role == "OWNER": return role,ROLE_PERMS["OWNER"]
-         if role == "SELLER": return "SELLER",ROLE_PERMS["SELLER"]
-         custom = {p.strip() for p in perms_raw.split(",") if p.strip()}
-         return role,(custom or ROLE_PERMS.get(role,set()))
+         # Check admins
+         rows = db_exec("SELECT * FROM admins WHERE (telegram_id=? OR (username != '' AND LOWER(REPLACE(username,'@',''))=?))",(uid_s,u_clean),fetch=True) if (uid_s or u_clean) else []
+         if rows:
+          if uid_s and rows[0]["telegram_id"] != uid_s and not rows[0]["telegram_id"].isdigit():
+           db_exec("UPDATE admins SET telegram_id=? WHERE username=?",(uid_s,rows[0]["username"]))
+           sync_cloud()
+          r_role = rows[0]["role"].upper()
+          perms_raw = rows[0]["permissions"]
+          if perms_raw == "all" or r_role == "OWNER": return r_role,ROLE_PERMS["OWNER"]
+          if r_role == "SELLER": return "SELLER",ROLE_PERMS["SELLER"]
+          custom = {p.strip() for p in perms_raw.split(",") if p.strip()}
+          return r_role,(custom or ROLE_PERMS.get(r_role,set()))
+         # Fallback if brand new database with no admins
+         all_adm = db_exec("SELECT * FROM admins",fetch=True)
+         if not all_adm and not owner_id and uid_s:
+          db_exec("INSERT INTO admins (telegram_id,username,role,permissions,added_at) VALUES (?,?,'OWNER','all',?)",(uid_s,u_clean,now_iso()))
+          sync_cloud()
+          return "OWNER",ROLE_PERMS["OWNER"]
+         return None,set()
+
         def menu_kb(role="OWNER"):
          maint = get_setting("maintenance_mode","OFF")
          if role == "SELLER":
           return [
-           [{"text":"💼 Seller Wallet & Balance","callback_data":"seller_wallet"},{"text":"🔑 Generate Key (Credits)","callback_data":"seller_gen"}],
-           [{"text":"🗂 My Generated Keys","callback_data":"seller_keys"},{"text":"💳 Credit Pricing","callback_data":"seller_pricing"}],
+           [{"text":"💼 Seller Balance","callback_data":"seller_wallet"},{"text":"🔑 Generate VIP Key","callback_data":"seller_gen"}],
+           [{"text":"🗂 My Sold Keys","callback_data":"seller_keys"},{"text":"💳 Credit Pricing","callback_data":"seller_pricing"}],
           ]
          if role == "ADMIN":
           return [
@@ -1814,23 +1860,26 @@ jobs:
           [{"text":"📣 Announcements","callback_data":"menu_announce"},{"text":"🔔 Send Notification","callback_data":"menu_notify"}],
           [{"text":"📜 Activity Logs","callback_data":"menu_logs"},{"text":"⚙️ Owner Settings","callback_data":"menu_settings"}],
          ]
+
         def stats_txt(uid=None,role="OWNER"):
          if role == "SELLER":
           cr = get_seller_credits(uid)
-          s_row = db_exec("SELECT * FROM sellers WHERE telegram_id=?",(str(uid),),fetch=True)
+          s_row = db_exec("SELECT * FROM sellers WHERE telegram_id=? OR (username != '' AND LOWER(username)=?)",(str(uid),str(uid).lstrip("@").lower()),fetch=True)
           sold = s_row[0]["keys_sold"] if s_row else 0
-          return (
-           "💼 *FOUGO EXTERNAL — SELLER PANEL*\n\n"
-           f"👤 *Seller ID:* `{uid}`\n"
-           f"💳 *Available Credits:* `{cr} Credits`\n"
-           f"🔑 *Total Keys Sold:* `{sold}`\n\n"
-           "*Key Credit Costs:*\n"
-           "• `1 Day Key` = `1 Credit`\n"
-           "• `7 Days Key` = `3 Credits`\n"
-           "• `30 Days Key` = `7 Credits`\n"
-           "• `Lifetime Key` = `20 Credits`\n\n"
-           "Commands: `/reset <KEY>` to reset customer HWID."
-          )
+          return f"""💼 *FOUGO EXTERNAL — SELLER PANEL*
+
+        👤 *Seller ID:* `{uid}`
+        💳 *Available Credits:* `{cr} Credits`
+        🔑 *Total Keys Sold:* `{sold}`
+
+        *Key Credit Pricing:*
+        • `1 Day Key` = `1 Credit`
+        • `7 Days Key` = `3 Credits`
+        • `30 Days Key` = `7 Credits`
+        • `Lifetime Key` = `20 Credits`
+
+        Tap buttons below to generate keys or check wallet."""
+
          total_l = db_exec("SELECT COUNT(*) AS c FROM licenses",fetch=True)[0]["c"]
          act_l = db_exec("SELECT COUNT(*) AS c FROM licenses WHERE status='Active'",fetch=True)[0]["c"]
          exp_l = db_exec("SELECT COUNT(*) AS c FROM licenses WHERE status='Expired'",fetch=True)[0]["c"]
@@ -1841,14 +1890,14 @@ jobs:
          admins_cnt = db_exec("SELECT COUNT(*) AS c FROM admins",fetch=True)[0]["c"]
          maint = get_setting("maintenance_mode","OFF")
          panel_line = f"\n🌐 *Web Control Panel:* {live_tunnel_url}/owner" if live_tunnel_url else ""
-         return (
-          f"👑 *FOUGO EXTERNAL — {role} CONTROL PANEL*\n\n"
-          f"🔑 *Total Licenses:* `{total_l}` (`{act_l}` Active)\n"
-          f"⌛ *Expired:* `{exp_l}` | 🚫 *Suspended:* `{dis_l}`\n"
-          f"👥 *Active Device Sessions:* `{act_s} / {total_s}`\n"
-          f"👮 *Admins:* `{admins_cnt}` | 💼 *Sellers:* `{sellers_cnt}`\n"
-          f"🛠 *Maintenance Mode:* `{maint}`{panel_line}"
-         )
+         return f"""👑 *FOUGO EXTERNAL — {role} CONTROL PANEL*
+
+        🔑 *Total Licenses:* `{total_l}` (`{act_l}` Active)
+        ⌛ *Expired:* `{exp_l}` | 🚫 *Suspended:* `{dis_l}`
+        👥 *Active Device Sessions:* `{act_s} / {total_s}`
+        👮 *Admins:* `{admins_cnt}` | 💼 *Sellers:* `{sellers_cnt}`
+        🛠 *Maintenance Mode:* `{maint}`{panel_line}"""
+
         def mk_keys(actor,days,qty,max_dev=1,note="TG-Admin"):
          created = []
          exp = "Lifetime" if int(days) >= 3650 else (datetime.datetime.utcnow() + datetime.timedelta(days=int(days))).strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -1860,437 +1909,763 @@ jobs:
          log_event(actor,"keys","create_batch",f"Qty={qty} Days={days} MaxDev={max_dev}")
          sync_cloud()
          return created,exp
-        import concurrent.futures
+
         user_kb = [
          [{"text":"🔑 Check License Key","callback_data":"user_check_help"},{"text":"🔄 Reset My HWID","callback_data":"user_reset_help"}],
          [{"text":"📲 Download iOS IPA","callback_data":"user_ipa"},{"text":"🟢 Server Status","callback_data":"user_status"}],
         ]
+
         if owner_id:
-         send_tg(owner_id,stats_txt(owner_id,"OWNER"),menu_kb("OWNER"),tok_override=DEFAULT_OWNER_BOT)
-         send_tg(owner_id,stats_txt(owner_id,"SELLER"),menu_kb("SELLER"),tok_override=DEFAULT_SELLER_BOT)
-         send_tg(owner_id,"👤 *FOUGO EXTERNAL — USER LICENSE PORTAL*\n\nSend any `FOUGO-XXXX-XXXX-XXXX` key to inspect status, or use the buttons below:",user_kb,tok_override=DEFAULT_USER_BOT)
+         send_tg(owner_id,stats_txt(owner_id,"OWNER"),menu_kb("OWNER"),reply_kb=MAIN_BOTTOM_KEYBOARD,tok_override=DEFAULT_OWNER_BOT)
+         send_tg(owner_id,stats_txt(owner_id,"SELLER"),menu_kb("SELLER"),reply_kb=SELLER_BOTTOM_KEYBOARD,tok_override=DEFAULT_SELLER_BOT)
+         send_tg(owner_id,"👤 *FOUGO EXTERNAL — USER LICENSE PORTAL*\n\nSend any `FOUGO-XXXX-XXXX-XXXX` key to inspect status, or tap below:",user_kb,tok_override=DEFAULT_USER_BOT)
+
         bot_pool = [
          ("OWNER", DEFAULT_OWNER_BOT),
          ("SELLER", DEFAULT_SELLER_BOT),
          ("USER", DEFAULT_USER_BOT),
         ]
-        offsets = {bt: 0 for _, bt in bot_pool}
-        def fetch_bot_updates(b_mode, b_tok):
-         try:
-          u_url = f"https://api.telegram.org/bot{b_tok}/getUpdates?timeout=15&offset={offsets.get(b_tok,0)}"
-          with urllib.request.urlopen(u_url,timeout=22) as resp:
-           res = json.loads(resp.read().decode("utf-8")).get("result",[])
-           if res:
-            offsets[b_tok] = res[-1]["update_id"] + 1
-           return [(b_mode, b_tok, item) for item in res]
-         except Exception:
-          return []
-        start_ts = time.time()
-        print("Starting 24/7 Multi-Bot Polling Loop (Owner Bot + Seller Bot + User Bot)...")
-        pool_exec = concurrent.futures.ThreadPoolExecutor(max_workers=3)
-        while (time.time() - start_ts) < 335 * 60:
-         try:
-          futs = [pool_exec.submit(fetch_bot_updates, bm, bt) for bm, bt in bot_pool]
-          updates = []
-          for f_item in concurrent.futures.as_completed(futs):
-           updates.extend(f_item.result() or [])
-          for b_mode, b_tok, u in updates:
-           _bot_ctx.token = b_tok
-           _bot_ctx.mode = b_mode
-           if "callback_query" in u:
-            cb = u["callback_query"]
-            cb_id = cb["id"]
-            uid = cb.get("from",{}).get("id")
-            cid = cb.get("message",{}).get("chat",{}).get("id")
-            data = cb.get("data","")
-            if data in ("user_ipa","user_status","user_check_help","user_reset_help"):
-             answer_cb(cb_id)
-             if data == "user_ipa":
-              send_tg(cid,f"📲 *FOUGO EXTERNAL — DIRECT ESIGN iOS IPA*\n\nDownload Link:\n{ipa_url}",user_kb)
-             elif data == "user_status":
-              maint = get_setting("maintenance_mode","OFF")
-              send_tg(cid,f"🟢 *FOUGO EXTERNAL CLOUD STATUS*\n• *Server:* `ONLINE (0ms Sync)`\n• *Maintenance Mode:* `{maint}`",user_kb)
-             elif data == "user_check_help":
-              send_tg(cid,"🔑 *CHECK LICENSE KEY*\nSend your key directly in chat (e.g. `FOUGO-XXXX-XXXX-XXXX`) or send:\n`/key FOUGO-XXXX-XXXX-XXXX`",user_kb)
-             elif data == "user_reset_help":
-              send_tg(cid,"🔄 *RESET DEVICE HWID*\nTo reset your bound iOS device, send:\n`/reset FOUGO-XXXX-XXXX-XXXX`",user_kb)
-             continue
-            role,perms = get_user_role(uid)
-            if not role:
-             answer_cb(cb_id,"⛔ Access Denied")
-             send_tg(cid,"⛔ *Access Denied*\nYou are not an authorized Fougo External Admin/Seller.")
-             continue
-            answer_cb(cb_id)
-            if data == "menu_main": send_tg(cid,stats_txt(uid,role),menu_kb(role))
-            elif data == "menu_stats": send_tg(cid,stats_txt(uid,role),menu_kb(role))
-            elif data == "seller_wallet": send_tg(cid,stats_txt(uid,"SELLER"),menu_kb("SELLER"))
-            elif data == "seller_pricing":
-             send_tg(cid,"💳 *SELLER KEY PRICING TABLE*\n• `1 Day Key` — `1 Credit`\n• `7 Days Key` — `3 Credits`\n• `30 Days Key` — `7 Credits`\n• `Lifetime Key` — `20 Credits`",menu_kb("SELLER"))
-            elif data == "seller_gen":
-             cr = get_seller_credits(uid)
-             skb = [
-              [{"text":"⚡ 1 Day (1 Cr)","callback_data":"sgen_1"},{"text":"⚡ 7 Days (3 Cr)","callback_data":"sgen_7"}],
-              [{"text":"🔥 30 Days (7 Cr)","callback_data":"sgen_30"},{"text":"👑 Lifetime (20 Cr)","callback_data":"sgen_3650"}],
-              [{"text":"⬅️ Back to Seller Panel","callback_data":"seller_wallet"}],
-             ]
-             send_tg(cid,f"🔑 *SELLER KEY GENERATOR*\n💳 *Your Balance:* `{cr} Credits`\nSelect a package below to generate key:",skb)
-            elif data.startswith("sgen_"):
-             d_val = int(data.split("_")[1])
-             cost = SELLER_COSTS.get(d_val, 7)
-             cr = get_seller_credits(uid)
-             if role != "OWNER" and cr < cost:
-              send_tg(cid,f"⛔ *Insufficient Credits!*\nRequired: `{cost} Credits` | Available: `{cr} Credits`\nContact Owner/Admin to top up your Seller balance.",menu_kb("SELLER"))
-              continue
-             if role != "OWNER":
-              db_exec("UPDATE sellers SET credits = credits - ?, keys_sold = keys_sold + 1 WHERE telegram_id=?",(cost,str(uid)))
-             keys,exp = mk_keys(uid,d_val,1,1,f"Seller-{uid}")
-             new_cr = get_seller_credits(uid)
-             send_tg(cid,f"✅ *Seller Key Generated!*\n🔑 *Key:* `{keys[0]}`\n⏳ *Duration:* `{d_val} Days` (`{exp}`)\n💳 *Remaining Credits:* `{new_cr} Credits`",menu_kb(role))
-            elif data == "seller_keys":
-             srows = db_exec("SELECT * FROM licenses WHERE note LIKE ? ORDER BY id DESC LIMIT 15",(f"%Seller-{uid}%",),fetch=True)
-             lines = [f"• `{r['key']}` — *{r['status']}* ({r['duration_days']}d)" for r in srows] or ["No keys generated by your Seller account yet."]
-             send_tg(cid,"🗂 *MY SELLER KEYS (Last 15)*\n" + "\n".join(lines) + "\n\nUse `/reset <KEY>` to reset customer HWID.",menu_kb(role))
-            elif data == "menu_sellers":
-             if "manage_sellers" not in perms and role != "OWNER":
-              send_tg(cid,"⛔ Permission `manage_sellers` required.")
-              continue
-             srows = db_exec("SELECT * FROM sellers ORDER BY added_at DESC",fetch=True)
-             lines = [f"• ID: `{s['telegram_id']}` | Credits: `{s['credits']} Cr` | Sold: `{s['keys_sold']}` | *{s['status']}*" for s in srows] or ["No Sellers added yet."]
-             send_tg(cid,"💼 *SELLER / RESELLER PANEL MANAGEMENT*\n" + "\n".join(lines) + "\n\n*Commands:*\n• `/addseller <TG_ID> <CREDITS>` — Add Seller\n• `/addcredits <TG_ID> <CREDITS>` — Top-Up Credits\n• `/delseller <TG_ID>` — Remove Seller",menu_kb(role))
-            elif data == "menu_genkey":
-             if "manage_keys" not in perms:
-              send_tg(cid,"⛔ Permission `manage_keys` required.")
-              continue
-             kb = [
-              [{"text":"➕ 1 Key (30d)","callback_data":"gen_30_1"},{"text":"➕ 5 Keys (30d)","callback_data":"gen_30_5"},{"text":"➕ 10 Keys (30d)","callback_data":"gen_30_10"}],[{"text":"➕ 25 Keys (30d)","callback_data":"gen_30_25"},{"text":"➕ 50 Keys (30d)","callback_data":"gen_30_50"},{"text":"➕ 100 Keys (30d)","callback_data":"gen_30_100"}],[{"text":"⚡ 1 Key (7d)","callback_data":"gen_7_1"},{"text":"👑 1 Key (Lifetime)","callback_data":"gen_3650_1"},{"text":"👑 10 Keys (Lifetime)","callback_data":"gen_3650_10"}],[{"text":"⬅️ Back to Owner Menu","callback_data":"menu_main"}],]
-             send_tg(cid,"🔑 *TELEGRAM KEY GENERATOR*\nSelect quantity & duration below,or send:\n`/genkey <days> <qty> <max_devices> [note]`\n_(Quantities supported: 1,5,10,25,50,100)_",kb)
-            elif data.startswith("gen_"):
-             _,d_str,q_str = data.split("_")
-             keys,exp = mk_keys(uid,int(d_str),int(q_str),1,f"By-{role}")
-             preview = "\n".join(f"`{k}`" for k in keys[:30])
-             more = f"\n_...and {len(keys)-30} more keys_" if len(keys) > 30 else ""
-             send_tg(cid,f"✅ *Generated {len(keys)} License Key(s)*\n⏳ *Duration:* `{d_str} Days` (`{exp}`)\n📱 *Device Limit:* `1`\n\n{preview}{more}",menu_kb())
-            elif data == "menu_keys":
-             rows = db_exec("SELECT * FROM licenses ORDER BY id DESC LIMIT 15",fetch=True)
-             if not rows: send_tg(cid,"📋 No licenses found. Tap *Create Keys* to generate.",menu_kb())
-             else:
-              lines = [f"• `{r['key']}` — *{r['status']}* ({r['duration_days']}d | Dev:{r['max_devices']})" for r in rows]
-              send_tg(
-               cid,"🗂 *RECENT LICENSES (Last 15)*\n" + "\n".join(lines) + "\n\n"
-               "*Key Actions:*\n"
-               "• `/search <text>` — Search keys\n"
-               "• `/key <KEY>` — View full key info\n"
-               "• `/activate <KEY>` | `/suspend <KEY>` | `/unsuspend <KEY>`\n"
-               "• `/revoke <KEY>` | `/delkey <KEY>` | `/reset <KEY>`\n"
-               "• `/extend <KEY> <days>` | `/limit <KEY> <devices>`",menu_kb(),)
-            elif data == "menu_sessions":
-             rows = db_exec("SELECT * FROM sessions ORDER BY id DESC LIMIT 15",fetch=True)
-             if not rows: send_tg(cid,"👥 *ACTIVE USER SESSIONS*\nNo active device sessions yet.",menu_kb())
-             else:
-              lines = [f"• `{r['session_id']}` | Key: `{r['license_key']}` | *{r['status']}* | `{r['device_info'][:25]}`" for r in rows]
-              send_tg(cid,"👥 *AUTHENTICATED SESSIONS*\n" + "\n".join(lines) + "\n\nCommands:\n• `/reset <KEY>` — Reset session/device\n• `/killsession <SESSION_ID>` — Disable session",menu_kb())
-            elif data == "menu_features":
-             feats = db_exec("SELECT * FROM features ORDER BY display_order ASC",fetch=True)
-             kb = []
-             lines = []
-             for f in feats:
-              st = "🟢 ON" if f["enabled"] else "🔴 OFF"
-              vis = "👁 Show" if f["visible"] else "🙈 Hide"
-              lck = "🔒 Locked" if f["locked"] else "🔓 Unlocked"
-              lines.append(f"• *{f['title']}* (`{f['code']}`) — {st} | {vis} | {lck}")
-              kb.append([
-               {"text": f"{f['code']}: {st}","callback_data": f"ftog_en_{f['code']}"},{"text": f"{vis}","callback_data": f"ftog_vis_{f['code']}"},{"text": f"{lck}","callback_data": f"ftog_lck_{f['code']}"},])
-             kb.append([{"text":"⬅️ Back","callback_data":"menu_main"}])
-             send_tg(cid,"🎛 *USER PANEL FEATURE CONTROL*\nTap any button to toggle live:\n\n" + "\n".join(lines) + "\n\nCommands:\n• `/addfeature <CODE>|<Title>|<Desc>|<BtnText>`\n• `/delfeature <CODE>`",kb)
-            elif data.startswith("ftog_"):
-             _,mode,fcode = data.split("_",2)
-             col = {"en":"enabled","vis":"visible","lck":"locked"}[mode]
-             db_exec(f"UPDATE features SET {col} = CASE WHEN {col}=1 THEN 0 ELSE 1 END WHERE code=?",(fcode,))
-             log_event(uid,"features",f"toggle_{col}",f"Feature={fcode}")
-             send_tg(cid,f"✅ Updated `{fcode}` ({col}). Tap *User Panel Features* to view.",menu_kb())
-            elif data == "menu_channels":
-             chs = db_exec("SELECT * FROM channels ORDER BY display_order ASC",fetch=True)
-             lines = [f"• `{c['id']}`: *{c['title']}* ({'🟢' if c['enabled'] else '🔴'}) — `{c['url']}` [{c['button_text']}]" for c in chs]
-             send_tg(cid,"📢 *JOIN CHANNELS MANAGEMENT*\n" + "\n".join(lines) + "\n\nCommands:\n• `/addchannel <Title>|<URL>|<ButtonText>`\n• `/delchannel <ID>`\n• `/togglechannel <ID>`",menu_kb())
-            elif data == "menu_profiles":
-             profs = db_exec("SELECT * FROM profiles ORDER BY display_order ASC",fetch=True)
-             lines = [f"• *{p['display_name']}* (`v{p['version']}`) — *{p['status']}* {'⭐Default' if p['is_default'] else ''}\n  URL: `{p['download_url']}`" for p in profs]
-             send_tg(cid,"📲 *iOS CONFIGURATION PROFILES*\n" + "\n".join(lines) + "\n\nCommands:\n• `/addprofile <Name>|<Display>|<Ver>|<URL>|<BtnText>`\n• `/delprofile <Name>`",menu_kb())
-            elif data == "menu_themes":
-             presets = ["FOUGO EXTERNAL iOS Red","Midnight","Neon","Carbon","Premium Black"]
-             kb = [[{"text": f"🎨 {p}","callback_data": f"settheme_{p}"}] for p in presets]
-             kb.append([{"text":"⬅️ Back","callback_data":"menu_main"}])
-             cur_t = get_setting("theme_preset")
-             send_tg(cid,f"🎨 *THEME MANAGEMENT*\nCurrent Preset: `{cur_t}`\nSelect a theme preset below:",kb)
-            elif data.startswith("settheme_"):
-             tname = data.replace("settheme_","")
-             set_setting("theme_preset",tname)
-             log_event(uid,"theme","change_preset",tname)
-             send_tg(cid,f"🎨 Active Theme switched to *{tname}*!",menu_kb())
-            elif data == "toggle_maint":
-             cur_m = get_setting("maintenance_mode","OFF")
-             new_m = "OFF" if cur_m == "ON" else "ON"
-             set_setting("maintenance_mode",new_m)
-             log_event(uid,"maintenance",f"set_{new_m}","")
-             send_tg(cid,f"🛠 *MAINTENANCE MODE IS NOW: {new_m}*\nTitle: `{get_setting('maintenance_title')}`\nDesc: _{get_setting('maintenance_description')}_\n\nUse `/setmaint <Title>|<Description>|<ReturnTime>` to customize.",menu_kb())
-            elif data == "menu_announce":
-             anns = db_exec("SELECT * FROM announcements ORDER BY id DESC LIMIT 5",fetch=True)
-             lines = [f"• [{a['atype']}] *{a['title']}*: {a['message']}" for a in anns] or ["No announcements yet."]
-             send_tg(cid,"📣 *ANNOUNCEMENT SYSTEM*\n" + "\n".join(lines) + "\n\nCreate Announcement:\n`/announce <Type>|<Title>|<Message>`\n_(Types: Global,Update,Maintenance,Important)_",menu_kb())
-            elif data == "menu_notify":
-             send_tg(cid,"🔔 *NOTIFICATION SYSTEM*\nSend notification to users:\n• `/notify all|<Title>|<Message>`\n• `/notify active|<Title>|<Message>`\n• `/notify <KEY>|<Title>|<Message>`",menu_kb())
-            elif data == "menu_logs":
-             logs = db_exec("SELECT * FROM activity_logs ORDER BY id DESC LIMIT 15",fetch=True)
-             lines = [f"• `{l['created_at'][5:16]}` [{l['category']}] *{l['action']}* ({l['actor']}) {l['details']}" for l in logs] or ["No logs recorded yet."]
-             send_tg(cid,"📜 *RECENT ACTIVITY LOGS*\n" + "\n".join(lines) + "\n\nFilter logs: `/logs <category>`",menu_kb())
-            elif data == "menu_admins":
-             adms = db_exec("SELECT * FROM admins",fetch=True)
-             lines = [f"• ID: `{a['telegram_id']}` — Role: *{a['role']}* (`{a['permissions']}`)" for a in adms]
-             send_tg(cid,"👮 *OWNER / ADMIN / SUPPORT ROLES*\n" + "\n".join(lines) + "\n\nCommands:\n• `/addadmin <TG_ID> <OWNER|ADMIN|SUPPORT>`\n• `/deladmin <TG_ID>`",menu_kb())
-            elif data == "menu_settings":
-             send_tg(
-              cid,"⚙️ *OWNER PANEL & BRANDING SETTINGS*\n"
-              f"• Website Name: `{get_setting('website_name')}`\n"
-              f"• Login Title: `{get_setting('login_title')}`\n"
-              f"• Owner Username: `{get_setting('owner_username')}`\n"
-              f"• Allow Owner in Maintenance: `{get_setting('allow_owner_maintenance')}`\n\n"
-              "*Commands:*\n"
-              "• `/setowner <new_username> <new_password>`\n"
-              "• `/setbrand <WebsiteName>|<LoginTitle>|<Subtitle>`\n"
-              "• `/ipa` — Get Direct ESign IPA Link",menu_kb(),)
-            continue
-           msg = u.get("message") or u.get("edited_message") or {}
-           cid = msg.get("chat",{}).get("id")
-           uid = msg.get("from",{}).get("id")
-           txt = (msg.get("text") or "").strip()
-           if not cid or not txt: continue
-           role,perms = get_user_role(uid)
-           parts = txt.split(maxsplit=1)
-           cmd = parts[0].lower().split("@")[0]
-           arg = parts[1].strip() if len(parts) > 1 else ""
-           if b_mode == "USER" and (not role or cmd in ("/start","/help","/ipa") or txt.upper().startswith("FOUGO-")):
-            if txt.upper().startswith("FOUGO-") and not cmd.startswith("/"):
-             cmd, arg = "/key", txt.strip().upper()
-            if cmd in ("/start","/help","/menu"):
-             send_tg(cid,f"👤 *FOUGO EXTERNAL — USER LICENSE PORTAL*\nWelcome! Your Telegram ID: `{uid}`\n\n• Send your `FOUGO-XXXX-XXXX-XXXX` key to check expiration & device status\n• Send `/reset <KEY>` to reset device HWID\n• Send `/ipa` to download the ESign iOS IPA",user_kb)
-             continue
-            elif cmd == "/ipa":
-             send_tg(cid,f"📲 *Direct ESign IPA Download:*\n{ipa_url}",user_kb)
-             continue
-            elif cmd == "/key":
-             rows = db_exec("SELECT * FROM licenses WHERE key=?",(arg.upper(),),fetch=True)
-             if not rows: send_tg(cid,"❌ License Key not found.",user_kb)
-             else:
-              r = rows[0]
-              send_tg(cid,f"🔑 *LICENSE STATUS*\n• *Key:* `{r['key']}`\n• *Status:* `{r['status']}`\n• *Plan:* `{r['duration_days']} Days VIP`\n• *Expires:* `{r['expires_at']}`\n• *Device Limit:* `{r['max_devices']}`",user_kb)
-             continue
-            elif cmd == "/reset":
-             k_up = arg.upper()
-             rows = db_exec("SELECT * FROM licenses WHERE key=?",(k_up,),fetch=True)
-             if not rows: send_tg(cid,"❌ License Key not found.",user_kb)
-             else:
-              db_exec("UPDATE licenses SET session_id='',device_info='' WHERE key=?",(k_up,))
-              db_exec("DELETE FROM sessions WHERE license_key=?",(k_up,))
-              sync_cloud()
-              send_tg(cid,f"✅ Device HWID reset complete for key `{k_up}`!",user_kb)
-             continue
-            elif not role:
-             send_tg(cid,"👤 Send your `FOUGO-XXXX-XXXX-XXXX` key to check status, or tap a button below:",user_kb)
-             continue
-           if not role:
-            send_tg(cid,"⛔ *Access Denied*\nUnauthorized Telegram ID (`" + str(uid) + "`).")
-            log_event(uid,"security","unauthorized_bot_access",txt[:60])
-            continue
-           if cmd in ("/start","/help","/menu","/owner","/admin","/seller"):
-            target_r = "SELLER" if (cmd == "/seller" or b_mode == "SELLER") else ("ADMIN" if cmd == "/admin" and role == "ADMIN" else role)
-            send_tg(cid,stats_txt(uid,target_r),menu_kb(target_r))
-           elif cmd == "/addseller":
-            if role not in ("OWNER","ADMIN"):
-             send_tg(cid,"⛔ Only OWNER or ADMIN can add Sellers.")
-             continue
-            sp = arg.split()
-            if len(sp) >= 1:
-             sid = sp[0].strip()
-             cr = int(sp[1]) if len(sp) >= 2 and sp[1].isdigit() else 50
-             db_exec("INSERT OR REPLACE INTO sellers (telegram_id,username,credits,keys_sold,status,added_at) VALUES (?,?,?,0,'Active',?)",(sid,f"Seller_{sid[-4:]}",cr,now_iso()))
-             log_event(uid,"sellers","add_seller",f"{sid} credits={cr}")
-             send_tg(cid,f"💼 Added Seller `{sid}` with `{cr} Credits`.",menu_kb(role))
-           elif cmd == "/addcredits":
-            if role not in ("OWNER","ADMIN"):
-             send_tg(cid,"⛔ Only OWNER or ADMIN can top up Seller credits.")
-             continue
-            sp = arg.split()
-            if len(sp) >= 2 and sp[1].lstrip("-").isdigit():
-             sid,add_cr = sp[0].strip(),int(sp[1])
-             db_exec("UPDATE sellers SET credits = MAX(0, credits + ?) WHERE telegram_id=?",(add_cr,sid))
-             new_c = get_seller_credits(sid)
-             log_event(uid,"sellers","add_credits",f"{sid} delta={add_cr}")
-             send_tg(cid,f"💳 Updated Seller `{sid}` balance (`{add_cr:+d} Cr`). New Balance: `{new_c} Credits`.",menu_kb(role))
-           elif cmd == "/delseller":
-            if role not in ("OWNER","ADMIN"):
-             send_tg(cid,"⛔ Only OWNER or ADMIN can remove Sellers.")
-             continue
-            sid = arg.strip()
-            db_exec("DELETE FROM sellers WHERE telegram_id=?",(sid,))
-            send_tg(cid,f"🗑 Removed Seller `{sid}`.",menu_kb(role))
-           elif cmd == "/genkey":
-            sp = arg.split()
-            days = int(sp[0]) if len(sp) >= 1 and sp[0].isdigit() else 30
-            qty = int(sp[1]) if len(sp) >= 2 and sp[1].isdigit() else 1
-            qty = min(max(qty,1),100)
-            max_d = int(sp[2]) if len(sp) >= 3 and sp[2].isdigit() else 1
-            note = " ".join(sp[3:]) if len(sp) >= 4 else f"TG-{role}"
-            keys,exp = mk_keys(uid,days,qty,max_d,note)
-            joined = "\n".join(f"`{k}`" for k in keys[:40])
-            send_tg(cid,f"🔑 *Generated {len(keys)} Key(s)* (`{days}d`,MaxDev `{max_d}`):\n\n{joined}",menu_kb())
-           elif cmd == "/search":
-            rows = db_exec("SELECT * FROM licenses WHERE key LIKE ? OR note LIKE ? LIMIT 20",(f"%{arg}%",f"%{arg}%"),fetch=True)
-            lines = [f"• `{r['key']}` — *{r['status']}* | Exp: `{r['expires_at']}` | Dev: `{r['device_info'] or 'None'}`" for r in rows] or ["No matching keys."]
-            send_tg(cid,"🔍 *SEARCH RESULTS:*\n" + "\n".join(lines))
-           elif cmd == "/key":
-            rows = db_exec("SELECT * FROM licenses WHERE key=?",(arg.upper(),),fetch=True)
-            if not rows: send_tg(cid,"❌ Key not found.")
-            else:
-             r = rows[0]
-             send_tg(
-              cid,f"🔑 *LICENSE DETAILS*\n"
-              f"• *Key:* `{r['key']}`\n"
-              f"• *Status:* `{r['status']}`\n"
-              f"• *Duration:* `{r['duration_days']} days`\n"
-              f"• *Max Devices:* `{r['max_devices']}`\n"
-              f"• *Created:* `{r['created_at']}`\n"
-              f"• *Activated:* `{r['activated_at'] or 'Not yet'}`\n"
-              f"• *Expires:* `{r['expires_at']}`\n"
-              f"• *Session/Device:* `{r['session_id']}` / `{r['device_info'] or 'None'}`\n"
-              f"• *Note:* `{r['note']}`"
-             )
-           elif cmd in ("/activate","/suspend","/unsuspend","/revoke","/disable","/enable"):
-            st_map = {
-             "/activate":"Active","/enable":"Active","/unsuspend":"Active","/suspend":"Suspended","/disable":"Disabled","/revoke":"Revoked",}
-            new_st = st_map[cmd]
-            k_up = arg.upper()
-            db_exec("UPDATE licenses SET status=? WHERE key=?",(new_st,k_up))
-            log_event(uid,"keys",f"status_{new_st.lower()}",k_up)
-            send_tg(cid,f"✅ Key `{k_up}` status updated to *{new_st}*.")
-           elif cmd == "/delkey":
-            k_up = arg.upper()
+
+        def handle_bot_update(b_mode, b_tok, u):
+         _bot_ctx.token = b_tok
+         _bot_ctx.mode = b_mode
+
+         # Handle Callback Queries (100% Button actions)
+         if "callback_query" in u:
+          cb = u["callback_query"]
+          cb_id = cb["id"]
+          uid = cb.get("from",{}).get("id")
+          username = cb.get("from",{}).get("username") or ""
+          cid = cb.get("message",{}).get("chat",{}).get("id")
+          data = cb.get("data","")
+          answer_cb(cb_id, tok_override=b_tok)
+
+          if data in ("user_ipa","user_status","user_check_help","user_reset_help"):
+           if data == "user_ipa":
+            send_tg(cid,f"📲 *FOUGO EXTERNAL — DIRECT ESIGN iOS IPA*\n\nDownload Link:\n{ipa_url}",user_kb,tok_override=b_tok)
+           elif data == "user_status":
+            maint = get_setting("maintenance_mode","OFF")
+            send_tg(cid,f"🟢 *FOUGO EXTERNAL CLOUD STATUS*\n• *Server:* `ONLINE (0ms Sync)`\n• *Maintenance Mode:* `{maint}`",user_kb,tok_override=b_tok)
+           elif data == "user_check_help":
+            USER_STATE[uid] = {"action":"awaiting_user_key"}
+            send_tg(cid,"🔑 *CHECK LICENSE KEY*\n\n👉 Send your `FOUGO-XXXX-XXXX-XXXX` key in chat directly:",[ [{"text":"❌ Cancel","callback_data":"user_status"}] ],tok_override=b_tok)
+           elif data == "user_reset_help":
+            USER_STATE[uid] = {"action":"awaiting_user_reset"}
+            send_tg(cid,"🔄 *RESET DEVICE HWID*\n\n👉 Send your `FOUGO-XXXX-XXXX-XXXX` key in chat to reset your iOS device:",[ [{"text":"❌ Cancel","callback_data":"user_status"}] ],tok_override=b_tok)
+           return
+
+          role,perms = get_user_role(uid, username)
+          if not role:
+           send_tg(cid,"⛔ *Access Denied*\nYou are not an authorized Fougo External Admin or Seller.",tok_override=b_tok)
+           return
+
+          # Main Menu & Stats
+          if data in ("menu_main","menu_stats"):
+           send_tg(cid,stats_txt(uid,role),menu_kb(role),tok_override=b_tok)
+          elif data == "seller_wallet":
+           send_tg(cid,stats_txt(uid,"SELLER"),menu_kb("SELLER"),tok_override=b_tok)
+          elif data == "seller_pricing":
+           send_tg(cid,"💳 *SELLER KEY PRICING TABLE*\n\n• `1 Day Key` — `1 Credit`\n• `7 Days Key` — `3 Credits`\n• `30 Days Key` — `7 Credits`\n• `Lifetime Key` — `20 Credits`\n\nContact Owner to recharge credits.",menu_kb("SELLER"),tok_override=b_tok)
+          elif data == "seller_gen":
+           cr = get_seller_credits(uid)
+           kb = [
+            [{"text":"🔑 1 Day (1 Credit)","callback_data":"sgen_1"},{"text":"🔑 7 Days (3 Credits)","callback_data":"sgen_7"}],
+            [{"text":"🔑 30 Days (7 Credits)","callback_data":"sgen_30"},{"text":"🔑 Lifetime (20 Credits)","callback_data":"sgen_3650"}],
+            [{"text":"💼 My Balance","callback_data":"seller_wallet"},{"text":"⬅️ Back","callback_data":"seller_wallet"}],
+           ]
+           send_tg(cid,f"🔑 *SELLER VIP KEY GENERATOR*\n💳 *Your Balance:* `{cr} Credits`\n\nTap a package button to generate instantly:",kb,tok_override=b_tok)
+          elif data.startswith("sgen_"):
+           d_val = int(data.replace("sgen_",""))
+           cost = SELLER_COSTS.get(d_val,7)
+           cr = get_seller_credits(uid)
+           if cr < cost and role != "OWNER":
+            send_tg(cid,f"⛔ *Insufficient Credits!*\nRequired: `{cost} Credits` | Available: `{cr} Credits`\nContact Owner to recharge credits.",menu_kb("SELLER"),tok_override=b_tok)
+           else:
+            if role != "OWNER":
+             db_exec("UPDATE sellers SET credits = MAX(0, credits - ?), keys_sold = keys_sold + 1 WHERE telegram_id=? OR (username != '' AND LOWER(username)=?)",(cost,str(uid),str(username).lower()))
+            keys,exp = mk_keys(uid,d_val,1,1,f"Seller-{uid}")
+            new_cr = get_seller_credits(uid) if role != "OWNER" else "Unlimited (Owner)"
+            send_tg(cid,f"✅ *VIP License Key Generated!*\n\n🔑 *Key:* `{keys[0]}`\n⏳ *Duration:* `{d_val} Days` (`{exp}`)\n💳 *Remaining Credits:* `{new_cr}`\n\nCustomer can activate this key in Fougo iOS IPA.",menu_kb("SELLER"),tok_override=b_tok)
+          elif data == "seller_keys":
+           srows = db_exec("SELECT * FROM licenses WHERE note LIKE ? ORDER BY id DESC LIMIT 15",(f"%Seller-{uid}%",),fetch=True)
+           lines = [f"• `{r['key']}` — *{r['status']}* ({r['duration_days']}d)" for r in srows] or ["No keys generated by your account yet."]
+           kb = [
+            [{"text":"🔄 Reset Customer HWID","callback_data":"btn_seller_reset_prompt"},{"text":"🔑 Generate VIP Key","callback_data":"seller_gen"}],
+            [{"text":"💼 Back to Balance","callback_data":"seller_wallet"}],
+           ]
+           send_tg(cid,"🗂 *MY GENERATED VIP KEYS*\n\n" + "\n".join(lines),kb,tok_override=b_tok)
+          elif data == "btn_seller_reset_prompt":
+           USER_STATE[uid] = {"action":"awaiting_seller_reset"}
+           send_tg(cid,"🔄 *RESET CUSTOMER HWID*\n\n👉 Send the customer's `FOUGO-XXXX-XXXX-XXXX` key in chat:",[ [{"text":"❌ Cancel","callback_data":"seller_keys"}] ],tok_override=b_tok)
+
+          # Sellers Panel (Buttons for add, credit topup, and delete)
+          elif data == "menu_sellers":
+           if "manage_sellers" not in perms and role != "OWNER":
+            send_tg(cid,"⛔ Permission `manage_sellers` required.",tok_override=b_tok)
+            return
+           srows = db_exec("SELECT * FROM sellers ORDER BY added_at DESC",fetch=True)
+           lines = [f"• ID: `{s['telegram_id']}` (@{s['username'] or 'no_user'}) | Balance: `{s['credits']} Cr` | Sold: `{s['keys_sold']}` | *{s['status']}*" for s in srows] or ["No registered sellers yet."]
+           kb = [
+            [{"text":"➕ Add Seller (1-Tap)","callback_data":"btn_add_seller"},{"text":"🔄 Refresh Sellers","callback_data":"menu_sellers"}],
+           ]
+           for s in srows[:6]:
+            sid = s["telegram_id"]
+            sname = f"@{s['username']}" if s.get("username") else sid
+            kb.append([
+             {"text":f"💰 +50 Cr ({sname})","callback_data":f"quick_cr_{sid}_50"},
+             {"text":f"💰 +100 Cr","callback_data":f"quick_cr_{sid}_100"},
+             {"text":f"🗑 Del","callback_data":f"del_seller_{sid}"}
+            ])
+           kb.append([{"text":"⬅️ Back to Menu","callback_data":"menu_main"}])
+           send_tg(cid,"💼 *SELLER & RESELLER MANAGEMENT*\n\n" + "\n".join(lines) + "\n\nTap buttons below to Add Sellers, Give Credits, or Remove with 1 tap:",kb,tok_override=b_tok)
+
+          elif data == "btn_add_seller":
+           USER_STATE[uid] = {"action":"awaiting_seller_input"}
+           kb_p = [ [{"text":"❌ Cancel","callback_data":"menu_sellers"}] ]
+           send_tg(cid,"💼 *ADD NEW SELLER (NO COMMANDS NEEDED)*\n\n👉 *Please type or paste the seller's Telegram User ID or @username:*\n\n_(Example: `987654321` or `@vip_seller` — do NOT type `/addseller`, just send the ID or username directly!)_",kb_p,tok_override=b_tok)
+
+          elif data.startswith("del_seller_"):
+           sid = data.replace("del_seller_","")
+           db_exec("DELETE FROM sellers WHERE telegram_id=? OR username=?",(sid,sid))
+           sync_cloud()
+           send_tg(cid,f"✅ *Seller `{sid}` removed successfully!*",menu_kb(role),tok_override=b_tok)
+
+          elif data.startswith("quick_cr_"):
+           sp_c = data.split("_", 3)
+           sid, amt_s = sp_c[2], sp_c[3]
+           amt = int(amt_s)
+           db_exec("UPDATE sellers SET credits = credits + ? WHERE telegram_id=? OR (username != '' AND LOWER(username)=?)",(amt,str(sid),str(sid).lower()))
+           sync_cloud()
+           r_cr = db_exec("SELECT credits FROM sellers WHERE telegram_id=? OR (username != '' AND LOWER(username)=?)",(str(sid),str(sid).lower()),fetch=True)
+           bal = r_cr[0]["credits"] if r_cr else amt
+           send_tg(cid,f"✅ *Added +{amt} Credits to Seller `{sid}`!*\nNew Total Balance: `{bal} Credits`",menu_kb(role),tok_override=b_tok)
+
+          # Admins Panel (Buttons for add, role change, and delete)
+          elif data == "menu_admins":
+           if role != "OWNER":
+            send_tg(cid,"⛔ Only OWNER can manage admin roles.",tok_override=b_tok)
+            return
+           adms = db_exec("SELECT * FROM admins ORDER BY added_at DESC",fetch=True)
+           lines = [f"• ID: `{a['telegram_id']}` (@{a['username'] or 'no_user'}) — Role: *{a['role']}*" for a in adms]
+           kb = [
+            [{"text":"➕ Add Admin (1-Tap)","callback_data":"btn_add_admin"},{"text":"🔄 Refresh Admins","callback_data":"menu_admins"}],
+           ]
+           for a in adms[:8]:
+            tid = a["telegram_id"]
+            uname = f"@{a['username']}" if a.get("username") else tid
+            if str(tid) != str(owner_id):
+             kb.append([{"text": f"🗑 Remove Admin {uname}", "callback_data": f"del_adm_{tid}"}])
+           kb.append([{"text":"⬅️ Back to Menu","callback_data":"menu_main"}])
+           send_tg(cid,"👮 *ADMIN PANEL & ROLES*\n\n" + "\n".join(lines) + "\n\nTap buttons below to Add or Remove Admins instantly:",kb,tok_override=b_tok)
+
+          elif data == "btn_add_admin":
+           USER_STATE[uid] = {"action":"awaiting_admin_input"}
+           kb_p = [
+            [{"text":"👑 Set Myself As Admin","callback_data":f"quick_add_admin_{uid}_{username}"}],
+            [{"text":"❌ Cancel","callback_data":"menu_admins"}],
+           ]
+           send_tg(cid,"👮 *ADD NEW ADMIN (NO COMMANDS NEEDED)*\n\n👉 *Please type or paste the Telegram User ID or @username:*\n\n_(Example: `1234567890` or `@example_admin` — do NOT type `/addadmin`, just send the ID or username directly!)_",kb_p,tok_override=b_tok)
+
+          elif data.startswith("quick_add_admin_"):
+           parts_adm = data.split("_", 4)
+           t_uid = parts_adm[3]
+           t_usr = parts_adm[4] if len(parts_adm) > 4 else ""
+           db_exec("INSERT OR REPLACE INTO admins (telegram_id,username,role,permissions,added_at) VALUES (?,?,'ADMIN','all',?)",(t_uid,t_usr,now_iso()))
+           sync_cloud()
+           USER_STATE.pop(uid,None)
+           send_tg(cid,f"✅ *Added `{t_uid}` as ADMIN!*\nPermissions: `all`",menu_kb(role),tok_override=b_tok)
+
+          elif data.startswith("del_adm_"):
+           target_tid = data.replace("del_adm_","")
+           db_exec("DELETE FROM admins WHERE telegram_id=? OR username=?",(target_tid,target_tid))
+           sync_cloud()
+           send_tg(cid,f"✅ *Admin `{target_tid}` removed successfully!*",menu_kb(role),tok_override=b_tok)
+
+          elif data.startswith("set_role_"):
+           sp_r = data.split("_", 3)
+           target_tid, new_r = sp_r[2], sp_r[3]
+           db_exec("UPDATE admins SET role=? WHERE telegram_id=? OR username=?",(new_r,target_tid,target_tid))
+           sync_cloud()
+           send_tg(cid,f"✅ *Admin `{target_tid}` role updated to {new_r}!*",menu_kb(role),tok_override=b_tok)
+
+          # Keys Generator Buttons
+          elif data == "menu_genkey":
+           kb = [
+            [{"text":"🔑 1 Key (1 Day)","callback_data":"gen_1_1"},{"text":"🔑 1 Key (7 Days)","callback_data":"gen_7_1"}],
+            [{"text":"🔑 1 Key (30 Days)","callback_data":"gen_30_1"},{"text":"🔑 5 Keys (30 Days)","callback_data":"gen_30_5"}],
+            [{"text":"🔑 10 Keys (30 Days)","callback_data":"gen_30_10"},{"text":"🔑 25 Keys (30 Days)","callback_data":"gen_30_25"}],
+            [{"text":"👑 1 Key (Lifetime)","callback_data":"gen_3650_1"},{"text":"👑 5 Keys (Lifetime)","callback_data":"gen_3650_5"}],
+            [{"text":"⬅️ Back to Menu","callback_data":"menu_main"}],
+           ]
+           send_tg(cid,"🔑 *VIP LICENSE GENERATOR*\n\nTap any package below to generate keys instantly without commands:",kb,tok_override=b_tok)
+
+          elif data.startswith("gen_"):
+           _,d_str,q_str = data.split("_")
+           keys,exp = mk_keys(uid,int(d_str),int(q_str),1,f"By-{role}")
+           preview = "\n".join(f"`{k}`" for k in keys[:30])
+           more = f"\n_...and {len(keys)-30} more keys_" if len(keys) > 30 else ""
+           send_tg(cid,f"✅ *Generated {len(keys)} License Key(s)*\n⏳ *Duration:* `{d_str} Days` (`{exp}`)\n📱 *Device Limit:* `1`\n\n{preview}{more}",menu_kb(role),tok_override=b_tok)
+
+          # Keys Management Buttons
+          elif data == "menu_keys":
+           rows = db_exec("SELECT * FROM licenses ORDER BY id DESC LIMIT 10",fetch=True)
+           if not rows:
+            send_tg(cid,"📋 No licenses found. Tap *Generate Keys* to create.",menu_kb(role),tok_override=b_tok)
+           else:
+            lines = [f"• `{r['key']}` — *{r['status']}* ({r['duration_days']}d | Dev:{r['max_devices']})" for r in rows]
+            kb = [
+             [{"text":"🔍 Search Key","callback_data":"btn_search_key"},{"text":"🗑 Delete A Key","callback_data":"btn_prompt_del_key"}],
+             [{"text":"🔄 Reset Last HWID","callback_data":"btn_reset_last"},{"text":"🗑 Delete Last Key","callback_data":"btn_del_last"}],
+             [{"text":"🚫 Suspend Last Key","callback_data":"btn_suspend_last"},{"text":"✅ Activate Last Key","callback_data":"btn_activate_last"}],
+             [{"text":"🔑 Generate New Keys","callback_data":"menu_genkey"},{"text":"⬅️ Back to Menu","callback_data":"menu_main"}],
+            ]
+            send_tg(cid,"🗂 *RECENT LICENSES (Last 10)*\n\n" + "\n".join(lines) + "\n\nTap buttons below for 1-click management:",kb,tok_override=b_tok)
+
+          elif data == "btn_prompt_del_key":
+           USER_STATE[uid] = {"action":"awaiting_del_key"}
+           send_tg(cid,"🗑 *DELETE LICENSE KEY (NO COMMANDS)*\n\n👉 Send the key you want to permanently delete directly in chat:",[ [{"text":"❌ Cancel","callback_data":"menu_keys"}] ],tok_override=b_tok)
+
+          elif data == "btn_del_last":
+           last_lic = db_exec("SELECT * FROM licenses ORDER BY id DESC LIMIT 1",fetch=True)
+           if not last_lic:
+            send_tg(cid,"ℹ️ No licenses found to delete.",menu_kb(role),tok_override=b_tok)
+           else:
+            k_up = last_lic[0]["key"]
             db_exec("DELETE FROM licenses WHERE key=?",(k_up,))
             db_exec("DELETE FROM sessions WHERE license_key=?",(k_up,))
-            log_event(uid,"keys","delete_key",k_up)
-            send_tg(cid,f"🗑 Deleted key `{k_up}` and its sessions.")
-           elif cmd == "/reset":
-            k_up = arg.upper()
+            sync_cloud()
+            send_tg(cid,f"🗑 *Successfully Deleted Last Key:* `{k_up}`",menu_kb(role),tok_override=b_tok)
+
+          elif data.startswith("kact_del_"):
+           k_up = data.replace("kact_del_","").strip().upper()
+           db_exec("DELETE FROM licenses WHERE key=?",(k_up,))
+           db_exec("DELETE FROM sessions WHERE license_key=?",(k_up,))
+           sync_cloud()
+           send_tg(cid,f"🗑 *Key `{k_up}` permanently deleted!*",menu_kb(role),tok_override=b_tok)
+
+          elif data.startswith("btn_reset_key_"):
+           k_up = data.replace("btn_reset_key_","").strip().upper()
+           db_exec("UPDATE licenses SET session_id='',device_info='' WHERE key=?",(k_up,))
+           db_exec("DELETE FROM sessions WHERE license_key=?",(k_up,))
+           sync_cloud()
+           send_tg(cid,f"✅ *HWID Reset Successful for Key:* `{k_up}`",menu_kb(role),tok_override=b_tok)
+
+          elif data == "btn_search_key":
+           USER_STATE[uid] = {"action":"awaiting_search_input"}
+           send_tg(cid,"🔍 *SEARCH KEYS (NO COMMANDS NEEDED)*\n\n👉 Send the key (or part of key/note) in chat directly:",[ [{"text":"❌ Cancel","callback_data":"menu_keys"}] ],tok_override=b_tok)
+
+          elif data == "btn_reset_last":
+           last_act = db_exec("SELECT * FROM licenses WHERE session_id != '' ORDER BY id DESC LIMIT 1",fetch=True)
+           if not last_act:
+            send_tg(cid,"ℹ️ No active device sessions found to reset.",menu_kb(role),tok_override=b_tok)
+           else:
+            k_up = last_act[0]["key"]
             db_exec("UPDATE licenses SET session_id='',device_info='' WHERE key=?",(k_up,))
             db_exec("DELETE FROM sessions WHERE license_key=?",(k_up,))
-            log_event(uid,"keys","device_reset",k_up)
-            send_tg(cid,f"🔄 Device & Session reset for key `{k_up}`.")
-           elif cmd == "/extend":
-            sp = arg.split()
-            if len(sp) >= 2 and sp[1].isdigit():
-             k_up,add_d = sp[0].upper(),int(sp[1])
-             new_exp = (datetime.datetime.utcnow() + datetime.timedelta(days=add_d)).strftime("%Y-%m-%d %H:%M:%S UTC")
-             db_exec("UPDATE licenses SET expires_at=?,status='Active' WHERE key=?",(new_exp,k_up))
-             log_event(uid,"keys","extend_expiry",f"{k_up} +{add_d}d")
-             send_tg(cid,f"⏳ Extended `{k_up}` expiry to `{new_exp}`.")
-           elif cmd == "/limit":
-            sp = arg.split()
-            if len(sp) >= 2 and sp[1].isdigit():
-             k_up,lim = sp[0].upper(),int(sp[1])
-             db_exec("UPDATE licenses SET max_devices=? WHERE key=?",(lim,k_up))
-             log_event(uid,"keys","change_limit",f"{k_up} max={lim}")
-             send_tg(cid,f"📱 Updated `{k_up}` device limit to `{lim}`.")
-           elif cmd == "/addchannel":
-            sp = [x.strip() for x in arg.split("|")]
-            if len(sp) >= 2:
-             btn_t = sp[2] if len(sp) >= 3 else "JOIN CHANNEL"
-             db_exec("INSERT INTO channels (title,url,button_text,enabled,display_order) VALUES (?,?,?,1,1)",(sp[0],sp[1],btn_t))
-             log_event(uid,"channels","add_channel",sp[0])
-             send_tg(cid,f"📢 Added channel *{sp[0]}* (`{sp[1]}`).")
-           elif cmd == "/delchannel":
-            db_exec("DELETE FROM channels WHERE id=?",(arg,))
-            log_event(uid,"channels","del_channel",arg)
-            send_tg(cid,f"🗑 Deleted channel ID `{arg}`.")
-           elif cmd == "/addfeature":
-            sp = [x.strip() for x in arg.split("|")]
-            if len(sp) >= 3:
-             btn_t = sp[3] if len(sp) >= 4 else "ACTIVATE"
-             db_exec("INSERT OR REPLACE INTO features (code,title,description,button_text,visible,locked,enabled,display_order) VALUES (?,?,?,?,1,0,1,1)",(sp[0].upper(),sp[1],sp[2],btn_t))
-             log_event(uid,"features","add_feature",sp[0].upper())
-             send_tg(cid,f"🎛 Added/Updated feature *{sp[1]}* (`{sp[0].upper()}`).")
-           elif cmd == "/delfeature":
-            db_exec("DELETE FROM features WHERE code=?",(arg.upper(),))
-            log_event(uid,"features","del_feature",arg.upper())
-            send_tg(cid,f"🗑 Deleted feature `{arg.upper()}`.")
-           elif cmd == "/addprofile":
-            sp = [x.strip() for x in arg.split("|")]
-            if len(sp) >= 4:
-             btn_t = sp[4] if len(sp) >= 5 else "INSTALL PROFILE"
-             db_exec("INSERT OR REPLACE INTO profiles (name,display_name,description,version,install_url,download_url,button_text,status,is_default,display_order,updated_at) VALUES (?,?,?,?,?,?,?,'Active',0,1,?)",(sp[0],sp[1],sp[1],sp[2],sp[3],sp[3],btn_t,now_iso()))
-             log_event(uid,"profiles","add_profile",sp[0])
-             send_tg(cid,f"📲 Added Configuration Profile *{sp[1]}* (`v{sp[2]}`).")
-           elif cmd == "/setmaint":
-            sp = [x.strip() for x in arg.split("|")]
-            if len(sp) >= 2:
-             set_setting("maintenance_title",sp[0])
-             set_setting("maintenance_description",sp[1])
-             if len(sp) >= 3: set_setting("maintenance_return_time",sp[2])
-             log_event(uid,"maintenance","update_content",sp[0])
-             send_tg(cid,"✅ Maintenance page content updated.")
-           elif cmd == "/announce":
-            sp = [x.strip() for x in arg.split("|")]
-            if len(sp) >= 3:
-             db_exec("INSERT INTO announcements (atype,title,message,enabled,start_time,end_time) VALUES (?,?,?,1,?,?)",(sp[0],sp[1],sp[2],now_iso(),""))
-             log_event(uid,"announcements","create",sp[1])
-             send_tg(cid,f"📣 Published *{sp[0]}* announcement: *{sp[1]}*")
-           elif cmd == "/notify":
-            sp = [x.strip() for x in arg.split("|")]
-            if len(sp) >= 3:
-             db_exec("INSERT INTO notifications (target_type,target_val,title,message,ntype,created_at,read_state) VALUES (?,?,?,?,'info',?,0)",(sp[0],sp[0],sp[1],sp[2],now_iso()))
-             log_event(uid,"notifications","send",f"Target={sp[0]} Title={sp[1]}")
-             send_tg(cid,f"🔔 Notification dispatched to `{sp[0]}`: *{sp[1]}*")
-           elif cmd == "/logs":
-            q = f"%{arg}%" if arg else "%"
-            rows = db_exec("SELECT * FROM activity_logs WHERE category LIKE ? OR action LIKE ? ORDER BY id DESC LIMIT 20",(q,q),fetch=True)
-            lines = [f"• `{r['created_at'][5:16]}` [{r['category']}] *{r['action']}*: `{r['details']}`" for r in rows] or ["No matching logs."]
-            send_tg(cid,"📜 *ACTIVITY LOGS*\n" + "\n".join(lines))
-           elif cmd == "/addadmin":
-            if role != "OWNER":
-             send_tg(cid,"⛔ Only OWNER can manage admins.")
-             continue
-            sp = arg.split()
-            if len(sp) >= 2:
-             tid,rl = sp[0],sp[1].upper()
-             db_exec("INSERT OR REPLACE INTO admins (telegram_id,role,permissions,added_at) VALUES (?,?,?,?)",(tid,rl,"all" if rl == "OWNER" else "default",now_iso()))
-             log_event(uid,"admins","add_admin",f"{tid} as {rl}")
-             send_tg(cid,f"👮 Added Telegram ID `{tid}` with role *{rl}*.")
-           elif cmd == "/deladmin":
-            if role != "OWNER":
-             send_tg(cid,"⛔ Only OWNER can remove admins.")
-             continue
-            db_exec("DELETE FROM admins WHERE telegram_id=?",(arg.strip(),))
-            send_tg(cid,f"🗑 Removed admin `{arg.strip()}`.")
-           elif cmd == "/setowner":
-            if role != "OWNER":
-             send_tg(cid,"⛔ Only OWNER can change Owner Panel credentials.")
-             continue
-            sp = arg.split()
-            if len(sp) >= 2:
-             set_setting("owner_username",sp[0])
-             set_setting("owner_password_hash",hash_pw(sp[1]))
-             log_event(uid,"owner","change_credentials",sp[0])
-             send_tg(cid,f"🔐 Updated `/owner` login username to `{sp[0]}` and hashed new password.")
-           elif cmd == "/setbrand":
-            sp = [x.strip() for x in arg.split("|")]
-            if len(sp) >= 2:
-             set_setting("website_name",sp[0])
-             set_setting("login_title",sp[1])
-             if len(sp) >= 3: set_setting("subtitle",sp[2])
-             log_event(uid,"branding","update",sp[0])
-             send_tg(cid,"✅ Updated Branding Settings.")
-           elif cmd == "/ipa":
-            send_tg(cid,f"📲 *Direct ESign IPA Download:*\n{ipa_url}")
-           elif cmd == "/status":
-            send_tg(cid,stats_txt(),menu_kb())
-         except Exception:
-          time.sleep(3)
+            sync_cloud()
+            send_tg(cid,f"✅ *Device HWID Reset for Key:* `{k_up}`",menu_kb(role),tok_override=b_tok)
+
+          elif data == "btn_suspend_last":
+           last_lic = db_exec("SELECT * FROM licenses WHERE status='Active' ORDER BY id DESC LIMIT 1",fetch=True)
+           if not last_lic:
+            send_tg(cid,"ℹ️ No active license found to suspend.",menu_kb(role),tok_override=b_tok)
+           else:
+            k_up = last_lic[0]["key"]
+            db_exec("UPDATE licenses SET status='Suspended' WHERE key=?",(k_up,))
+            sync_cloud()
+            send_tg(cid,f"🚫 *Suspended License:* `{k_up}`",menu_kb(role),tok_override=b_tok)
+
+          elif data == "btn_activate_last":
+           last_lic = db_exec("SELECT * FROM licenses WHERE status != 'Active' ORDER BY id DESC LIMIT 1",fetch=True)
+           if not last_lic:
+            send_tg(cid,"ℹ️ No inactive license found to activate.",menu_kb(role),tok_override=b_tok)
+           else:
+            k_up = last_lic[0]["key"]
+            db_exec("UPDATE licenses SET status='Active' WHERE key=?",(k_up,))
+            sync_cloud()
+            send_tg(cid,f"✅ *Activated License:* `{k_up}`",menu_kb(role),tok_override=b_tok)
+
+          elif data == "menu_sessions":
+           rows = db_exec("SELECT * FROM sessions ORDER BY id DESC LIMIT 15",fetch=True)
+           if not rows: send_tg(cid,"👥 *ACTIVE USER SESSIONS*\nNo active device sessions yet.",menu_kb(role),tok_override=b_tok)
+           else:
+            lines = [f"• `{r['session_id']}` | Key: `{r['license_key']}` | *{r['status']}* | `{r['device_info'][:25]}`" for r in rows]
+            send_tg(cid,"👥 *AUTHENTICATED SESSIONS*\n\n" + "\n".join(lines),menu_kb(role),tok_override=b_tok)
+
+          elif data == "menu_features":
+           feats = db_exec("SELECT * FROM features ORDER BY display_order ASC",fetch=True)
+           kb, lines = [], []
+           for f in feats:
+            st = "🟢 ON" if f["enabled"] else "🔴 OFF"
+            vis = "👁 Show" if f["visible"] else "🙈 Hide"
+            lck = "🔒 Locked" if f["locked"] else "🔓 Unlocked"
+            lines.append(f"• *{f['title']}* (`{f['code']}`) — {st} | {vis} | {lck}")
+            kb.append([
+             {"text": f"{f['code']}: {st}","callback_data": f"ftog_en_{f['code']}"},
+             {"text": f"{vis}","callback_data": f"ftog_vis_{f['code']}"},
+             {"text": f"{lck}","callback_data": f"ftog_lck_{f['code']}"},
+            ])
+           kb.append([{"text":"⬅️ Back","callback_data":"menu_main"}])
+           send_tg(cid,"🎛 *USER PANEL FEATURE CONTROL*\nTap any button to toggle live:\n\n" + "\n".join(lines),kb,tok_override=b_tok)
+
+          elif data.startswith("ftog_"):
+           _,mode,fcode = data.split("_",2)
+           col = {"en":"enabled","vis":"visible","lck":"locked"}[mode]
+           db_exec(f"UPDATE features SET {col} = CASE WHEN {col}=1 THEN 0 ELSE 1 END WHERE code=?",(fcode,))
+           log_event(uid,"features",f"toggle_{col}",f"Feature={fcode}")
+           send_tg(cid,f"✅ Updated `{fcode}` ({col}).",menu_kb(role),tok_override=b_tok)
+
+          elif data == "toggle_maint":
+           cur_m = get_setting("maintenance_mode","OFF")
+           new_m = "OFF" if cur_m == "ON" else "ON"
+           set_setting("maintenance_mode",new_m)
+           log_event(uid,"maintenance",f"set_{new_m}","")
+           send_tg(cid,f"🛠 *MAINTENANCE MODE IS NOW: {new_m}*",menu_kb(role),tok_override=b_tok)
+
+          elif data == "menu_announce":
+           anns = db_exec("SELECT * FROM announcements ORDER BY id DESC LIMIT 5",fetch=True)
+           lines = [f"• [{a['atype']}] *{a['title']}*: {a['message']}" for a in anns] or ["No announcements yet."]
+           send_tg(cid,"📣 *ANNOUNCEMENT SYSTEM*\n\n" + "\n".join(lines),menu_kb(role),tok_override=b_tok)
+
+          elif data == "menu_notify":
+           send_tg(cid,"🔔 *NOTIFICATION SYSTEM*\n\nSend notifications with buttons or command:\n• `/notify all|<Title>|<Message>`",menu_kb(role),tok_override=b_tok)
+
+          elif data == "menu_logs":
+           logs = db_exec("SELECT * FROM activity_logs ORDER BY id DESC LIMIT 15",fetch=True)
+           lines = [f"• `{l['created_at'][5:16]}` [{l['category']}] *{l['action']}* ({l['actor']}) {l['details']}" for l in logs] or ["No logs recorded yet."]
+           send_tg(cid,"📜 *RECENT ACTIVITY LOGS*\n\n" + "\n".join(lines),menu_kb(role),tok_override=b_tok)
+
+          elif data == "menu_settings":
+           send_tg(cid,f"""⚙️ *OWNER PANEL & BRANDING SETTINGS*
+
+        • Website Name: `{get_setting('website_name')}`
+        • Login Title: `{get_setting('login_title')}`
+        • Owner Username: `{get_setting('owner_username')}`
+
+        • `/ipa` — Direct ESign IPA Link""",menu_kb(role),tok_override=b_tok)
+          return
+
+         # Handle Text Messages
+         msg = u.get("message") or u.get("edited_message") or {}
+         cid = msg.get("chat",{}).get("id")
+         uid = msg.get("from",{}).get("id")
+         username = msg.get("from",{}).get("username") or ""
+         txt = (msg.get("text") or "").strip()
+         if not cid or not txt: return
+
+         role,perms = get_user_role(uid, username)
+         parts = txt.split(maxsplit=1)
+         cmd = parts[0].lower().split("@")[0]
+         arg = parts[1].strip() if len(parts) > 1 else ""
+
+         # Interactive Conversation State Handler (NO COMMANDS NEEDED)
+         st_info = USER_STATE.get(uid)
+         if st_info:
+          s_action = st_info.get("action")
+          if txt.lower() in ("/cancel","cancel","❌ cancel"):
+           USER_STATE.pop(uid,None)
+           send_tg(cid,"❌ Action cancelled.",menu_kb(role) if role else user_kb,tok_override=b_tok)
+           return
+          if s_action == "awaiting_admin_input":
+           USER_STATE.pop(uid,None)
+           raw_v = txt.strip()
+           clean_v = raw_v.lstrip("@")
+           if raw_v.isdigit():
+            db_exec("INSERT OR REPLACE INTO admins (telegram_id,username,role,permissions,added_at) VALUES (?,?,'ADMIN','all',?)",(raw_v,"",now_iso()))
+           else:
+            db_exec("INSERT OR REPLACE INTO admins (telegram_id,username,role,permissions,added_at) VALUES (?,?,?,'ADMIN','all',?)",(clean_v,clean_v,now_iso()))
+           sync_cloud()
+           kb_roles = [
+            [{"text":"👑 Make OWNER","callback_data":f"set_role_{clean_v}_OWNER"},{"text":"👮 Make ADMIN","callback_data":f"set_role_{clean_v}_ADMIN"}],
+            [{"text":"🛡️ Make SUPPORT","callback_data":f"set_role_{clean_v}_SUPPORT"}],
+            [{"text":"👮 View Admins","callback_data":"menu_admins"},{"text":"⬅️ Main Menu","callback_data":"menu_main"}]
+           ]
+           send_tg(cid,f"✅ *Admin `{raw_v}` Added Successfully!*\nRole: *ADMIN* (Permissions: `all`)\n\nTap below to change role with 1 tap:",kb_roles,tok_override=b_tok)
+           return
+          elif s_action == "awaiting_seller_input":
+           USER_STATE.pop(uid,None)
+           raw_v = txt.strip()
+           clean_v = raw_v.lstrip("@")
+           if raw_v.isdigit():
+            db_exec("INSERT OR REPLACE INTO sellers (telegram_id,username,credits,keys_sold,status,added_at) VALUES (?,?,100,0,'Active',?)",(raw_v,"",now_iso()))
+           else:
+            db_exec("INSERT OR REPLACE INTO sellers (telegram_id,username,credits,keys_sold,status,added_at) VALUES (?,?,100,0,'Active',?)",(clean_v,clean_v,now_iso()))
+           sync_cloud()
+           kb_seller_cr = [
+            [{"text":"➕ Give 50 Cr","callback_data":f"quick_cr_{clean_v}_50"},{"text":"➕ Give 100 Cr","callback_data":f"quick_cr_{clean_v}_100"}],
+            [{"text":"➕ Give 500 Cr","callback_data":f"quick_cr_{clean_v}_500"},{"text":"➕ Give 1000 Cr","callback_data":f"quick_cr_{clean_v}_1000"}],
+            [{"text":"💼 View All Sellers","callback_data":"menu_sellers"},{"text":"⬅️ Main Menu","callback_data":"menu_main"}]
+           ]
+           send_tg(cid,f"✅ *Seller `{raw_v}` Added Successfully!*\nStarting Balance: `100 Credits`\n\nTap below to give credits instantly with 1 tap:",kb_seller_cr,tok_override=b_tok)
+           return
+          elif s_action == "awaiting_del_key":
+           USER_STATE.pop(uid,None)
+           k_up = txt.strip().upper()
+           ex = db_exec("SELECT * FROM licenses WHERE key=?",(k_up,),fetch=True)
+           if not ex:
+            send_tg(cid,f"❌ License Key `{k_up}` does not exist.",menu_kb(role) if role else user_kb,tok_override=b_tok)
+           else:
+            db_exec("DELETE FROM licenses WHERE key=?",(k_up,))
+            db_exec("DELETE FROM sessions WHERE license_key=?",(k_up,))
+            sync_cloud()
+            send_tg(cid,f"🗑 *License Key `{k_up}` has been permanently deleted!*",menu_kb(role) if role else user_kb,tok_override=b_tok)
+           return
+          elif s_action == "awaiting_search_input":
+           USER_STATE.pop(uid,None)
+           q = f"%{txt.strip()}%"
+           rows = db_exec("SELECT * FROM licenses WHERE key LIKE ? OR note LIKE ? OR session_id LIKE ? ORDER BY id DESC LIMIT 10",(q,q,q),fetch=True)
+           if not rows:
+            send_tg(cid,f"🔍 No keys matched '{txt.strip()}'.",menu_kb(role) if role else user_kb,tok_override=b_tok)
+           else:
+            for r in rows[:5]:
+             kb_k = [
+              [{"text": f"🔄 Reset HWID", "callback_data": f"btn_reset_key_{r['key']}"}, {"text": f"🗑 Delete Key", "callback_data": f"kact_del_{r['key']}"}],
+              [{"text": "⬅️ Back to Keys", "callback_data": "menu_keys"}]
+             ]
+             send_tg(cid,f"🔑 *Key:* `{r['key']}`\nStatus: *{r['status']}* | Plan: `{r['duration_days']}d`\nSession: `{r['session_id'] or 'None'}`\nHWID: `{r['device_info'] or 'None'}`",kb_k,tok_override=b_tok)
+           return
+          elif s_action in ("awaiting_user_key","awaiting_user_reset","awaiting_seller_reset"):
+           USER_STATE.pop(uid,None)
+           k_up = txt.strip().upper()
+           rows = db_exec("SELECT * FROM licenses WHERE key=?",(k_up,),fetch=True)
+           if not rows:
+            send_tg(cid,"❌ License Key not found.",user_kb,tok_override=b_tok)
+           elif s_action in ("awaiting_user_reset","awaiting_seller_reset"):
+            db_exec("UPDATE licenses SET session_id='',device_info='' WHERE key=?",(k_up,))
+            db_exec("DELETE FROM sessions WHERE license_key=?",(k_up,))
+            sync_cloud()
+            send_tg(cid,f"✅ Device HWID reset complete for key `{k_up}`!",user_kb if s_action=="awaiting_user_reset" else menu_kb("SELLER"),tok_override=b_tok)
+           else:
+            r = rows[0]
+            send_tg(cid,f"""🔑 *LICENSE STATUS*
+        • *Key:* `{r['key']}`
+        • *Status:* `{r['status']}`
+        • *Plan:* `{r['duration_days']} Days VIP`
+        • *Expires:* `{r['expires_at']}`
+        • *Device Limit:* `{r['max_devices']}`""",user_kb,tok_override=b_tok)
+           return
+
+         # Handle Bottom Persistent Keyboard Taps
+         if txt in ("👑 Dashboard", "👑 Owner Dashboard", "👑 Owner Stats", "📊 Admin Dashboard"):
+          target_r = "ADMIN" if role == "ADMIN" else "OWNER"
+          send_tg(cid,stats_txt(uid,target_r),menu_kb(target_r),reply_kb=MAIN_BOTTOM_KEYBOARD,tok_override=b_tok)
+          return
+         elif txt in ("🔑 Generate Keys", "🔑 Create Keys"):
+          kb = [
+           [{"text":"🔑 1 Key (1 Day)","callback_data":"gen_1_1"},{"text":"🔑 1 Key (7 Days)","callback_data":"gen_7_1"}],
+           [{"text":"🔑 1 Key (30 Days)","callback_data":"gen_30_1"},{"text":"🔑 5 Keys (30 Days)","callback_data":"gen_30_5"}],
+           [{"text":"🔑 10 Keys (30 Days)","callback_data":"gen_30_10"},{"text":"🔑 25 Keys (30 Days)","callback_data":"gen_30_25"}],
+           [{"text":"👑 1 Key (Lifetime)","callback_data":"gen_3650_1"},{"text":"👑 5 Keys (Lifetime)","callback_data":"gen_3650_5"}],
+           [{"text":"⬅️ Back to Menu","callback_data":"menu_main"}],
+          ]
+          send_tg(cid,"🔑 *VIP LICENSE GENERATOR*\nTap any package button to generate:",kb,tok_override=b_tok)
+          return
+         elif txt in ("💼 Sellers Panel", "💼 Sellers & Credits", "💼 Seller Panel / Credits"):
+          srows = db_exec("SELECT * FROM sellers ORDER BY added_at DESC",fetch=True)
+          lines = [f"• ID: `{s['telegram_id']}` (@{s['username'] or 'no_user'}) | Balance: `{s['credits']} Cr` | Sold: `{s['keys_sold']}`" for s in srows] or ["No registered sellers yet."]
+          kb = [
+           [{"text":"➕ Add New Seller (1-Tap)","callback_data":"btn_add_seller"},{"text":"🔄 Refresh Sellers","callback_data":"menu_sellers"}],
+          ]
+          for s in srows[:6]:
+           sid = s["telegram_id"]
+           sname = f"@{s['username']}" if s.get("username") else sid
+           kb.append([
+            {"text":f"💰 +50 Cr ({sname})","callback_data":f"quick_cr_{sid}_50"},
+            {"text":f"💰 +100 Cr","callback_data":f"quick_cr_{sid}_100"},
+            {"text":f"🗑 Del","callback_data":f"del_seller_{sid}"}
+           ])
+          kb.append([{"text":"⬅️ Back to Menu","callback_data":"menu_main"}])
+          send_tg(cid,"💼 *SELLER & RESELLER MANAGEMENT*\n\n" + "\n".join(lines),kb,tok_override=b_tok)
+          return
+         elif txt in ("👮 Admins Panel", "👮 Admin Panel / Roles"):
+          adms = db_exec("SELECT * FROM admins ORDER BY added_at DESC",fetch=True)
+          lines = [f"• ID: `{a['telegram_id']}` (@{a['username'] or 'no_user'}) — Role: *{a['role']}*" for a in adms]
+          kb = [
+           [{"text":"➕ Add Admin (1-Tap)","callback_data":"btn_add_admin"},{"text":"🔄 Refresh Admins","callback_data":"menu_admins"}],
+          ]
+          for a in adms[:8]:
+           tid = a["telegram_id"]
+           uname = f"@{a['username']}" if a.get("username") else tid
+           if str(tid) != str(owner_id):
+            kb.append([{"text": f"🗑 Remove Admin {uname}", "callback_data": f"del_adm_{tid}"}])
+          kb.append([{"text":"⬅️ Back to Menu","callback_data":"menu_main"}])
+          send_tg(cid,"👮 *ADMIN PANEL & ROLES*\n\n" + "\n".join(lines),kb,tok_override=b_tok)
+          return
+         elif txt in ("🗂 Manage Keys", "🗂 Recent Licenses"):
+          rows = db_exec("SELECT * FROM licenses ORDER BY id DESC LIMIT 10",fetch=True)
+          lines = [f"• `{r['key']}` — *{r['status']}* ({r['duration_days']}d)" for r in rows] if rows else ["No licenses yet."]
+          kb = [
+           [{"text":"🔍 Search Key","callback_data":"btn_search_key"},{"text":"🗑 Delete A Key","callback_data":"btn_prompt_del_key"}],
+           [{"text":"🔄 Reset Last HWID","callback_data":"btn_reset_last"},{"text":"🗑 Delete Last Key","callback_data":"btn_del_last"}],
+           [{"text":"🔑 Generate New Keys","callback_data":"menu_genkey"},{"text":"⬅️ Back to Menu","callback_data":"menu_main"}],
+          ]
+          send_tg(cid,"🗂 *RECENT LICENSES*\n\n" + "\n".join(lines),kb,tok_override=b_tok)
+          return
+         elif txt in ("🗑 Delete Key", "🗑 Delete A Key"):
+          USER_STATE[uid] = {"action":"awaiting_del_key"}
+          send_tg(cid,"🗑 *DELETE LICENSE KEY (NO COMMANDS)*\n\n👉 Send the license key you want to delete directly in chat:",[ [{"text":"❌ Cancel","callback_data":"menu_keys"}] ],tok_override=b_tok)
+          return
+         elif txt in ("🎛 Panel Features", "🎛 User Panel Features"):
+          feats = db_exec("SELECT * FROM features ORDER BY display_order ASC",fetch=True)
+          kb, lines = [], []
+          for f in feats:
+           st = "🟢 ON" if f["enabled"] else "🔴 OFF"
+           lines.append(f"• *{f['title']}* (`{f['code']}`) — {st}")
+           kb.append([{"text": f"{f['code']}: {st}","callback_data": f"ftog_en_{f['code']}"}])
+          kb.append([{"text":"⬅️ Back","callback_data":"menu_main"}])
+          send_tg(cid,"🎛 *USER PANEL FEATURE CONTROL*\nTap any button to toggle live:\n\n" + "\n".join(lines),kb,tok_override=b_tok)
+          return
+         elif txt in ("🛠 Maintenance Mode", "🛠 Maintenance"):
+          cur_m = get_setting("maintenance_mode","OFF")
+          new_m = "OFF" if cur_m == "ON" else "ON"
+          set_setting("maintenance_mode",new_m)
+          log_event(uid,"maintenance",f"set_{new_m}","")
+          send_tg(cid,f"🛠 *MAINTENANCE MODE IS NOW: {new_m}*",menu_kb(role),tok_override=b_tok)
+          return
+         elif txt in ("🔄 Refresh All", "🔄 Refresh Status"):
+          send_tg(cid,stats_txt(uid,role),menu_kb(role),reply_kb=MAIN_BOTTOM_KEYBOARD if role in ("OWNER","ADMIN") else SELLER_BOTTOM_KEYBOARD,tok_override=b_tok)
+          return
+         elif txt in ("💼 Seller Balance", "💼 My Seller Balance"):
+          send_tg(cid,stats_txt(uid,"SELLER"),menu_kb("SELLER"),reply_kb=SELLER_BOTTOM_KEYBOARD,tok_override=b_tok)
+          return
+         elif txt in ("🔑 Generate VIP Key",):
+          cr = get_seller_credits(uid)
+          kb = [
+           [{"text":"1 Day VIP (1 Credit)","callback_data":"sgen_1"},{"text":"7 Days VIP (3 Credits)","callback_data":"sgen_7"}],
+           [{"text":"30 Days VIP (7 Credits)","callback_data":"sgen_30"},{"text":"Lifetime VIP (20 Credits)","callback_data":"sgen_3650"}],
+           [{"text":"⬅️ Back","callback_data":"seller_wallet"}],
+          ]
+          send_tg(cid,f"🔑 *SELLER KEY GENERATOR*\n💳 *Your Balance:* `{cr} Credits`\nTap button to generate:",kb,tok_override=b_tok)
+          return
+         elif txt in ("🗂 My Sold Keys",):
+          srows = db_exec("SELECT * FROM licenses WHERE note LIKE ? ORDER BY id DESC LIMIT 15",(f"%Seller-{uid}%",),fetch=True)
+          lines = [f"• `{r['key']}` — *{r['status']}* ({r['duration_days']}d)" for r in srows] or ["No keys generated by your account yet."]
+          send_tg(cid,"🗂 *MY SELLER KEYS (Last 15)*\n\n" + "\n".join(lines),menu_kb("SELLER"),tok_override=b_tok)
+          return
+
+         # User Bot commands
+         if b_mode == "USER" and (not role or cmd in ("/start","/help","/ipa") or txt.upper().startswith("FOUGO-")):
+          if txt.upper().startswith("FOUGO-") and not cmd.startswith("/"):
+           cmd, arg = "/key", txt.strip().upper()
+          if cmd in ("/start","/help","/menu"):
+           send_tg(cid,f"👤 *FOUGO EXTERNAL — USER LICENSE PORTAL*\nWelcome! Your Telegram ID: `{uid}`\n\n• Send your `FOUGO-XXXX-XXXX-XXXX` key to check expiration & device status\n• Tap buttons below:",user_kb,tok_override=b_tok)
+           return
+          elif cmd == "/ipa":
+           send_tg(cid,f"📲 *Direct ESign IPA Download:*\n{ipa_url}",user_kb,tok_override=b_tok)
+           return
+          elif cmd == "/key":
+           rows = db_exec("SELECT * FROM licenses WHERE key=?",(arg.upper(),),fetch=True)
+           if not rows: send_tg(cid,"❌ License Key not found in system.",user_kb,tok_override=b_tok)
+           else:
+            r = rows[0]
+            send_tg(cid,f"""🔑 *LICENSE STATUS*
+        • *Key:* `{r['key']}`
+        • *Status:* `{r['status']}`
+        • *Plan:* `{r['duration_days']} Days VIP`
+        • *Expires:* `{r['expires_at']}`
+        • *Device Limit:* `{r['max_devices']}`""",user_kb,tok_override=b_tok)
+           return
+          elif cmd == "/reset":
+           k_up = arg.upper()
+           rows = db_exec("SELECT * FROM licenses WHERE key=?",(k_up,),fetch=True)
+           if not rows: send_tg(cid,"❌ License Key not found.",user_kb,tok_override=b_tok)
+           else:
+            db_exec("UPDATE licenses SET session_id='',device_info='' WHERE key=?",(k_up,))
+            db_exec("DELETE FROM sessions WHERE license_key=?",(k_up,))
+            sync_cloud()
+            send_tg(cid,f"✅ Device HWID reset complete for key `{k_up}`!",user_kb,tok_override=b_tok)
+           return
+          elif not role:
+           send_tg(cid,"👤 Send your `FOUGO-XXXX-XXXX-XXXX` key to check status, or tap a button below:",user_kb,tok_override=b_tok)
+           return
+
+         # Seller Bot checks
+         if b_mode == "SELLER" or cmd in ("/seller", "/wallet"):
+          if role in ("SELLER", "OWNER", "ADMIN"):
+           send_tg(cid,stats_txt(uid,"SELLER"),menu_kb("SELLER"),reply_kb=SELLER_BOTTOM_KEYBOARD,tok_override=b_tok)
+           return
+          else:
+           send_tg(cid,f"⛔ *Access Denied — Seller Authorization Required*\n\n👤 *Your Telegram ID:* `{uid}`\n🏷 *Your Username:* `@{username or 'None'}`\n\nPlease share your Telegram ID (`{uid}`) with Owner to get added with 1 tap.",tok_override=b_tok)
+           return
+
+         # Access control for Owner Bot
+         if not role:
+          send_tg(cid,f"⛔ *Access Denied*\n\n👤 *Your Telegram ID:* `{uid}`\n🏷 *Your Username:* `@{username or 'None'}`\n\nPlease ask Owner to add you with 1 tap.",tok_override=b_tok)
+          log_event(uid,"security","unauthorized_access",txt[:60])
+          return
+
+         # Fallback Slash Commands (for backwards compatibility)
+         if cmd in ("/start","/help","/menu","/owner","/admin"):
+          target_r = "ADMIN" if cmd == "/admin" and role == "ADMIN" else role
+          send_tg(cid,stats_txt(uid,target_r),menu_kb(target_r),reply_kb=MAIN_BOTTOM_KEYBOARD if target_r in ("OWNER","ADMIN") else SELLER_BOTTOM_KEYBOARD,tok_override=b_tok)
+         elif cmd == "/addseller":
+          if role not in ("OWNER","ADMIN"):
+           send_tg(cid,"⛔ Only OWNER or ADMIN can add Sellers.",menu_kb(role),tok_override=b_tok)
+           return
+          sp = arg.split()
+          if len(sp) >= 1:
+           target_raw = sp[0].strip()
+           init_cr = int(sp[1]) if len(sp) >= 2 and sp[1].isdigit() else 100
+           clean_id = target_raw.lstrip("@")
+           if target_raw.isdigit():
+            db_exec("INSERT OR REPLACE INTO sellers (telegram_id,username,credits,keys_sold,status,added_at) VALUES (?,?,?,0,'Active',?)",(target_raw,"",init_cr,now_iso()))
+           else:
+            db_exec("INSERT OR REPLACE INTO sellers (telegram_id,username,credits,keys_sold,status,added_at) VALUES (?,?,?,0,'Active',?)",(clean_id,clean_id,init_cr,now_iso()))
+           sync_cloud()
+           send_tg(cid,f"✅ *Seller Added Successfully!*\n• ID/Username: `{target_raw}`\n• Starting Balance: `{init_cr} Credits`",menu_kb(role),tok_override=b_tok)
+          else:
+           USER_STATE[uid] = {"action":"awaiting_seller_input"}
+           send_tg(cid,"💼 *Send the seller's Telegram User ID or @username:*\n_(No `/` command needed)_",[ [{"text":"❌ Cancel","callback_data":"menu_sellers"}] ],tok_override=b_tok)
+         elif cmd == "/addcredits":
+          sp = arg.split()
+          if len(sp) >= 2 and sp[1].isdigit():
+           target_raw, amt = sp[0].strip(), int(sp[1])
+           clean_id = target_raw.lstrip("@")
+           db_exec("UPDATE sellers SET credits = credits + ? WHERE telegram_id=? OR (username != '' AND LOWER(username)=?)",(amt,clean_id,clean_id.lower()))
+           sync_cloud()
+           r_cr = db_exec("SELECT credits FROM sellers WHERE telegram_id=? OR (username != '' AND LOWER(username)=?)",(clean_id,clean_id.lower()),fetch=True)
+           bal = r_cr[0]["credits"] if r_cr else amt
+           send_tg(cid,f"✅ *Recharged {amt} Credits for Seller `{target_raw}`!*\nNew Total Balance: `{bal} Credits`",menu_kb(role),tok_override=b_tok)
+         elif cmd == "/delseller":
+          if arg:
+           clean_id = arg.strip().lstrip("@")
+           db_exec("DELETE FROM sellers WHERE telegram_id=? OR username=?",(clean_id,clean_id))
+           sync_cloud()
+           send_tg(cid,f"🗑 Seller `{arg}` has been removed.",menu_kb(role),tok_override=b_tok)
+         elif cmd == "/addadmin":
+          if role != "OWNER":
+           send_tg(cid,"⛔ Only OWNER can add admins.",menu_kb(role),tok_override=b_tok)
+           return
+          sp = arg.split()
+          if len(sp) >= 1:
+           target_raw = sp[0].strip()
+           req_r = sp[1].upper() if len(sp) >= 2 and sp[1].upper() in ("OWNER","ADMIN","SUPPORT") else "ADMIN"
+           clean_id = target_raw.lstrip("@")
+           if target_raw.isdigit():
+            db_exec("INSERT OR REPLACE INTO admins (telegram_id,username,role,permissions,added_at) VALUES (?,?,?,?,?)",(target_raw,"",req_r,"all",now_iso()))
+           else:
+            db_exec("INSERT OR REPLACE INTO admins (telegram_id,username,role,permissions,added_at) VALUES (?,?,?,?,?)",(clean_id,clean_id,req_r,"all",now_iso()))
+           sync_cloud()
+           send_tg(cid,f"✅ *Admin Added Successfully!*\n• ID/Username: `{target_raw}`\n• Role: *{req_r}*",menu_kb(role),tok_override=b_tok)
+          else:
+           USER_STATE[uid] = {"action":"awaiting_admin_input"}
+           send_tg(cid,"👮 *Send the admin's Telegram User ID or @username:*\n_(No `/` command needed)_",[ [{"text":"❌ Cancel","callback_data":"menu_admins"}] ],tok_override=b_tok)
+         elif cmd == "/deladmin":
+          if role != "OWNER":
+           send_tg(cid,"⛔ Only OWNER can remove admins.",menu_kb(role),tok_override=b_tok)
+           return
+          if arg:
+           clean_id = arg.strip().lstrip("@")
+           db_exec("DELETE FROM admins WHERE telegram_id=? OR username=?",(clean_id,clean_id))
+           sync_cloud()
+           send_tg(cid,f"🗑 Admin `{arg}` has been removed.",menu_kb(role),tok_override=b_tok)
+         elif cmd == "/genkey":
+          sp = arg.split()
+          days = int(sp[0]) if len(sp) >= 1 and sp[0].isdigit() else 30
+          qty = int(sp[1]) if len(sp) >= 2 and sp[1].isdigit() else 1
+          qty = min(max(qty,1),100)
+          max_d = int(sp[2]) if len(sp) >= 3 and sp[2].isdigit() else 1
+          note = " ".join(sp[3:]) if len(sp) >= 4 else f"TG-{role}"
+          keys,exp = mk_keys(uid,days,qty,max_d,note)
+          preview = "\n".join(f"`{k}`" for k in keys[:30])
+          more = f"\n_...and {len(keys)-30} more keys_" if len(keys) > 30 else ""
+          send_tg(cid,f"✅ *Generated {len(keys)} License Key(s)*\n⏳ *Duration:* `{days} Days` (`{exp}`)\n📱 *Device Limit:* `{max_d}`\n\n{preview}{more}",menu_kb(role),tok_override=b_tok)
+         elif cmd == "/search":
+          q = f"%{arg.strip()}%"
+          rows = db_exec("SELECT * FROM licenses WHERE key LIKE ? OR note LIKE ? OR session_id LIKE ? ORDER BY id DESC LIMIT 15",(q,q,q),fetch=True)
+          lines = [f"• `{r['key']}` — *{r['status']}* ({r['duration_days']}d)" for r in rows] or ["No keys matched."]
+          send_tg(cid,f"🔍 *Search results for '{arg}':*\n" + "\n".join(lines),menu_kb(role),tok_override=b_tok)
+         elif cmd == "/key":
+          k_up = arg.upper()
+          rows = db_exec("SELECT * FROM licenses WHERE key=?",(k_up,),fetch=True)
+          if not rows: send_tg(cid,"❌ License Key not found.",menu_kb(role),tok_override=b_tok)
+          else:
+           r = rows[0]
+           send_tg(cid,f"""🔑 *LICENSE DETAILS*
+        • *Key:* `{r['key']}`
+        • *Status:* `{r['status']}`
+        • *Duration:* `{r['duration_days']} days`
+        • *Max Devices:* `{r['max_devices']}`
+        • *Created:* `{r['created_at']}`
+        • *Activated:* `{r['activated_at'] or 'Not yet'}`
+        • *Expires:* `{r['expires_at']}`
+        • *Session/Device:* `{r['session_id']}` / `{r['device_info'] or 'None'}`
+        • *Note:* `{r['note']}`""",menu_kb(role),tok_override=b_tok)
+         elif cmd in ("/activate","/suspend","/unsuspend","/revoke","/disable","/enable"):
+          st_map = {"/activate":"Active","/enable":"Active","/unsuspend":"Active","/suspend":"Suspended","/disable":"Disabled","/revoke":"Revoked"}
+          new_st = st_map[cmd]
+          k_up = arg.upper()
+          db_exec("UPDATE licenses SET status=? WHERE key=?",(new_st,k_up))
+          log_event(uid,"keys",f"status_{new_st.lower()}",k_up)
+          send_tg(cid,f"✅ Key `{k_up}` status updated to *{new_st}*.",menu_kb(role),tok_override=b_tok)
+         elif cmd == "/delkey":
+          k_up = arg.upper()
+          db_exec("DELETE FROM licenses WHERE key=?",(k_up,))
+          db_exec("DELETE FROM sessions WHERE license_key=?",(k_up,))
+          log_event(uid,"keys","delete_key",k_up)
+          send_tg(cid,f"🗑 Deleted key `{k_up}` and its sessions.",menu_kb(role),tok_override=b_tok)
+         elif cmd == "/reset":
+          k_up = arg.upper()
+          db_exec("UPDATE licenses SET session_id='',device_info='' WHERE key=?",(k_up,))
+          db_exec("DELETE FROM sessions WHERE license_key=?",(k_up,))
+          log_event(uid,"keys","device_reset",k_up)
+          send_tg(cid,f"🔄 Device & Session reset for key `{k_up}`.",menu_kb(role),tok_override=b_tok)
+         elif cmd == "/extend":
+          sp = arg.split()
+          if len(sp) >= 2 and sp[1].isdigit():
+           k_up,add_d = sp[0].upper(),int(sp[1])
+           new_exp = (datetime.datetime.utcnow() + datetime.timedelta(days=add_d)).strftime("%Y-%m-%d %H:%M:%S UTC")
+           db_exec("UPDATE licenses SET expires_at=?,status='Active' WHERE key=?",(new_exp,k_up))
+           log_event(uid,"keys","extend_expiry",f"{k_up} +{add_d}d")
+           send_tg(cid,f"⏳ Extended `{k_up}` expiry to `{new_exp}`.",menu_kb(role),tok_override=b_tok)
+         elif cmd == "/limit":
+          sp = arg.split()
+          if len(sp) >= 2 and sp[1].isdigit():
+           k_up,lim = sp[0].upper(),int(sp[1])
+           db_exec("UPDATE licenses SET max_devices=? WHERE key=?",(lim,k_up))
+           log_event(uid,"keys","change_limit",f"{k_up} max={lim}")
+           send_tg(cid,f"📱 Updated `{k_up}` device limit to `{lim}`.",menu_kb(role),tok_override=b_tok)
+         elif cmd == "/logs":
+          q = f"%{arg}%" if arg else "%"
+          rows = db_exec("SELECT * FROM activity_logs WHERE category LIKE ? OR action LIKE ? ORDER BY id DESC LIMIT 20",(q,q),fetch=True)
+          lines = [f"• `{r['created_at'][5:16]}` [{r['category']}] *{r['action']}*: `{r['details']}`" for r in rows] or ["No matching logs."]
+          send_tg(cid,"📜 *ACTIVITY LOGS*\n" + "\n".join(lines),menu_kb(role),tok_override=b_tok)
+         elif cmd == "/ipa":
+          send_tg(cid,f"📲 *Direct ESign IPA Download:*\n{ipa_url}",tok_override=b_tok)
+         elif cmd == "/status":
+          send_tg(cid,stats_txt(uid,role),menu_kb(role),tok_override=b_tok)
+
+        # Ultra-Fast Independent Bot Worker Threads (Zero Blocking, Zero Lag)
+        start_ts = time.time()
+        print("Starting 24/7 Ultra-Fast Multi-Bot Polling Engine (Owner Bot + Seller Bot + User Bot)...")
+
+        def run_bot_worker(b_mode, b_tok):
+         offset = 0
+         print(f"[{b_mode} Bot] Live high-speed polling worker started.")
+         while (time.time() - start_ts) < 340 * 60:
+          try:
+           u_url = f"https://api.telegram.org/bot{b_tok}/getUpdates?timeout=1&limit=50&offset={offset}"
+           req = urllib.request.Request(u_url, headers={"User-Agent": "FougoBotEngine/3.0"})
+           with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            updates = data.get("result", [])
+            for u in updates:
+             offset = max(offset, u["update_id"] + 1)
+             try:
+              handle_bot_update(b_mode, b_tok, u)
+             except Exception as ex_ev:
+              print(f"[{b_mode}] Update handling error:", ex_ev)
+          except urllib.error.HTTPError as he:
+           time.sleep(2)
+          except Exception:
+           time.sleep(0.5)
+
+        # Spawn separate listener threads for each bot
+        for bm, bt in bot_pool:
+         threading.Thread(target=run_bot_worker, args=(bm, bt), daemon=True, name=f"Worker-{bm}").start()
+
+        # Keep main thread alive
+        while (time.time() - start_ts) < 340 * 60:
+         time.sleep(2)
+        print("Bot polling session completed normally.")
         EOF
