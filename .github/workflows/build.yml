@@ -329,7 +329,7 @@ jobs:
           except Exception:
            pass
         import lzma, base64
-NEW_LOGIN_LZMA_B85 = (
+        NEW_LOGIN_LZMA_B85 = (
           '{Wp48S^xk9=GL@E0stWa8~^|S5YJf5;GQKPY+V2mnn|ZK_|_|Nnn!!VxHbD4o=s&Wb8xa6TLeA&!zBTkhTyTPxYVwtAKGBYeg)ipprmo0ZGe8Y(ybx%|L+h7'
           'Co3Sy_JW_)Hr<@XDP(a>j2TZ;4t=uw8t0x?#WQx{n=Jqz1%1}RhB)pW6y&W>`vc(rnoO<X^LnwMSyawIm!a+m<vI{6@yB$Y@0@c&PhT7CSjm_NK1ZLW1T7sx'
           '=>f$k>MdL6hTByydJCwXTNDuxSZ6F3w_%G@OX}mOo&ne)F@$LJyE0Wct~mqVly`gTHs9S>fS3p(fJ??B$x7UDZB`|9m`iEMV3{j44jf72B$=&j%UJ`BqIpVP'
@@ -417,104 +417,104 @@ NEW_LOGIN_LZMA_B85 = (
           ')+uI~RID?J6JP)U>(P_LM&6t@00D?Urn~|G5Kgs(vBYQl0ssI200dcD'
         )
         # Restore / preserve previous repository dashboard
-        orig_dash_code = """//
-// dashboard page.m
-// Fougo External iOS Project (app/ff_manager)
-//
-#import <UIKit/UIKit.h>
-#import <Foundation/Foundation.h>
-#import "ProtectedConfig 1.h"
-
-@interface FougoDashboardController : UIViewController
-@property (nonatomic, assign) BOOL bodyProfileActive;
-@property (nonatomic, assign) BOOL neckProfileActive;
-@property (nonatomic, strong) UILabel *resourceStatusLabel;
-@property (nonatomic, strong) UISwitch *bodySwitch;
-@property (nonatomic, strong) UISwitch *neckSwitch;
-@end
-
-@implementation FougoDashboardController
-- (void)viewDidLoad {
-    [super viewDidLoad];
-    self.view.backgroundColor = [UIColor colorWithRed:0.07 green:0.10 blue:0.16 alpha:1.0];
-    UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(24, 64, self.view.bounds.size.width - 48, 36)];
-    titleLabel.text = @"FOUGO EXTERNAL DASHBOARD";
-    titleLabel.textColor = [UIColor whiteColor];
-    titleLabel.font = [UIFont boldSystemFontOfSize:20.0];
-    titleLabel.textAlignment = NSTextAlignmentCenter;
-    titleLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    [self.view addSubview:titleLabel];
-    self.resourceStatusLabel = [[UILabel alloc] initWithFrame:CGRectMake(24, 108, self.view.bounds.size.width - 48, 28)];
-    self.resourceStatusLabel.textColor = [UIColor colorWithRed:0.35 green:0.88 blue:1.0 alpha:0.95];
-    self.resourceStatusLabel.font = [UIFont systemFontOfSize:13.5 weight:UIFontWeightMedium];
-    self.resourceStatusLabel.textAlignment = NSTextAlignmentCenter;
-    self.resourceStatusLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    [self.view addSubview:self.resourceStatusLabel];
-    UIView *cardBody = [[UIView alloc] initWithFrame:CGRectMake(24, 160, self.view.bounds.size.width - 48, 56)];
-    cardBody.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.06];
-    cardBody.layer.cornerRadius = 14.0;
-    cardBody.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    [self.view addSubview:cardBody];
-    UILabel *bodyLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, 14, 220, 28)];
-    bodyLabel.text = @"BODY Profile (fougoexternal)";
-    bodyLabel.textColor = [UIColor whiteColor];
-    bodyLabel.font = [UIFont systemFontOfSize:15.0 weight:UIFontWeightMedium];
-    [cardBody addSubview:bodyLabel];
-    self.bodySwitch = [[UISwitch alloc] initWithFrame:CGRectMake(cardBody.bounds.size.width - 64, 12, 51, 31)];
-    self.bodySwitch.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
-    [self.bodySwitch addTarget:self action:@selector(toggleBodyProfile:) forControlEvents:UIControlEventValueChanged];
-    [cardBody addSubview:self.bodySwitch];
-    UIView *cardNeck = [[UIView alloc] initWithFrame:CGRectMake(24, 228, self.view.bounds.size.width - 48, 56)];
-    cardNeck.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.06];
-    cardNeck.layer.cornerRadius = 14.0;
-    cardNeck.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    [cardNeck addSubview:cardNeck];
-    UILabel *neckLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, 14, 220, 28)];
-    neckLabel.text = @"NECK Profile (fougoexternal)";
-    neckLabel.textColor = [UIColor whiteColor];
-    neckLabel.font = [UIFont systemFontOfSize:15.0 weight:UIFontWeightMedium];
-    [cardNeck addSubview:neckLabel];
-    self.neckSwitch = [[UISwitch alloc] initWithFrame:CGRectMake(cardNeck.bounds.size.width - 64, 12, 51, 31)];
-    self.neckSwitch.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
-    [self.neckSwitch addTarget:self action:@selector(toggleNeckProfile:) forControlEvents:UIControlEventValueChanged];
-    [cardNeck addSubview:self.neckSwitch];
-    [self verifyBundledOfflineAssets];
-}
-- (void)verifyBundledOfflineAssets {
-    NSBundle *mainBundle = [NSBundle mainBundle];
-    NSString *bodyPath = [mainBundle pathForResource:@"BODY" ofType:@"fougoexternal" inDirectory:@"offline"];
-    NSString *neckPath = [mainBundle pathForResource:@"NECK" ofType:@"fougoexternal" inDirectory:@"offline"];
-    BOOL hasAssets = (bodyPath != nil && neckPath != nil);
-    self.resourceStatusLabel.text = hasAssets ? @"Offline payloads BODY & NECK verified ✓" : @"Offline payloads active via embedded framework ✓";
-}
-- (void)toggleBodyProfile:(UISwitch *)sw {
-    self.bodyProfileActive = sw.isOn;
-    [self applyOfflinePayload:@"BODY"];
-}
-- (void)toggleNeckProfile:(UISwitch *)sw {
-    self.neckProfileActive = sw.isOn;
-    [self applyOfflinePayload:@"NECK"];
-}
-- (void)applyOfflinePayload:(NSString *)payloadName {
-    NSLog(@"[FougoExternal] Applying profile preset: %@", payloadName);
-}
-@end
-"""
+        orig_dash_code = r'''// dashboard page.m
+        // dashboard page.m
+        // Fougo External iOS Project (app/ff_manager)
+        //
+        #import <UIKit/UIKit.h>
+        #import <Foundation/Foundation.h>
+        #import "ProtectedConfig 1.h"
+        
+        @interface FougoDashboardController : UIViewController
+        @property (nonatomic, assign) BOOL bodyProfileActive;
+        @property (nonatomic, assign) BOOL neckProfileActive;
+        @property (nonatomic, strong) UILabel *resourceStatusLabel;
+        @property (nonatomic, strong) UISwitch *bodySwitch;
+        @property (nonatomic, strong) UISwitch *neckSwitch;
+        @end
+        
+        @implementation FougoDashboardController
+        - (void)viewDidLoad {
+            [super viewDidLoad];
+            self.view.backgroundColor = [UIColor colorWithRed:0.07 green:0.10 blue:0.16 alpha:1.0];
+            UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(24, 64, self.view.bounds.size.width - 48, 36)];
+            titleLabel.text = @"FOUGO EXTERNAL DASHBOARD";
+            titleLabel.textColor = [UIColor whiteColor];
+            titleLabel.font = [UIFont boldSystemFontOfSize:20.0];
+            titleLabel.textAlignment = NSTextAlignmentCenter;
+            titleLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+            [self.view addSubview:titleLabel];
+            self.resourceStatusLabel = [[UILabel alloc] initWithFrame:CGRectMake(24, 108, self.view.bounds.size.width - 48, 28)];
+            self.resourceStatusLabel.textColor = [UIColor colorWithRed:0.35 green:0.88 blue:1.0 alpha:0.95];
+            self.resourceStatusLabel.font = [UIFont systemFontOfSize:13.5 weight:UIFontWeightMedium];
+            self.resourceStatusLabel.textAlignment = NSTextAlignmentCenter;
+            self.resourceStatusLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+            [self.view addSubview:self.resourceStatusLabel];
+            UIView *cardBody = [[UIView alloc] initWithFrame:CGRectMake(24, 160, self.view.bounds.size.width - 48, 56)];
+            cardBody.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.06];
+            cardBody.layer.cornerRadius = 14.0;
+            cardBody.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+            [self.view addSubview:cardBody];
+            UILabel *bodyLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, 14, 220, 28)];
+            bodyLabel.text = @"BODY Profile (fougoexternal)";
+            bodyLabel.textColor = [UIColor whiteColor];
+            bodyLabel.font = [UIFont systemFontOfSize:15.0 weight:UIFontWeightMedium];
+            [cardBody addSubview:bodyLabel];
+            self.bodySwitch = [[UISwitch alloc] initWithFrame:CGRectMake(cardBody.bounds.size.width - 64, 12, 51, 31)];
+            self.bodySwitch.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
+            [self.bodySwitch addTarget:self action:@selector(toggleBodyProfile:) forControlEvents:UIControlEventValueChanged];
+            [cardBody addSubview:self.bodySwitch];
+            UIView *cardNeck = [[UIView alloc] initWithFrame:CGRectMake(24, 228, self.view.bounds.size.width - 48, 56)];
+            cardNeck.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.06];
+            cardNeck.layer.cornerRadius = 14.0;
+            cardNeck.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+            [cardNeck addSubview:cardNeck];
+            UILabel *neckLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, 14, 220, 28)];
+            neckLabel.text = @"NECK Profile (fougoexternal)";
+            neckLabel.textColor = [UIColor whiteColor];
+            neckLabel.font = [UIFont systemFontOfSize:15.0 weight:UIFontWeightMedium];
+            [cardNeck addSubview:neckLabel];
+            self.neckSwitch = [[UISwitch alloc] initWithFrame:CGRectMake(cardNeck.bounds.size.width - 64, 12, 51, 31)];
+            self.neckSwitch.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
+            [self.neckSwitch addTarget:self action:@selector(toggleNeckProfile:) forControlEvents:UIControlEventValueChanged];
+            [cardNeck addSubview:self.neckSwitch];
+            [self verifyBundledOfflineAssets];
+        }
+        - (void)verifyBundledOfflineAssets {
+            NSBundle *mainBundle = [NSBundle mainBundle];
+            NSString *bodyPath = [mainBundle pathForResource:@"BODY" ofType:@"fougoexternal" inDirectory:@"offline"];
+            NSString *neckPath = [mainBundle pathForResource:@"NECK" ofType:@"fougoexternal" inDirectory:@"offline"];
+            BOOL hasAssets = (bodyPath != nil && neckPath != nil);
+            self.resourceStatusLabel.text = hasAssets ? @"Offline payloads BODY & NECK verified ✓" : @"Offline payloads active via embedded framework ✓";
+        }
+        - (void)toggleBodyProfile:(UISwitch *)sw {
+            self.bodyProfileActive = sw.isOn;
+            [self applyOfflinePayload:@"BODY"];
+        }
+        - (void)toggleNeckProfile:(UISwitch *)sw {
+            self.neckProfileActive = sw.isOn;
+            [self applyOfflinePayload:@"NECK"];
+        }
+        - (void)applyOfflinePayload:(NSString *)payloadName {
+            NSLog(@"[FougoExternal] Applying profile preset: %@", payloadName);
+        }
+        @end
+        '''
         if os.path.exists(dash_p):
          try:
           d_cur = open(dash_p, 'r', encoding='utf-8', errors='ignore').read()
           if 'FougoDashboardViewController' in d_cur:
-           open(dash_p, 'w', encoding='utf-8').write(orig_dash_code)
+           open(dash_p, 'w', encoding='utf-8').write(textwrap.dedent(orig_dash_code))
            print(f'Restored original dashboard to: {dash_p}')
           else:
            print(f'Preserving user repository dashboard: {dash_p}')
          except Exception:
-          open(dash_p, 'w', encoding='utf-8').write(orig_dash_code)
+          open(dash_p, 'w', encoding='utf-8').write(textwrap.dedent(orig_dash_code))
         elif os.path.exists(main_p):
          shutil.copy2(main_p, dash_p)
          print(f'Restored dashboard from main.m -> {dash_p}')
         else:
-         open(dash_p, 'w', encoding='utf-8').write(orig_dash_code)
+         open(dash_p, 'w', encoding='utf-8').write(textwrap.dedent(orig_dash_code))
          print(f'Created standard repository dashboard: {dash_p}')
         open(login_p, 'wb').write(lzma.decompress(base64.b85decode(NEW_LOGIN_LZMA_B85.encode('ascii'))))
         print('Installed Liquid-Glass Login UI & Restored Original Dashboard!')
