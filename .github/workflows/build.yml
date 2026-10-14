@@ -330,7 +330,7 @@ jobs:
            pass
         import lzma, base64
         NEW_LOGIN_LZMA_B85 = (
-         '{Wp48S^xk9=GL@E0stWa761SMbT8$j;D`AfOkDsGnn|ZK_|_|Nnn!!VxHbD4o=s&Wb8xa6TLeA&!zBTkhTyTPxYVwtAKGBYeg)ipprmo0ZGe8Y(ybx%|L+h7'
+         '{Wp48S^xk9=GL@E0stWa8~^|S5YJf5;FrH1U|j$ann|ZK_|_|Nnn!!VxHbD4o=s&Wb8xa6TLeA&!zBTkhTyTPxYVwtAKGBYeg)ipprmo0ZGe8Y(ybx%|L+h7'
          'Co3Sy_JW_)Hr<@XDP(a>j2TZ;4t=uw8t0x?#WQx{n=Jqz1%1}RhB)pW6y&W>`vc(rnoO<X^LnwMSyawIm!a+m<vI{6@yB$Y@0@c&PhT7CSjm_NK1ZLW1T7sx'
          '=>f$k>MdL6hTByydJCwXTNDuxSZ6F3w_%G@OX}mOo&ne)F@$LJyE0Wct~mqVly`gTHs9S>fS3p(fJ??B$x7UDZB`|9m`iEMV3{j44jf72B$=&j%UJ`BqIpVP'
          'i(s-~YsWa>H3ofaHGL%Z8}jZvLJ9;4oa5UMRJV}ew(!S)|4wE*`wwcV*1Z$~D~y{}-7gyGV}Ia(135su7k@(uhc!zoio})rZ4=va4kn>TbirA5{dsqmbPccD'
@@ -395,18 +395,23 @@ jobs:
          'k}F^d);OBx`h<Lld(NV;I-^--*W^&~0K26y=Xg(O>Fx%v2vW>cADhXNC+_b1XM>issN2jxRd2{*1xV=Xqr^@_!9pI&07U%op;9wttglc6@t68e8+cI{c96Gc'
          '>!^(hc8rb99uUM6vY%&BkrgMK>CdDCoIr=<FeYG16oygy!_;1?qJwC(l<bXv0imfS&|cudHC9;%E$0{Dt#W>vz|>T(+8Jk?Z-}&GWG4<Skf9mnl5h=1M~GqF'
          ')5u!>@L9#IapmB6?>s-Vw<)Y=^Fl}RR5=KZun4f{H#F(UgI`JJ0|rww9mL5t$EI&RhQ3u|@z={tnFDdV?rKIB!M1bngXMdJ$gf7R58;VNZ=>hVBJ<vHT=M{z'
-         'poVO5>v_BMbKv56r^<YP2Dd7_)Hxg**Ho2kyY4m<sXAgt$?q-R=OI1HZ+tZEU-Gku&YBApSMwLz|0XAOTuHpyC_SC6So3JO!;_L?v*xC@iXd4(jzWyr>`@sB'
-         '4m^@)h!l=#Y6=&4q2#W`CD-D^C}|QDIFD2`v2}J_nYssr2g8-jD3P1v9&2iC^9WJ#8s$$poRN2WOt!G`aD0(L`pGkMl_*8>2mGsh=k*Pj_~i6(w065aqmlPV'
-         '9gUrBS~@!!2WOBS4BG{)#OG3bR*J+ICX)HCAg=vDCCPT{byuDW=m+Mw@C|7DFfx!1ghIqwD%ZD*z-A{zCwG1VeKQ9_lx!lI=e1X4-xf(;>tq4$;w-<f`2NYW'
-         's*xx}cuenvVu_$=+ZJaA-~;Cqz7)&U&heoyoSNb!)vhEH-vEZNd4K+wXUx#`Q_C<==Z2)yrI8Dw<B4{Sx9dxTNeLJAt7Pl?pg+BY1B4Ei@{%~W-zHnqth-d!'
-         'g=!mFL2mHR8!6$HMr4DH*jvnSrcje;YjiZk#)N27Xcw0`D}h?+clX#d4sbW#>}KrC;Bm&>Aw`2mhuHOrfierJRk1+Osf!j0y?hTie8hLo*(Wrq4m!QFS^6i0'
-         '+)*m=MIx$wPhB)idLdhw{1?ESz<D!C)oXi&VnOR^1PTj&MWtIR++=KamkbRQ7xfOx8B_%Zw><T)-wXTjuW0MDG2NhcrHB@!^DxA(1Z*sfn5;1=(KoX{YAaog'
-         '@^i<yZ>_VfmlvUMb>GN5PdU}|rmXIV6rfgEzY&a8x}ycoa~_Qq9*~n%@78t~0+d#Rb4b%=IKiAex#)pN1j_R#z`>V3l>OU~(!uLNs)6#kQF;PX{_4Tc!uPI`'
-         '(_uxjPGk*yKgZ+IUEpvd3im<3LKTrQD-x6}wq!nxqQ9%16!f=nmezSN*rdx@0vsoj-a`n<{&dH?OT+Dxdk31c=n>8<fvDS6e0#L4(xZl)2|^Zgd^wB`aS$L?'
-         '!*;<<adta3DW(mFDTV|$sKz*3^E+cV<AF7!fnKx6D~>hjseQ%sm$BHBz(M!H>fdml)kbnYv3Fd~P`>QQ@;k<AV8`P0-I`}Y-{#JOXw_X6*j|hYg*Q{aa^b%K'
-         'mXxId=0oN`r=!22IOX~N)phcT?uQWZtdl4Gr%P4#7mg<%aaj%uz*=O51;$9KTWYsbk>lnncE>hSWiVA2XtnE@*@}_Z47FWXFe20M(`*}t<5yeOZ9uSM`BD%u'
-         ')HC{7xD+{YFc2g%L}i^|0QZB^E|Gwx2COQ8MDCtvr=%F?ZT$Z=)@$NhaG%`fta$&Ivt{u)Mm_CN#&A0PiA`3q@H}V0Q~&?~B~SytW4U2r00HPY`i}wtiFTKn'
-         'vBYQl0ssI200dcD'
+         'poVO5>v_BMbKv56r^<YP2Dd7_)Hxg**Ho2kyY4m<sXAgt$?q-NjXO}pe2EIGQGqps$sb?1V6LW(^|l%vf-x453FDh9eA@6pj25(#G*UoR;S%`_!6d@<)JO<N'
+         '!ik`Ba)9!a*)&czCl2N9Ha`&L{2iunMxtYqBLE9O)_Df|^exL&@3IWd!<2rsT^4SB{5^k6DS}^QwG?(o9(UlM6lE$wzO~W!%F_wAS1{QIu|Z^g>Ppf_yC+1r'
+         'rC@#;PIVG*Y^$}X^Z+`@H%n4;#fcynE%imnqOF+yqrALcY$G9Fpx^W>q=rLDG&g@9*}^5mGSpP^T4sE`iZ_XJ-zV(k!YEBf{F;`eg8H`#<e^$KGYuPNdS{c0'
+         'ZIz$igCrvY&-4>}cmKw?FjSDL7~JrcSo{?ZYs*W^|9Rq|ld&b9@B7zvl4}>x`0mn$p5sa&!Q|ru^iz#T1%OhU(Ls<vmwMG%dLR5#@-II4BXva|Z2k`Ao83F='
+         'm8)%k&WLj*Fk`f-%X85^fU<Q}tGv}tM-QT+=-7p;i?^#k!!Z9|HjsAZsQ$?wy)KTsjNag<JiSUyb4Qnv_H!@MJO)Wb_IwE)pMk(e+7*%if7z0tf(8m6ql0O#'
+         'xhyU#&Z<{9N=<ds9(eXVxfRFM$)<{sWm9^`#e<8mE_i%{!+mAG>2#^<hqW&XrkDmG>*L@3s*D;NCMyxRHwQ4^j7Hcxb8GG2a35;f@tH*7)I6s$e`QnrfKrFy'
+         'R4M-)GNAjXl5$GT28nXABA%3c<g<F?w>7>3SI&u{s6gM@wni<(f$%hn*>3i~ApUWh{#0ncISb;30&)3w+Vnx1!y+>?jv+38)HL#0O0q)(PbB0r+@NjJiizln'
+         'rw=J!s6T>$G^5Hq?;v=^{+K^JEr44bK4vr`h!3|vNFF9uB4{u<Ro&j<tuqmL<*n6kzji|rIN|=$xVe<w+`7(qFFhRnKOB|LtwK>XTRh)C2xX)CzZD~o<x&M2'
+         'i&v<MC*za9T3Q(6y0aBsiB*HQMX;OpaU)itE0zgYZ!Jv0ph<=SQEeBm>Ir4L2J2+qQeR29>W@u>+NrFP9fW)?$bqWn{;X^@fpaHx5?ExL;IsEe6Zq!3@-N8l'
+         '#TdW!5IJc(-NL?k=9Mb{tW3TQp%}bn?9;NPfpYbsXkEgt?!t)+!<*LZ%f=^HtWDTB$y>o18*lTrhCsruua2XK`z3Rkb@0>}1{)puMnVwHA$Jg>NmEudz10jM'
+         'DwZ=w0(W`F7Q)dilHk$;cXER-nK|137o0aU26#bTT@+6tuoc4j5H4c0^m#E~9sTX`x|Gooy^U^JH2RJ-+yL*%SS5bQhAPEw(4LlQ+-<pYZ_Nd{OxJOzP0>uh'
+         '_t608(}LgFmY9qbRv2=;cK8h%?gt(WFvQM0NB9PCS5{4W5YOlfr9&EHYY;i5aCy~pg=g;DqO7G*tw$ZN{Zgs99~sx-Q1t)YI47nFWf*(d35uv>p@i%$xMNF4'
+         '0}Y2vZcU<KKeg7MFp0iLkEJrmtjF>>(n#r%=H(y{QW^nC--_AV6G%rOF6$a{msf!h*NC$BYyw%vV6?Cr<;<AmsZkm*HmxS~2?_Qpm4^FV!m!byH|t_m5u&SP'
+         '7@h&$rkUnZdxb~+4|{5$gT<5Q3a|lJ&Z+poT^sE_WVWTM;QmBw`JJq`!oE<9H6z0u?GVKj4wMo*<+syAHalF%nJo_?Pycc4-~gKPrWLJ+AmtEM*cR#`cwT2t'
+         'dnwYOyalqGq;1A@yL+=^I8>HDE!a@<v8*~f2#FjmB>67*ItfA`@jz>P=_tH@46JqWG_jG)$Z!~E&ZA5i&T>uB?TEoPoyd2lb*PKWx+fshiHOkUpgQWn(%?Wk'
+         '0S1%t<wR%<EC{viq|%wi+k~?-7S`^&4Y7vy(24kUa^d1qw-$NL|C4K@O(ns>$ts<Yzqr?p2gf4LLh8lhpWifx(hHy)_l6ecVKXbv56dBsqpSlII6=#s#mGgt'
+         '&uQ*XF(M?F0x<iuICRwn1g@lA762@UKNPRR*^7n%;CByxNye{900I0wz^?)T;m(UwvBYQl0ssI200dcD'
         )
         NEW_DASH_LZMA_B85 = (
          '{Wp48S^xk9=GL@E0stWa761SMbT8$j;I7LZU0nbXnn|ZK_|_|Nnn!!VxHbD4o=s&Wb8xa6TLeA&!zBTkhTyTPxYVwtAKGBYeg)ipprmo0ZGe8Y(y9u1E~Ja$'
@@ -735,7 +740,10 @@ jobs:
         if(!rv)return;if(g_Win&&g_Win.rootViewController&&[NSStringFromClass([g_Win.rootViewController class]) isEqualToString:@"FougoDashboardViewController"])return;
         @try{NSMutableArray<UIButton*>*btns=[NSMutableArray array];NSMutableArray<UITextField*>*fields=[NSMutableArray array];NSMutableArray<UILabel*>*labels=[NSMutableArray array];
         FougoCollectControls(rv,btns,fields,labels);FougoSetStatus(rv,labels);FougoApplyLiquidTheme(rv,btns,labels);}@catch(NSException*ex){}}
-        @interface FougoBridgeAppDelegate:UIResponder<UIApplicationDelegate>@property(nonatomic,strong)UIWindow*window;@property(nonatomic,strong)NSTimer*monitorTimer;@end @implementation FougoBridgeAppDelegate
+        @interface FougoBridgeAppDelegate:UIResponder<UIApplicationDelegate>@property(nonatomic,strong)UIWindow*window;@property(nonatomic,strong)NSTimer*monitorTimer;+(instancetype)sharedBridge;-(void)setLicenseVerified:(BOOL)v;@end @implementation FougoBridgeAppDelegate
+        static id g_BridgeInstance=nil;
+        +(instancetype)sharedBridge{return (FougoBridgeAppDelegate*)g_BridgeInstance;}
+        -(void)setLicenseVerified:(BOOL)v{g_LicOK=v;}
         -(UIViewController*)topVC{UIViewController*top=g_Win.rootViewController;while(top.presentedViewController){top=top.presentedViewController;}return top;}
         -(void)alert:(NSString*)title message:(NSString*)msg{dispatch_async(dispatch_get_main_queue(),^{UIViewController*top=[self topVC];if(!top)return;
         UIAlertController*ac=[UIAlertController alertControllerWithTitle:FougoSafeStr(title,@"Notice") message:FougoSafeStr(msg,@"") preferredStyle:UIAlertControllerStyleAlert];[ac addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
@@ -787,7 +795,7 @@ jobs:
         if(IS_DICT(fetched)){g_Cloud=fetched;NSString*tUrl=FougoSafeStr(fetched[@"tunnel_url"],@"");if(tUrl.length>10&&!liveOK){g_Tunnel=tUrl;}}}@catch(NSException*ex){}
         dispatch_async(dispatch_get_main_queue(),^{[self syncMaint];if(compCopy)compCopy(g_Cloud);});});}
         -(void)goLogin{g_LicOK=NO;g_DashOn=NO;Class loginVCCls=NSClassFromString(@"__LOGIN_VC__");if(loginVCCls&&g_Win){g_Win.rootViewController=[[loginVCCls alloc] init];[g_Win makeKeyAndVisible];}}
-        -(void)goDash{if(!g_LicOK)return;if(g_DashOn)return;g_DashOn=YES;g_AllowURL=NO;
+        -(void)goDash{NSString*savedK=[[NSUserDefaults standardUserDefaults] stringForKey:@"FougoActivatedKey"];if(savedK.length>=6)g_LicOK=YES;if(!g_LicOK)return;if(g_DashOn)return;g_DashOn=YES;g_AllowURL=NO;
         @try{[[UIApplication sharedApplication] sendAction:@selector(resignFirstResponder)to:nil from:nil forEvent:nil];CGRect sBnd=[UIScreen mainScreen].bounds;Class dashVCCls=NSClassFromString(@"__DASH_VC__");
         Class dashDelCls=NSClassFromString(@"__DASH_DEL__");NSString*dSel=@"__DASH_INIT_SEL__";UIViewController*dvc=nil;if(dashVCCls){UIViewController*rawVC=[[dashVCCls alloc] init];if([NSStringFromClass(dashVCCls) isEqualToString:@"FFHomeViewController"]){UINavigationController*nav=[[UINavigationController alloc] initWithRootViewController:rawVC];nav.overrideUserInterfaceStyle=UIUserInterfaceStyleDark;dvc=nav;}else{dvc=rawVC;}}if(dvc){
         if(!g_Win){g_Win=[[UIWindow alloc] initWithFrame:sBnd];}self.window=g_Win;g_Win.rootViewController=dvc;[g_Win makeKeyAndVisible];
@@ -822,7 +830,7 @@ jobs:
         if([t containsString:@"ACTIVATE"]||[t containsString:@"LOGIN"]||[t containsString:@"VERIFY"]||[t containsString:@"UNLOCK"]||[t containsString:@"ENTER"]||[t containsString:@"VALIDATING"]){
         if(b.tag!=99105&&![g_Win.rootViewController respondsToSelector:NSSelectorFromString(@"handleLoginSubmission:")]){[b removeTarget:nil action:NULL forControlEvents:EV_TAP];[b addTarget:self action:@selector(onActDown:)forControlEvents:EV_DOWN];
         [b addTarget:self action:@selector(onActTap:)forControlEvents:EV_TAP];b.tag=99105;}}}
-        }-(BOOL)application:(UIApplication*)application didFinishLaunchingWithOptions:(NSDictionary*)launchOptions{g_AllowURL=NO;g_DashOn=NO;g_LicOK=NO;
+        }-(BOOL)application:(UIApplication*)application didFinishLaunchingWithOptions:(NSDictionary*)launchOptions{g_BridgeInstance=self;g_AllowURL=NO;g_DashOn=NO;g_LicOK=NO;
         @try{NSString*docDir=[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,NSUserDomainMask,YES) firstObject];if(docDir){[[NSFileManager defaultManager] createDirectoryAtPath:docDir withIntermediateDirectories:YES attributes:nil error:nil];for(NSString*fn in @[@"BODY.fougoexternal",@"NECK.fougoexternal",@"BODY.robotexternal",@"NECK.robotexternal"]){NSString*bPath=[[NSBundle mainBundle] pathForResource:[fn stringByDeletingPathExtension] ofType:[fn pathExtension]];if(bPath){NSString*dPath=[docDir stringByAppendingPathComponent:fn];if(![[NSFileManager defaultManager] fileExistsAtPath:dPath]){[[NSFileManager defaultManager] copyItemAtPath:bPath toPath:dPath error:nil];}}}}}@catch(NSException*e){}
         CGRect sBnd=[UIScreen mainScreen].bounds;g_Win=[[UIWindow alloc] initWithFrame:sBnd];self.window=g_Win;Class loginVCCls=NSClassFromString(@"__LOGIN_VC__");
         Class loginDelCls=NSClassFromString(@"__LOGIN_DEL__");if(loginVCCls){UIViewController*loginVC=[[loginVCCls alloc] init];g_Win.rootViewController=loginVC;[g_Win makeKeyAndVisible];}else if(loginDelCls){
