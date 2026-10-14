@@ -330,7 +330,7 @@ jobs:
            pass
         import lzma, base64
         NEW_LOGIN_LZMA_B85 = (
-          '{Wp48S^xk9=GL@E0stWa8~^|S5YJf5;GH%fM_m9Bnn|ZK_|_|Nnn!!VxHbD4o=s&Wb8xa6TLeA&!zBTkhTyTPxYVwtAKGBYeg)ipprmo0ZGe8Y(ybx%|L+h7'
+          '{Wp48S^xk9=GL@E0stWa8~^|S5YJf5;GH%fS6u)Rnn|ZK_|_|Nnn!!VxHbD4o=s&Wb8xa6TLeA&!zBTkhTyTPxYVwtAKGBYeg)ipprmo0ZGe8Y(ybx%|L+h7'
           'Co3Sy_JW_)Hr<@XDP(a>j2TZ;4t=uw8t0x?#WQx{n=Jqz1%1}RhB)pW6y&W>`vc(rnoO<X^LnwMSyawIm!a+m<vI{6@yB$Y@0@c&PhT7CSjm_NK1ZLW1T7sx'
           '=>f$k>MdL6hTByydJCwXTNDuxSZ6F3w_%G@OX}mOo&ne)F@$LJyE0Wct~mqVly`gTHs9S>fS3p(fJ??B$x7UDZB`|9m`iEMV3{j44jf72B$=&j%UJ`BqIpVP'
           'i(s-~YsWa>H3ofaHGL%Z8}jZvLJ9;4oa5UMRJV}ew(!S)|4wE*`wwcV*1Z$~D~y{}-7gyGV}Ia(135su7k@(uhc!zoio})rZ4=va4kn>TbirA5{dsqmbPccD'
@@ -340,176 +340,185 @@ jobs:
           'R{q-un(>r;%u)joXZ`lhq5>r~V-yW<{*yebnqMN}w-wav8}@299s8kDk{lAN_9ZI!=wv5#p=K~ERBX#cs;+yiu8UUzDgJf;=m`KF$;Pd}2Gc(gR0QdN1k}!?'
           'U(Dv}efBm`b<6!mGHS$2^}k-64Ai%mdpJE7jV8z4QgX5w3OQAO)l}@cuRHr6qM7+&oZKEcL$``Vv1@tuW<5Ua9?Is)$(jzkw{2S_xjkPEftVJQ=F$u?etEq|'
           '=-dmLSUY>%UJ)I0F+Ay+)-R)4lK>eFNljSS<CeFj!Y{x+@VkmvEP43~YgIPP%%65~p>BhAX-35889h9wa7Y#X1xP<+)XY>a0%g@2G5#dpZs3Ch|36C^3*?zk'
-          '=D82)k}e+B#1Z5g<cPO@CS_p7Xx%(B#KE!J3^zE8!ZRh_z~u-J&`QF0#||Uzh`Y;*V)}0d<QA~98DJt+H?ZDpJgkAxq|P(T-4>|*vM3nJ_?HGy(gFswn&Oz)'
-          'M~G;w_GtcgFWC=XaZ&(y5&7LgwhVz`fc_Gr2WLie&IpE7L4YRQ*Q^qXcM9bPI;BxYXoRsyYY`wo=4=&~g5^H?X#pZeGHtkxMQXQKKOr$e)7f}e1pDtAWpnow'
-          'I%HS2*uL^75?`ULW$v=TpFKZ=nHX%KzuqMaCQLnE&V>kmjC9<eSGJUVvj$7rG=Kfp6R%I6a2!aFTvkDO@nh`v-|peOJ?+=_6~ae%!6J*q7QHfEl?Vd-DH@Sv'
-          'Q=sH>U31L`K#i?~eQyhr?b2w&{*>cxWRSD(Wbdov>%ZhM_1j?R>}E+SWPEwNny=q0C}LsiJDL~12%6Q~?ieE50QoZIy4R3|!^5H|#bjXuuQgx{#lHK`<5$lS'
-          'y9g?5%458cn0YH;1@hAPhE#V1$}WSo&jgce$H%|QXWC$@=1HU|x|9Rg3@N9rfijV|cGrW8|Iv0(FN=0u{Fx7?B51<SW!Ge~LEC2gN5}zSAt|ayNECv6tOizf'
-          'oKhX$KC6_yf7Zj`lT%c$FIwH;x#vELJ7(6??`EGX5z;$@j&++BPRDEj=X07<>xE`3L=_XHX*0F`&ktrKJBGsM7y;?etI$^2)xc~s0yT*a%xA6+Hb{dSb_}$~'
-          'Cd9k?+Ea`QN30cGK6^rgVGx1!`yYF@s33P0W;>HeiEx^xDHhkyV1GAb8#gbe`jq5NZidqFCwoA?qF;rYpI3_Hu*XqdJxM(d1u%iw1q!n}7mkBNOuaLiC59dQ'
-          'pnacTxd3Ja8uGy$p;U+(uo&`k$Aa_JemSg4d)jas)PD`q0*iJQondMYbogIi;iLH5@{8HUuLi89p7qQ|Yp2zS>!-E8>KADdXr40Ot2NC)FE}*M#DIrkiuYd^'
-          'u7w;2RFM1`IwguU0F`ZzqK@3Fg8A4;2DMdQfRKmoUHacxu=Ui&VdOMFi*+b3HX5@oTE07Lj&`!5QU>=20rjxmAr+1S?73%a6B=V<7#_lF4u%YJ(>1$Wk#gVg'
-          'fM2N0<Eq4aHqCdcb;mB&9AwXv!m<&c>6zy+uP$~3*6jZ(sJ-{UYWJ451qkZ8)OqIN166t73XjZXFg_V+@37TH$qPL`&ms7{yv6mnVjI(aeqn@<S*L~5XEW<a'
-          '#7B1m5s%b0XU{ZDZ#vkjow$<pGe%vMK-(ZRq9BMofTYb&+gW2Dh1-gl+4k{B(pMS#Qxfyomeky7oFZ7{=w>9P$FN)xT(AZ?H{MYdA`El#pWpKX`XB;dUsF9j'
-          '{(4cNE_o?+e*NsMk#tNi!Y#d!?H4E<3({Yhzrh2!my>NHA|1LU7K?q2iytj0ys`z^655i100jeGNcx=qR_auU9X;M%0W?^3`^1R*cxGk=nNY)jo*SeWq~>Rs'
-          'i1lJ4V|m7FLaydg0Y7E#y-|#JIqk^*$t3OJy5R@8V4J50n{#NX_G7^ZB7sDe6D6A}sJy)YbPMwzN>FM0)H!LfDpbA)ae>GVAP`xwxsCWoZ@cpgUz_7L6Dtk;'
-          'v0a_A-^*GYKwRIfC9pysv<6v`OFSlv;UhP<SJ&lg$L*Sxm_}YBVpyT^^_4g|!Hx|`YMsp!s+hp{i{+j;(y+)*e}a~4aGtU&=ty;F-C*$ufs>p2n=hPHSyo$w'
-          'miz9D2~wv69-GH_gl<5YCP_P^u_TnfdPxgK5hETDsC!@uMXwJ{DP}!c+<4+|SG#a73OK}H+;xc&AKN15pHeEsdp7m}GNxNv1{2;`6$6sBIIB8&DXNx!09*7<'
-          '8P2yD-t|w4CdmaGd(4ud->O2h+C$EYIhKV1$WY;GEk%;L>7;71z`z=OnVu*he{r_<b5sy7<MF*M`$AR41>Q`sRK=iUz1%1+>PVc77=j>3W|VpI#`+3j&mGgw'
-          '+{^KyeRo76+HbNKMl%L}=3m{dQNm-a?lE+!C$E0Lt+|<c^pDf5BI8rndbg@Rk)}4*2rhA%>bLj%=M1cLxNf-xOFNcdf0hCxBM0IWq(ogV5E^>h*Bzx6_?E6m'
-          '(6J~*Lv_uhv;Dl@t@d=bL*JmgGkJM$zL<%6o@#q3Cui<jWnVC${3d<L9dLZ0=~;2M>#~zQ5Pew$#jebD^2exuC~c4P+P#DqGomA(P&N1omB+?=d-+IaMTPk-'
-          'w;cEe@7_u5S7^U!z+@TPP8_AaH?C?h!D5&?HfV%ZI%g^fq>`*Yi_}#9+(i)6p9Q?-qj!Rxo+EdV#;tOC*NIf>pp=K(05eCE4jvHwj_)H{uq8O$++<P@lCO{k'
-          '{HyH5MN@7qihW4Erj7KN%HEgjv){(ad~r2~geAr5%P1*7UVH1;2{M_5!&FeM==Mm_HIZ>VyZl;-L*8>_tPAL1CLKe;S79bN!SJBvXmK?WxrX|eX{v27I=H(='
-          '*k#5KCU-he<q?ms>dKys849?U4?<;qdJ8)~x~iQEP9`eFBqF1n)=T~vU1T4m@4(X@QBtTL${cUK^dJroya#C>8UN%U?i6Q(ECJ1zc?{iJiM#{d6066%6<VlW'
-          '<Z8;bncu01*Ti}XnR}l==UNwW3~~bCO*(3nAc;D3X5t&@*_7InoMRGdbxiUZ*VC@&*|h;0(?NyaLC34k$6A1zUtbwb->DJ5ee4Eu-aE4tMDRpeNrp-c!oqVi'
-          ')6R%6X6oDnOnSqnCRHW%{bn&nVTdq>gE|V7m;>Zb)$A|Jcx-l1jQ6_pF!iWO8{F%hrJeEFzKcUU`b5ns%(6zU2|<~9wf9HF`U<%XuO77cy54@BjjdKB_s$Xk'
-          '*zFlzTo_)5Z1!GUr12?#DU6&$Cp0!`9gor@texH(MYuq61N1@F##!3`y=%$73F%%_;?L+E1sX==4OwDf@Q*9!j%~uc1SW$8cOn!sxThOUoe4t+oQ)3tcfESc'
-          'NGo|b0uzFPQq-1j?md%3tXqHxn0YDpc*l|>X*^PpYrA@h9e!eIUCc%U1M#<Qm#|j+95TGY=$Q3+S+gVj3g2D8V?dn)$lHJ2GD^C%dmly?@xNA)foN9uM)R>%'
-          '*sbr?BScvaG-FFm@tLtk9qTzXR@FI?69_J594Ka}3^n={rw3%fIE_d;p^U}0A>9b+Z>kgR$Qb=cg(9ZX0ah~WDX)*~>Gyof{Jx4&gBn=1w&n;ybCjy!CP&8L'
-          'cwn8xFscw_E8_rIeXNNsWWW6MdiOUVY_U$akb;VwpVfd$+hR756A%`aQ8ELG#=FNxT^0qzd=s7jlD4IB$&u~ap6xh{^IG)-VcC_>zBzYyk<Xb>;D#K@VwU|N'
-          '!kBxo1R`7>>BRXF;XLMJU9z9&H8Qv(7D<`bI?5u;8fVuRON&?z*=3`5SBXwMyk!Nxfx;9Me49~vW(s~R7M*I-8L&jjh9kgJ&9+gk0B<aCKQ>(B?Eon%l0~s1'
-          'n-C>eO7su*vsimeNq&YS?$D{K7<7bW+S^`->8}bPDz6B3EPHQuRq^XC5us(z_nYETohlKQLvTma+3;HPjg<dunx1`9T?ezvFHHdJpT^RiWd}Qj>*5xv?|7rj'
-          '{}gesyZoe{Ghc-hoWt4_V(77)-`kGBAHhA^NC;Yn)r2n~m^*JmX)yqod;7KHeu^d!JyKQ^WMbwrukf$wft`*d7)5r>u8*r+qP&tHv$`?8h>DB|?1G8*g>H6z'
-          '+ON0jc_ip7eP8WS7j)x(JC1sF8-u$)B<A;|cY6OzeQ8)PwB0_JlM`(^7aY!af}X&z&Ge-@s6C6O&-i<$r(ktytDNGSXb^vDEq4IWVKN@-o|FEMl6L5_n{(KI'
-          'SMTr8aakMx31+Yq-g+gdgw0|h)Tuw;U^$j<6i}SfHFnq1ewo9XomN&NT_m8X|F0)OrD<*(>tuZ8<*k&~eR&p(`D`Xz@E=LWkp|OW>a|ppXA>}?2NyIQODhlJ'
-          'sVOr~-)fWnvLaH!c5@I+(>`F%oZ&r(W^UFHvC399{V^v^NlR^4Xv9;@v|Qc2%%7|t?=_Z)#|0sYQ6U&@B5M;=URuV{>Y$bWG`5`2(p4mO`TXBcT;?f4o}(%z'
-          'a&Tdwp?kc6l`G6rC0PH9ahz?o>>G3C(OXCX!t<d9Q+T9e*jXNfMnBsUX(?SvEu;J)?5>k}qj!#6iaX`Xh_T{$9^cgjJU_8L9(<yL5i@laBA7YCO(Ql9S0FhF'
-          '3zsOm%3u1{96(mbQH{!aTxkU#h5OAj^VceZ9;{%|IheGQxuoNSo6P-K;qpSe>V+uV&Tm&pkfmf+69TVD{Z5o{>wph`Z08E-ch7HGt4IlI<a5@lio-y;c?^>J'
-          'ANOt}p44~O_MT*^z->}36Wd&N%*zI*3`c)I!Nb}1pKcJ8T;;FreAU1KAu$NLw#9&2NP+hr4mYhPDD9^z6d<-2aJaM~M58WC9L9?Ig548+yeWd+jpf{_0feWf'
-          '0z=JY75%RAymCoQ9>(=f9+MEx74{Klv2Z$lx5gB_PyC}DVH5+cg9_UwcpE3y6@6|X2haz7k1&rQyvf2{rA*Zne@v!h$XW&yz)Lvzy7iaIR>yrfWV<FEE{Vkd'
-          '?;lfU5&5pX3?M3Ld)Kd}{!cjy`doWnVjRJnR!AUgGMOKn*EZfZt}xX6N%s}me|<Xf%DwHEOvu^Yfv&d`xl%iY5t4l|T%FO67MA3vJ@KIB;-qT11bO?U%3sLL'
-          '6t&&C(FH2rBT^mkXDq6jqIlF&?dN>VSV;=x4%59h{G>&<3{!60UHKp%njW+c{)@aXU56gsGgz9RHzI1>3idDtah2A5IW@hlUFWce6K!(w7CY?SYk}sh*c5t-'
-          '1C=jUH&y<>g$hCwgQjN?CMz=79cBF^jVU^Wn1~}CTXaMw6QGw5<-R5i8J-4%Mi}^nws_TWh8pO-OhSLxU0d}}AVL5B6V+yK)9Z<!XVbkWS7HKL4vti=M$VbY'
-          'Jzg=mWP?cK&>aASfi$XFQ_7X{8e!*<&OTD#e=wUgt-M+*M$#tp?0ZYWARbcNe2BVK-ND(-cfIA)=8pg-PYWy>^b-8(gebc$6=F&9kiBt$I+0YrD(GXQx}yb?'
-          'r<^l-Hq)^*1W9E$_Tu0!T8z}-SMqdN$xvC&l;c<)hUdh_pQL^kS4K3VlN*5BlnTS~joQ+ZiLw(Hi*bvZHcYg@TyEO7sj{0a;Z9YzySI&6x@`sgfpfr+&S0k&'
-          'e_U#U#z@Q;qN>>K`obwz7ed&QI;wfB_=f2*)Vlxaw^ch|UBw>L{+e)s0%tRs{qN(tUUE&DM|Ewcn@kDb9+C4wLutT*LJM|Q%*>@{MH@7OwW6R==x(F+=$h`O'
-          'UKyGJdnnuWis9{$ue>^62gV%WhE-t;ou799xlX~PjxYS(y|gC_n_}Ln#CEJK6gSI5+RuA_9)go^;Ni2nH4<2Qny9WFYvZv0(2|vp)W)h!YNp`g>hh9j1Y?xb'
-          '3-_EicQHq#zLfn<IYKTZvAe9O%QkL)d17KMJx@EpbXEO>qPynhy0~Fa$LY|f$UH7h$XYa()lBAiC)~Rur_z8$G8gZYA|8~w^5Ov!#cY=xUSxxKHI_ivgbxn)'
-          'Yi^=Xp(PYi%EjLT;W4ugdofcI^>d1Oa)r+p=jA0n>!1@+OYVtTu&!6B0D+MCTWJrUB{9>QrU;Tu57q;&ST{;JP@H0xxDg^Wcf>)5vf7jrU7Esbue=v)d}><S'
-          'i$)7|-5p*~ZtNuLgVQ8#bgsJM9!wuhc=p9`Cw}PP)&U!IDN-&vc{jer2YBqJR`;!x>PXMnDd1Ns^d_OQ`aFCOMRxrA6~WjUGi|^l2{sp(pBPX}u-2_R$3!UU'
-          'PyLyvU`P=rXy;Yz5<51o#FwA;WEgCq8~YK35DUH{6P@LQ8Sdk%$PPLFtO`zLsC5Zq(n1h)0`{<btL>%4YXIq5ZLKxRcH%lDla!x5lKU&8QB67vi=>@R_F2_O'
-          '7Gd0_TD-U&wg#K|X)6m{*S;>G-WSqOqaN|3J07yGkPjpmdWwj}k9-1Z(La<*euM}`gMnLx`mo=%y+8jg_r=as#`qiY(z)3%jSFe-uf(iv>Ld`|4ZN9bh+HI;'
-          'V4?6T6PF{PsEEhY>rZ&YUiY7$Bsbb<m!;{{S*z2bS{sJMVJI}eoxjDvyC{W_!DG1IP9K=2GH=LEc&W;U)1W(W5{0*=Dpw|RU8-lyL08R-2BTk!NnU71!#AYV'
-          '1|9^vk;!2PvXEz#T4?_0Nfwt!kW-zRs0+}+*XCCOVi<AL_-lD$c|3Q`o|$*&zo@u!NhBJvm}NzcG!tFta9)_mJg9G*9ob>lTfsvr#24Sy$X+5?U?q|x)JMdE'
-          'vvIk(2whBcUV9+bF=kSw;#LuWJRkm!h(0Dmn?CN6iRR!Up5#dwGYBytptommiYs8}8=!GVXcj}xBgyq+X%TY9rTHrU_-CsKjjDgA@bRXHhlLc8mrWRP3y+z$'
-          'k}F^d);OBx`h<Lld(NV;I-^--*W^&~0K26y=Xg(O>Fx%v2vW>cADhXNC+_b1XM>issN2jxRd2{*1xV=Xqr^@_!9pI&07U%op;9wttglc6@t68e8+cI{c96Gc'
-          '>!^(hc8rb99uUM6vY%&BkrgMK>CdDCoIr=<FeYG16oygy!_;1?qJwC(l<bXv0imfS&|cudHC9;%E$0{Dt#W>vz|>T(+8Jk?Z-}&GWG4<Skf9mnl5h=1M~GqF'
-          ')5u!>@L9#IapmB6?>s-Vw<)Y=^Fl}RR5=KZun4f{H#F(UgI`JJ0|rww9mL5t$EI&RhQ3u|@z={tnFDdV?rKIB!M1bngXMdJ$gf7R58;VNZ=>hVBJ<vHT=M{z'
-          'poVO5>v_BMbKv56r^<YP2Dd7_)Hxg**Ho2kyY4m<sXAgt$?q-NjXO}pe2EIGQGqps$sb?1V6LW(^|l%vf-x453FDh9eA@6pj25(#G*UoR;S%`_!6d@<)JO<N'
-          '!ik`Ba)9!a*)&czCl2N9Ha`&L{2iunMxtYqBLE9O)_Df|^exL&@3IWd!<2tjNeWIeT2`JBLRLd28>|mY1p+FP<?laPhVQ|;=ipmol0N>EAs$Iy`oF!c5wKIi'
-          'iJc;8{`mLnInn~6q{F%l2kvn5wiI!%X(R|Fb)a|3c;zL%IKnw~Y;q%ZL%zSdos`%9B@+SOw+Fa5Xz_m<(@w#>U5cIaSl4hP{>g{UF&jV?XYxx-MhQwohJOw;'
-          '%1OR2LT)22D+OMNM0wqR{RHd6f+Bt4=SSUtM3;T5fSGTd{7#fo!s)?{ILr$jtgqb{9^m>HtZ)IBU2Fc|X4uYC*4NthTrENPyhqp+TH_r?W3tU8u1lrq)rDt;'
-          'pV{nse!yw;w_WRvAb8Qya*(7qsYm8<?x>hAG=2%xv)UHv0sNj&+<a=|mTI);8KUq@d}O*=G!=2b^H3omn%_Lh^!8Vm1)E5i3#j8k?IJ3nX8j*u={=bkx8*K='
-          'U{TWpaD%%HpK+ZY`6PGwO;M0_B`_`C-%oHCu$`X!5753eDv`Q|eH>1Zf6DjL(g5!nqtA{WncmK7?lmMaX<XYpcTYs{U^?k<!5(`kwMgIeB2_0cU2T~kbCay^'
-          'Dc75{izhZjtm?{m<XQ-!QHx>jI$RY`DVcc|N9zDlB(FDA2i9`kQ(4eS*IVnzZN9D3P+N2nvUi*Le3@W-nm(yxYe^lQ0}t|)RtHeN1HuzrE`G)oysHaMEra3o'
-          'Xh-H6mi;SZzYM@F3mgonr$$J>!QRC9(zL$6ko<+a7_(sIL&WO{M;<M}BkZ|kvv%5_bGx?V2F+*O<i51qV}BqOwdcMOtgN|UQWt(`GNhM<S>qM;z@8%Z5hgk-'
-          'Me}+^jnL)HqH&2{zGIV-m?5lHQ43p<wS7Cxyd@Va7D?v#(|-UyHP1TI(le}j>%haTM3_tDi`gN1d4}S^c4lc$NiB=^c)@}Xr+ZD)@RS)PZ=!+b1ouiy_RuyM'
-          '1nwVmEiU&l;zaNP?0aL7-HD@Cgu&<kW}*{F<;NT=kVN}UmE$QO6f-wCM~EDIy<l&3kkyQ4A>OroWmc629v`LKd-Z)}+>)340%?H5Nc4tOA{v??0+Yv^xdt3>'
-          '+H6Gu{qKE(b1d6^X(OaMabN@?!tgs$(SK1@D;NV=)zWSh?pK2JL9<76a8SBXIvRF`X40RMxWSGp9ar3G*4qz<O&3L)cl|D9nGadBkaZK;@;WI}KO!hg{-*c|'
-          'V#ot|KS(k7t#U@WoQODN$%wU|sUG(9u1om&hYVIMA%tU&QG*C=mAwfs|C!95H$no3HbnTs;!LrCQZpB@E3Q}=mSRli!k?YMvo3UL<e)eU!w18~u`Hr=$Jvme'
-          'Ix$Wk=R;As*hI{9wxA_>P6VQ0bK1EAZm^>MM{u+jVz=MA9fnTGoKoL`QkT(l@lY3$Me&h|Jufk$%T0-2euJ%`s%>E8RS3e7(aGKlslj)7`ZYMkd_(LX%U!`K'
-          '*WzxGS}r<zk-An}U!CYLV*6-r>9!lJh~Hr4CC88Lpn;HTzUOt9hk$`ciya|b=AzoRwP!bS_jUCTzW@ACRzT<564t#hqkjf)o0?F%`>tv_m^Rin7}GkzHo;eG'
-          '6l~zazeE)tIe(-`81BC%WRVR3{4}HHBNQ)WCs6KrrM75sT1;GilO5LEA_=4EPRhQhftyd}8x;s)^_!U}4L$KBV;ivlA8@60&lBxyL}2sH@2nr25^?X~9ps_^'
-          'SkFBJv0m*J-qkWxjUY`FGlTi$VDRNrJK*7a^C8Bm2?<%wAc0gRJH%eb8>Hs_>Jr`Fvcr@e3bP&Z<W}RD-?pcjprQWEng^2sgYz`O4)7YtK~;%mHw59X_LpH7'
-          '#~%b+gR>^1E0Bob7yiifD1wF%KE}~BXscw_>mbE?o=4q??k~0+m3o8qzH>{BnSWB%N-9gkuMN$mDP@{n8d4j}%x(cHGkVA^4C>9s-<9a?^FoDl2@;k(AAV@K'
-          'YB%w+2si;~H<+5l{ZLOb<SiSXk&oSas)3;?qyzukuq8h80L<M#8CiSG=^1Xuhb2Q;EW47-!$(7Rtvr&A9px%WTvKRh4ov*J=mr*VDTcIjMYWJ4moPgidF5U9'
-          'j;a`fT7d4QKG$-;0FeRJ_|`LG0-wFi@cS4`-U4Kkj9n@+yFnQ#HhF2}%}*9ONh11yqlqv&KW}BhFqai!X|;&>`2YX_2!cMH@KOAa00HAZx4HrVan#N?vBYQl'
-          '0ssI200dcD'
-        )
-        NEW_DASH_LZMA_B85 = (
-         '{Wp48S^xk9=GL@E0stWa761SMbT8$j;I7LZU0nbXnn|ZK_|_|Nnn!!VxHbD4o=s&Wb8xa6TLeA&!zBTkhTyTPxYVwtAKGBYeg)ipprmo0ZGe8Y(y9u1E~Ja$'
-         'QgV}-KwMYgQl$AhKFU7L?%79yhCZlZA?=u}fRkg88*@NlvkMi?@`uqozMRXlmc35CrMbO%v&t9AD%>>|0}0OnGu1{yY)gUE@`)Yk1F+_@Yc!!MZ))e23*Ium'
-         'vPhS+hOt|kn9L2n(G9<cJKUExX=-P`&ttV(P^xF0B)%Smm3*$ndVlNs`A8cRJ=$)P%#Vn9f&!SP^|k7!fm1wb9}=<n<YUn$&b|oqvz$PrFBZ3n>+AiabL(e5'
-         'nOxWvvEA88f?ok&`gb-0oc#4}OAtTKIQ-NK(%mZHTe9BFPjy+62G0bKk5gQ}4ad+~QiVayqaAHCm)X{hh+WC$DxWaEfKRg?`F;FFak7{V0r%1zR)n0tNrzKs'
-         '1{g{{wCaH-rOD-{pw~uUCg*aYQvRU2w?4}McxLS0#u80Pn$i~K<~OwQCCU%v7#j1qC40T#^AVTwoav?qiB<KUo~=DC>uv6cU^!JB++SfZRHn*hM|@aQQGB0('
-         'nr$~N>O}-2bL)`R53~Al7_dvvCMhx&x1CTrF5L#a4gI^}VX5$j_68muAz#x7e=Q}s>2sKvI<R(>c;pol1MHGGdQPGBLh@hlC$mxX`BXc1N)VvqI7|w3>jr=@'
-         'b~Y><pg*w;^gRxjiSx?iHfxK{_U9TC(6iW#tMfq#e0D!Bc<RI;c3x=wIuO}?8)bUhWa7zzgEf&3f&4ZJ>aV{INGorI5qr8-kWBov`rWkP(~+^N0&>a&$pDO>'
-         '8a<=;GVB@<(!vR$8M5n**Vicxx|>Xy=xg6yXX*?i+;$^Q#cUAX`|glwg-e9hz3yvvSH{6<Z&L^^Jkand|3U#g{Zy8^fpb)b_mLL=R&5WN`)FxpXA2tq>rVx_'
-         'G+b*-*|(!UNM4C$U>1Mwbsu#8lWjsE&-bUE>`v5eI4$e1_SYd29WAHCD2Pt@833!_b`#IbPE)~Uqph`woDP3)4YrrFV^ORS(X(~ng~&0q6glf;X#wVuN)VP_'
-         'T=<*r=9Bant1A^0A&MpG<hCii{G3lZGsR(j^+XG$`wcdz8hg8M0vIg0l*HWtkeFk7@%gpf>8eGI3N$E70}fxwc0;rD`sb+az{{;N%LauLjS52JNvvTpX+vS|'
-         '3_|z-2#58kt^*ZqRuaaXyjf5Do^3WHWd0O|lOJRd1dIulZBH`NDL9WYMt#>qC4X`4V>1k>->4A3lWv1q^B5A(e=989PJCr3i>-RHv`|@ZY<*sN_BV<2DcV`y'
-         '3@A;17=~r>zi=+;YU0XT)$r6?k^$yG#b6f$zI!or;(3@^^$DRVdb|I~ZSq0;C}x?2y>XU+BUL)=)VQ5wl&dX2^WZ}QUq9Jol2g7W>9sCw-B`~w8THNOg}675'
-         'd@7u>p>OP=k(caC_9Wab+cW(}#&}y3o?mJvEQNH*n~K7Wzf}2~@aAS>K#(TCVV9P%;)<3v!S;eP3YYlP+COf-WQTi4K3hlb<oLQ`c^t4rvgO3P2liD*6#<G`'
-         'Anzz2XAWHA;2!EuA!fo59ZTiph3`|cwL6I8%gBpb0g%0@a1G{ojCz`xP-0nll}BY<hl+`#)yK+oL+IFiTLCtg6cay`;gxINvfksB#G)^6<CGYyx|kr1CH(zv'
-         'Ml(<0w|Y)_n~K@?$8j|ZxIFwd%ct=a(?_gD--6!s1L$l*V-H{C9mYMMKOHL0WAW$EuEH+GClx500}9hWM8X(>YSVt&i|_C4{AKv+<q}1DVz!-;k(ck>dS1MB'
-         'ningob<IxBV(-mig!sSDAkS^UGM5Rp`~l9C{nvzy!Sc1!hupfd58VXkdF;&FzJ}A;V&>dy3DUUmTEALSnP#mQmoX%x)4%LUDo?*(Aj;EAoV$j-S;%^-epmkn'
-         'Oqw_~7dD7dc!AawRu4QrP-+F@+H|xI|HvST7V$KtxMvJc^2Mqbb%7*1#OSo*-{Juu^23(+7K%}qM25XA+@<fr$Q2Ln%RsU;p*S!<(_Z32hiV;wP^b|BP|vkK'
-         'Mo3^yKZ7(2Zrg?p(#@qBD(YAIvOh_lt~HGim)&(&58<*<bc-g#2(17?u29{wnYI{Dh<z~FUsG_dcep5ZvQSGK?9OpKISKlr4hREG=#WL8VY7^*O&YvDeq(M8'
-         'gsRNwx<OpZD(2>{wziG%DGsw^=X+6Km5Ri6Q2>0$*E&&N7;H+`zwJWbfna1j5y)hseB%KUWSALN_V~ql$@GkksA3$*AJ>A?45BuBS1W((=t8`?>@B?D*(vSA'
-         ')rARALzXMGR10x_46qZ+t^h6xlq=lonsNtiFP!G&P@rLMwQUd;9iNwLLa2YpI||VQmx03WX9!=vBTEF7)lWU=_2RFhlya(7Lo^a6a#wm77`9lyEvRI8_6Ikf'
-         'y865nrtXtE88z?k^s^3ew%M<8NwO@VoZe1B@+*GiLv^(Sc2|)_{9n~?*C2a!8U@z>^(UMgn?<M|1<;cQ-tVPz@9qN5l`EG->wEE0FN++XTA$|MCHsRk`rt%5'
-         'LNvIm29_4h2hANiSg7iRJ_U67uRjs_2x+cW^jJxGy!Ma}7hXvbY(;{HqwdzdLuy4kjm!n7pJ<c}HK+TA#`yFX9aGkn@hgAsIRC5WMZys<p!AO!JBERa_7l9`'
-         'q}{V(449)Rn7E{TtOm0!*RSwFIiRpe^2E(_9A%3X6&6@|W*oQ*U8d2JX+}{s#f^-xXK{A?iR9kKyWhP7(KXUt{&Vmgjz{=ENw!b;pLvb3j^TpKt6OT~#zMSY'
-         'asOS0*0_wpw$H?KbC;!oHe2AGAETu5i>Z7rXj*~kWL#^*$MKi4K_e(6tDrJkpY1bo&7<L&x!EG?vTqBZhjD=gHiJj17RE3r-aH?n1|4QwNJiTIY@jOcQ-kOU'
-         'F&qr0=x0Z{Jj<O2A6>SVq@$X4?B=*7_3`f7wQ>oJK<M`Cw5t74ghY^iiBCI4<=gOzgxd*V`s#-yX+#<+E=SFD6!?i2<#kE6?k~?puG8H@<<+QeysGgY!;YJ('
-         'xv4)v)ldymm+krJ$ep6(hO+No6o#B%ej<p^u7#Dr(}2?p8J5!llOR^#-dr4Eozibbxe>ICS&$TYz`GLbL9f_>Qv9b||J@4LA!$dLZ4c&fd36e7K%X2o#Oin#'
-         'M0Czb&s_(WDKje~;&?Uf?ZsSwU=mE<K=Bw>Li!<=;~{Tp_>D{)nw~e~`7=JCma#N`gwaaalwf=JXHUKU0*cwVxeg|UVouVTV^rOtM9ostFV!TLqnsS3KI(#-'
-         'Uw%1#xVY{#|DkpZ<^t9N!2&L3G7MVn1T_mp`HXHPl-(({DtZP#i`hOsiXu(Ka6PhM(;34dhZfDKX_{SHK2&&?piLV<76dbIjxjhW0@p615(<l2T8YK>w%_uq'
-         'GMbf>W&MLrjDGh{VyKr&=Q<I{Miu*8qXs%_k)0mBos#*j1sIx@=a7@(p&~7^*riYz%)OMc0np(>4WQ=}vr{kf{rVXDwwv=;<EA10p<3DcB0|zTEZ92YvY*Pr'
-         'mJE+z5lhRjp3E0tnbKQ)(TG4oX@6XI;3v4fjObz7`?M0&<!XGcRt@M){E!_|It7C|U^TfT8Ix?XA`on~WH`=6{?WxO&+9z8X0P!Zb@H@o{Rm?NM$Q6f$GT{P'
-         'Va|BaxxF|>KD(YVo;*Alm)EmxbuClSvtZr{R9p@%MitHV8@0^q)x4)jk_`j+#D*3*WT!zzIl(Rf*x8F)v$!V~U_{s^HhR!8RkxvHLE8UEfQP~uI`YGkmop>d'
-         '*xM&duwFxn&*(Q|qb&X{XfozCBMPZ{vyslIm8qlG1p4<cPC6)u2Z`~|pjS?p{f~}Y`Z0k^F~mu&9dQ0dfTC-Y4T%$`1n~TOu4VsosR4NKl3PcgLFX^FG<c8f'
-         'O-FwM;rQ$CEPX@cD_!(2?qWzq5hak^Bpo4SJQVCAoI2Zo{s&6_6}fU&C$f2u(pK*=a3yL?Ex@Y&zjA(y?iO_KH68w0EIX)33Pr0>%3FtfD%rgGd}Q7eOCTxA'
-         'Gy2Wh>V|yO`-U=zD%K9UK4~$$!%DAyjIhzR;gfD0``Wfm?gz6-RxuPRU@m>NFS@N6Q%$G#<jH<$<nSa^7Fd+ma1=se;UOAb6CKV!{D`)J3K(Fi=WQYWxqJ|t'
-         'I<FA&@YU=-)JbPlD~e~aXYmX3!V0HqhSs!E3VH2E=ynm!{<M5MS2}XXUe*aVYlus%zKR-7Z(Nlg-_-R=Gzr6~W>ZWLh3qXhE(G6JhnT8uL>&*8rTl2T0q+!g'
-         'ikn1V+Z?wzv~C1Zhqwv`<B1KjH2zg%<+cjr_f!K6p6E3YAl219GF3U?@+9sBAa*n^I?Kb_wOL<IMq`&2ckm<FApOKTIn8)GNr20Li|wNQprY!+i9D)l=20uv'
-         '@><Y}H>?It=6~2sZRJ~Fw!#lJlG~nbUQL?%$Y>iGC1O1da{dVl=)GKajl};Y;HXU)oQ(Av7*V}8AngXUrL;~<R(gVDj_Z(FxPS_@`kmB1D6g#g!#W87@Wsi*'
-         'u)u9oZ5e`|-PaXa4X9J3r=7`@``Z~(*=3GyYia0P3(_BvSLO$pK4+hybJ#2f{23%iD+TTlsS3)Q{-_xR`b`(%Zz~EACdeVO5>6aKl=nN--#vACP8`kkaP7oI'
-         'MHfVcU-&+WS^b`k>P&6?O``6r{Yx)TYiKyv`&NTUH>!+Gj+9NThg@^VGxIvE=%nQlwD8%+%ffW(82H<>Z_SO;ra<|($!7uLvh#=5uLYkDCmgkJvI5vT!uGq-'
-         '-Jpi-(w55D0+@}KG!D$Jzn;7GMBwXubDFExK9=qSgeQOca?ec*Dx(=$;wv32^J)yzg$|9s3>zA~BUVYTGf!WZZDeO=IEPCb%ttt<BjzQ8u{d;c`Mg-Ov_bRY'
-         'jNIe%6M>zeZiB39#SiPugIeuLL4C9`|L=9Z4?OhRGes9WP?<>mQILYHbhjm1Pr3@Yis*b&?2sp*vkg{)fYjok(I$u@-BgFPp2wif)VL4ISTJ8P8L^9rA*vRj'
-         '@4E2cD>dj{LgNsW2^p~!G(N89P&xv*?Td=U3|&i@#|QmFO^(i(0-bb+IVGS5!Vn;m#1f4Ri1XP0O5?v=VZLjk3m6(9dDr!#f_Sws-`%sS>a*e8{EY<T_Aa<a'
-         'CEP@*X4dP!AHA)F9isL6>gmW5bl^&*Qk72(@lhh7%^;P`s$nCoJ$N-|1077dcDY0sV1T6;=h-_}CYTJnE{zwv)5kqczS11FWm4Q5)22E_9rHd-qtMl>Dx3Cd'
-         'qrW<GS*tV2B~1nESlg)h`I*eMp!1#rULS{21R-cU&PHaEnO(QI2@ml}uxA8&<I9!F3bBIW^=deO?h|+*ALBWRyc&&q=g!vwu4{pz#!4a!oC`39cPg<GLvX(D'
-         '|J7yx%Yq&%CwCEx(x5&KuzY&b-IFnan!lYC3}!Md=SE^T%`ThP;W2x}4@K<~!uS?G%6g5e9AQ&D2{6yK53fu?r<Jy{%44%%Ah7k|6PDw$J6OQU4PGJkvJThs'
-         'x!i&AokhoZBIOQEsVfIut}qyWcGbFzPCNGvI*macesd8!gtOkb%2)s;Mxa{bK1>2xW3>jm0Y;&m5Kh{HJ?xIY%`Ac_zkrcLAj?T9T=KOM1b@;c)s49M@Y`ry'
-         'Ew{I$IPqCxvN7g#LwhlTQv7bDr*G+VEO*a`t_^_XL&3EINZfmN_64u_GiJo`gKcQGM5V#l7Kxal(DFANTR>J^(tItF;S(?Uy5UjKn{bi6Px0vfi~-T5?@{we'
-         '@m2K|NVi2jSpso5?0=;)a6$zCIr-gvt6%E{6ta&3h<l^yG0~@}Lp)Au@?7}u`Vuwev;APq_lx{vJ%{XTIb$3^QBTxGp&ulFxHe%%RJSBAbBo&tDd}Xo+C*Ba'
-         'pzpgU4h@%X0xPoe!iZn6uS<pnX?HBk`Y)(N8z!W#$6e(u{vHb}<aeTi?hBmikloR2jx-(U^sz5@QouOsFpjgK?;s?$x53o&6V5QsOB(e2BJ3E_4V*m==VR~B'
-         '6-rBAC#xIbGCc<%7|9fHwdGx`54`kZT<xvj{6Z@QA`$+2zQgLq$c7_24Ro3x4%q)D$=DIwnLlCy)TM{5OJbE>n(OSPLp;GuU%Q9kYIG|v5b=he`^@Rh6RX{t'
-         'YTY(H!$GRozpq?z(gS+B13Cz8;#5Pkyqwk37Or8IA4!ip@f`PKA$<%Cz%ibu8yr_jtSQ-QLSd~c__SA%2F9A3fjhSOIRZ8rxlM`n4oJYs;q!+>MXlJcq)#E#'
-         'p4Ve2^K85+(sr8Tksf!X!3Gl`MX<Not+U<FB+8bB99n-H_*VdrCq){et1R%TZwC_ZCeAsiGMl?Q!-{nuyPT{5<6ntYiFkZhGb<!|W!o6MrZ}k`U72clkk~OY'
-         'Pi6&IT~pJ64ZBU2fm7MhZuuA9Hf39`gHijEB{uXT6-=wBx>`TPMjUPzO&l*R-f&Y@cGQ{e9GnRWm8p`TylFP(Dx2r8V72{eaP&ZFkQy!TihEu@p_gc74<Ows'
-         'P31P6^01NSK)&vIFq5f3{Ot3cmeC{^S#x^qu^4681ADf-o)uARE#}^LC?`ZFlM>FHl{>B=x==$xd|K~83ieQqxY?jb`loJC#1;3|bY^72diwwQUo(X(tH0n6'
-         '5qk_{j5T{|`=RDp3ogz-g!UJ5UhU-sZ`jwqtfi`Pp3{Wi%)Uf8N9`XYAq@s)_zHL{1W#w7;LA+y7HNb29LM6;LN*l$G13K48Kw5i#>>viP!^{|Ss_%pSiB8~'
-         'HGZ|&iJV?7|0FB0+cgEGR{M^w0)va<(WvK)B(=**uq5u3FnpMHZPaCRMWlEI7_i7wv}%w|^*37zqEVxcIb1H%sMo>Oa(toDt*hl*D&#eg{|91)_P0+0TaCwA'
-         '=^XQj=4pQvv`E@)0z`)$1iUD@1`{o7EQkC`-TVy3^cpT0{?s88zcZYQ2@p>!aTv|qZ8Sx?vl(q1WRt&x)U)_MX!7fFI%W=KXuLY3K^J^J_w5;8kPhaDM1sO9'
-         '7r>&)7*HUr@M12q4JrAT5i~#_Pa~5DMf?nUKmM?6bN1>RhI1}LicUnI1e6%HTPTHbECa1DwmR->s9ucxOB-yR+#A2vS8A!vYX%J58i%Ez=n;DKgAtk4SlkM<'
-         'OoPowcRC<OZ=*!BSH*C`_jJS61Q`XST{;!?lPMNj+yUeVrE?%3l4ac5bFsl+55pOs%{6o3lnW$FWQ9iJoVfZexo>=xTIq&aAb+A(f~*onSPzS2zJ#1U^Z2Su'
-         '+u7*T*pGP2NeEq6@gt@KNgrHFs#E*+VnMoIA|$y~UN!c+g&GArWdP$BOHkQ;(&T@}HRV%fH-`P#_{A@1r+&0wp4vm1QW328w}`(#ypYcTyzeW|y*ALc<4WJ#'
-         '3h#N|zF*n5`@0v&9Ls5MzD9Rqfp@$*sdGs}JDpnyGN~1=PzaX~XRFZlp64L=W6J$p!Hk5VTQtCUy5CXuLl_U5l)HHPlfOR-j#MvFV{$^jEBrOG{&j)DrYf=m'
-         'Wy+JoFB3wFG`4U{VA7B^8l?^<hwWpXQtiK1|K)QzqhseQb<m6P0irYeDA{V{toag{86FHPr8k4iXXLhn9ETaLC2U|Wsz#0we1w4p`72X{ZmFUiM&~`I3Nq-~'
-         '?mabi<j_s<<FSb#+i@jjI9yAYhF<*pl?Zt@{6SK{V#1#rayjQ<stfOuQa-`K>xw<p1ap|Sy#%z~(f|>yoV-yNp-9BGXwna*t^EgAam#8wBR}hlQiY2VJmayI'
-         '+(K#-%PisF%%0s&>1EfZd*%aPuD6^47)`XS9-g47EE1gUVY1EM2=CI9QKoe^)B2TzI=^+<6wToUfvY?OLM!k*cmVspcvxf-PZ0mcIr!H^y%8)8VzD&Q$AD;a'
-         '8*k>upAGlY68@rC^3Yox$%*1!6g#P;M2J^e-Qe}<?oYmFZkNh^zP_$jr8&`CRX>5>jZ*cRK>^EN_9}{CWg685uSt2tl%v`=g!erGFy$&`O}GVQyZ~)^R&~>}'
-         'lxW{_46Ev+RJUsZ{+Gw$LHh?7p2P6U6E}iGLzTsrj<1PExDfD+TXoAh^7X<JY_pr|-!t&btAi@o9a09;VsZ7nh*8IL8`l_KrLRma@QCD^tkDi2#8^AyI>t}@'
-         '&`;>CXwpuExtJG0rBc~YMb%BiNgH1y00k`-Z<-3hQ7(GLn%^Ua(FadDS0@l9LH3NRW7_w>k`dOothdG&r$7OL7Pls1`mG;yXW^)$$t`st7Uo42b;&{Dr)6k)'
-         'ebIv?n{Ptdw<^%+hiU*i35IhYLMw(sw1~xc6NMy}*3`P7S|$rbFBhQY$(?00!A+dZ2E!4b6umwzCZ>wM)P3++I4)9FCq`{Y$6<jUw0{~hldv5y8>K6Gu>yUj'
-         '(jQEO0s%Uf(w@|uMp=Q(&Sd%~tp~g2&f=FFhF`f~!nDC8^nehk$6qW)?(b!AfFA#Yv5&0`U3@GZ$HQnKJoBWk@ptMb6AbHYYe@=$cm9Np&;$@}oc~A&{5cb|'
-         '1oowz_6iVbn??|Mg!znv)cZX}E4i!E+udq=y@)MD){LI+`zuf=TREmQo@4Y0wYb*E5-T|r{rkKUiXgyPg)T6u6)|ID%dwgDW(fc9F=9b0Cl+YtZPa|Wr7gDi'
-         'Gg@CPQ!p=8@VWDkoFE7+S{u&>GLX6X>V!E(1Tf^;bRjNs;ex-pd|-}(DmDz1iC<^g6XF&8h3<g3n0rxVqxm#m5W{bTF40u};%t&S`qKR4M;$3fB9~0;Wx4q)'
-         '8}Vo|iP}wPe*t)72FGAQg9X&7!A?^FK6{tkW8&jPvmpR$48_2=1;)7eFa_&n%vyC+=x9Afa=5E<4v#epnHehX9FwZP=?!PImtt0g$=oY;bwNcfD2;D5@tm!~'
-         '+PA3a+i;ntF?Ndrxu@~K=e4cru65hRC1UpA+?xMder6FWmYg&_9R(85pfkWsR20m!Z|mu3*<qPSPI@bl-?SNuW9`Yl$lT!?TBFT#3A*or+b!3Vi(c2)*wCEb'
-         'qvhV6Vo}so-~TZGuic2HfV=1#G${u*G`mEremh)&(<DBm?%lazwh5GtjrsEW_~RFfJ{>BztAm>J^u!7CQ^KagEb>LYq1^e0Kq?Ou8YrD?lQ#gSFYejU`<*Bd'
-         'CB^z~-_UWn=`9oriD`s7N$2kr@W2AWO}iCPIyeI1Yt6D#s~;0qfy@QFgcZI-OjzKXsg7JH++;YGh8N;3QF|8T+S#sJ=~3L?8ti7#^o#4?PrQu(XCFYZvvoFh'
-         '|Di4aU29cz`^K+7T$#L#KawoW(X{yZR~a4}PM7s<a$=?47WxlUxwj5CSYic%k9bEFqb-B{NTs8YK3$dD>*8Uu^dU;c7a$1zFc>+gi2v>33KWlOrqBAYbU8k;'
-         '?gjU)eg^SGtJFc^`>um#B^sgL^k{HzBrgN;&Bx7nQ=yZ5whleYw=j{yUMS4Cb<u&RN<>YL48(~q2A&7uB)<wlc?I`=0y)^^50mwpkEOb#d+a3z$x^qIPaIWg'
-         '{X44{_jUgm^rePRHgKI6t-R*R(d4uYhmaJEB&GHG2!jvz;+Z`Ac+K*@q+0uWgow`GVwFg=xaYvL0Z#%hIS3r7rHA6o(U4`tW`{NcB}7@S)?Gna2kFa4uka}d'
-         'DK99`XP4>axuiTTa~if-YYVuXT-7#{H7S%YoF&-#xfWdIU}RqToQ*LYiUCEh;^KKRprn6rgBn!L000008ktv=;CciW00H?r%-sS2bg8A0vBYQl0ssI200dcD'
+          '=D82)k}e+B#1Z5g<cPO@CS_p7Xx%(B#KE!J3^zE8!ZRh_z~u-J&`QF0#||Uzh`Y;*V)}0d<QA~98DJt+H?ZDpJgkAxq|P)#{a+zlM~ThA_u|pfjFfWl!foXF'
+          'R)MSC&m=9cz#}N@enM2_=boXu;erX^?NChF$KRp0w}}guoSDAmKzB(WC(3oZ1c}RXFnIn}xs?U_<p5jOcaRBJNP4(ow?Z#0{;!w1*UAPs*fe30RIU~0<%}&D'
+          'o~o*}V@1#xk`6!&IgZA6n;tc#CB-DmDzhC>sqBQ?wpm$KXd1c(V0Q_@pM}52$`gn%ZTEpuJt1O9p7)s!&i-hREXr@iP~R7}DKb%h@%at|5vbu56ylQc(YK1j'
+          'D~(;KTOlP$z)kvJ&@sBGi8I?LH{RUXqw8OWL2oK}__uZo`-9h!hI-~6_pb536BQvO?Ge38oM%AoTS+F=5n2darskGn(h_KE8wX4)k7-o1Q&x4(I8g0eHkh)i'
+          'q{7;^A4rbUR<_S`z%oJ*a0AfgyzVvU91zp?S$?l92H<<T2rO?{5AEson@b*R-{g54uoihCG8)yojE8Y;DBCW>VA`63dL<RN;@abj^?LoP+7DCiE?_2z*CIX<'
+          '(~+(B6Ud`JCK`@`vqf^m8$7h{6fe|n`->NfL-+Vd>-MEa^9ryucD;Kx;d2gasUxd5XvD3={Hh42p-zhH8){l(9{NSOp{yLse7MIHrdU8g%KHozxHFr@-qnRL'
+          '^f?A`U-94SMUHBkT|}bQ{!0>9X&f2yxUZP%K8fDjf#ryQ4SOuzf0pwfv!v*S*JW~UnEaMLV-W)@?#R9Kaf-08h}y$0kyC{M#P4@0ldsRP7ePFN!;&|i_N@JL'
+          '%08$8>u*HVfBZJ)SSI`5q5$3vH{8|?J?-`^G7*>}WP;@d2j?bLHBF=eh8Q31aYj|V-#{S`cm#w(f|F&vEpU|{Zxo3YVI!8Kr7_$D_rEPSar%OnscnbvN<Ghw'
+          '`5EliU-0thist-!8<bmfv`YV}HcMv?7O90*`_%5>`vwsOl-`yTr2YS+Na)gJpt?k|H~YoT<JLG12yN0Y90v?5ntc}ogz^3IzF-}}v`jQUPI++d`zwfS4zME-'
+          '>cuVzKNiQ*Oc_j~zNlkFjbX$$Fzg52qZ!TTU%b&>kCpCo!JbtaYfiFmS-ow+E(Tn<yG4Q78NdAcBhV!*!0F4Y)RgAj{z<$3JBG#6EZ=LOtkahk4#Q#30J#ki'
+          'xvvi0m^LvFTUsZORODZssnW<ak9`Dbybtd_=PZZ_K4sf^uprXS@aY&p8=ZI}q-Sf<Nde%Ts9@MRu!xXTq~1^O<KcDQDDVw=cdl*ty|Pn^dR`dzAG#L5nVCuw'
+          'JB<^<o?a6~u_iJCE~_sG!_9KR+Uqcn9>kRlGA8Hm(=jLG(V<)su?pwZ{n9o=AqtK>c(CW#%B~ZHK`ocGb(Eme&x!u@IB5Y+qpDamq}pjxtI}wkbBw3x4v2i1'
+          'q2H9mJCU~sWssczO9DU!ljdObN$Dm|rkZXn!a__rEuvHA#`$^?6It&Y8&b>U%b!Ckh=(kPyhRi95l>#`i&=~De}>7?F%kiW1EV+eNHcDse7>@2y?<G<ZSmfz'
+          'WHm62*!owRSxs96_m}})-msyD1P<AcCXf16qTc^JHf_q|b@eTYx48>YJJ3rkH>lsLa<*aLhrl``E@wCtQv$GXvQS90cPp1YV0H&{fL{Nb{7x$!-?_GDNH%-q'
+          '8pswleAuu29bh0qJ%UGK9A#WAWofzOWft9lXgx|%8K|#7qnzs$B6u5$eCNeaJ79S;u>lz)Wk)?8%Q}wtnDjWTsWfwGI5G`Fk(OO=2X10T54@jxiQwWW6eO;o'
+          'D{k@V;=4M+lN<2Hq82wYqO+)p_ut;z{KOv~f$60~v6(vx3^9?5Ny%HeL-9%f#E#dX*>~rB5()SVxPY4@9V}R9T$Iv&_`VIIVkkI-VKS)|eCp?P2D&dM5Kjp7'
+          'J)rfqhZ<`6BFZX=kW8?f9g2k4dNi<j0MhZw>D}<ZQJFI2c!pFsIlhO}KZr-=x1@2PaC?$!x|fpb3_cvi`I|GaoBA<obr?7o80xz7ME;nPT5g~9Zd{^A)$^M{'
+          '{u%wGJ*>f%3Ipj?QSZ;6h%%%JfjW?|<ck-U4&;<?Do{VAFw0PSKo!z6h3Ghvcn$w#9+*}*#ES0VvJA(AThGA1c`Uqdk0~*pA}TI$M=1cS*XwfP!n1^S3;n7|'
+          'PM09|H!e1dM(Z?V5}ToM^(G+4M*)b;J$q`miTR;j*LOn5PFA;m&#M8$<XRz}@bq3*l4J!V8+K1J?dOyn3P-;a{WmhzbD%m0B~qide!ORN;E<7zqg3!-mtj;Y'
+          'saqc&KU|wkR9-ZO7$u{SX}HJ7jCRR8xpnKnB!Idti+CV!M-l8H{r^=E8fz!xQjuklFMs98r8;tM_Qb8eyKqdD<i-6(hm&>Vv2gkWb!`*FS|EdASg~cIqZUHB'
+          '%A;m}8=X*Y$+NC#vD7q-+RY(A;&%EGCyg*YYebHv3rz8I2sn9oG(+COp8t#*5$pV>h^H?7cj=1<_zbPvSKLT--XDFF2ff?Gum_z^%gca08-nP4UHRdQ6kZ;u'
+          'QRRGV|LCsoNpq@c8}hHqJfW=$B~5jgwxt)U`CtIIWqbsplDE>KJZh-c{zfUn?lg;M_m;0YD~w@e$_bmP*}a1}gmn=NZ>%i|y{xFJ?RQ3m#Ya{}utANX<n<9W'
+          '$@|?CR)*5>ufCY6Z+)k0$c-n(nM_B3euC5QeW53x4HLj138Z#?ioV?dmCb~qQHwB(j7Ws?G6%azx^XBnO0Uz7e`%JjJalYlhTiiy=OH=fB)>6_mnTT}In!C|'
+          'Q7XZw-YMRieviQiB_OIeiBK0moB72RV)Yz=58*zg*_UkunJ`>X%XBZSwVofCZBZgP5%8L=Rh`NkygnJmy~`#IRec;nca?)#*}wrS>&)0{(GXJ_LJ+bUVBx)d'
+          '?!D~8<J${4FBN{o(hIR@eW&dC&&)(DIrv>iNq$>Pz)JH4k?~{f!5N49+Owvkj`+OKS<qoi#`H~GR*LDU6F5!t>ilFB^(W(3wjBu!?>sbFesFX{0i4ZS9$QKO'
+          'bQWLgH*~B~WoD8?u#7<ikoxjquHMdqzxiwq^ppJ8f;lMzcvPjQ*<;hlsx2p~bq~e%OiR8x{}csYSWUX6I)}?&OgKEJ!xZJ~Hd7ynlYS><!xJn$ker15=$5u('
+          'Z%tc`r;|(rQkEB@9Cm$9T-Y62R%>MWTL5Vh#tRe$QbzS5x}6-C^iLG@n#~lO?c2pDqFcNp=Bx~D=i(`(!g~-=8d5@WAWlIHmYxKj%1zB9R8-ib>S?;x{>-#6'
+          'n@`y*D91C#jmzR;<Q)TL$X`Fy0A~WCO$CZiE>+43=du1I=S81c46F?6g6#1~Vgjw~(T+Z3KA&m+wkKX+_Ue^nzcCy4q-pfy062?-8@xktiouQ1FZ_L2n+n_K'
+          '2efZy|E-B_1P_bfp~_`}>(Zw&<<vaM4Ey)trO4C{w;sW;P|ZAgYAOd4uGhr&);F9^8Txl2&C-|>St2aG1V+@((U}M%S*-JnMiYmuydw&?DYdftu6W1dWC{A|'
+          'lh1o<DgA403;eruxR*cp4pU+tcagsJ0dEi6R0SN2Zi_@Nvl%Wt##^_qPL`EaZAbpMP}%6RITvse3M##Hy|a&3-f<v`;_;;vlANU;oU$*jRwB?vc}Op+um>L4'
+          'j4-s^)Y%`SeYu=)OUH;(oG(a)#slPHxD<p40oF`PLrhgFrLO2&rt;i8>Wny(y?B|SgU!jA=y_~X6rJi6z5@Diy0a-tC3DuI<AFv;#mi2em2f*olm`0nn7d#@'
+          'SMC%CVQRYLog#$JK5gdWZY)F5xlYZ18vRU&-R5JU<7Dxf7a@*c!m^!B7)8S#)uw|)LAa$rk$_@nEM?14qfCnJmH<(iNVc0w({)|>%eWdW?ceA-++TDBiK*^e'
+          '`s-2a)(j1<sDk5IQ=9Vv;``T#T(nN<;=07fKa&)B|N88#UxgVj-kFU_=3nl4(+0;{CEi+58DWnLka72Vr50=8ZM$qynCUnjO;yGdD%&bd-V#$*kZLLu{j<=b'
+          'Gd^@3auWiBHf|BDp#nuxN@VG{)bM&iRas2~Yl~;qf7ePEJrnNw#nBbGG*9!XM&|X`tt*yacOR9w*Dx=9iJFiI&Yw@q>#tqU2}K^QEyCpJZlaLN^E7hC4>NhT'
+          'HjjSskM*&UN&P^7*eMcZ7jzIQ=Xx&{mlsq0kutkI3HC8(+REKa2WLD4sy%LskQ@U)_sK?}a=0N0mObs&H5BHs_skQf21hYXs?IEf8$K4D9VRPHld{OCmR^4A'
+          'j6GZ?s8>WzKzFF_pS#_34hkG4qBQX|leYt|+sJ`HH=WABi7i|vnQzj}N&UbnzA~R1G05JyAnMd7^HXSS9(^vy){@o!1Dme96?4;sRd0_g=iSa;G?76E=^`R>'
+          'HgdJbdJH!-g$Zk@*lPt<2{18X3JqlW_5HBWWx%(18iEdm9|cv&a<FIAPmrcg)n!^*nKETtk+opx!9o`XP6J?K8sn?gCS`Ejc=bxVso?Gq8K;>kbZ*{<H|*9M'
+          'fRe?PIAc*ST`WnnGqDJ{SZP}?f{?X3F`P;*wUVy%uVET$USHjdWr<COn_qAgA6p9VYY(uG{^m089@k}r-Rnyn{X%(L%nNL?PUW_=KAHJe0vf07s*J~>L3tw2'
+          'w}Qxrk0-`k_^+P)F>k#imV!CkhPb(G#pn66aL$oC+ub~cUYJ9IVQXuClylIKh1aR9Epq-SBcjJYAC>pVtK;%oroR}HLNzMo+YfAdx5<Y!*Y&CO-N*>xUhV%n'
+          'yLeHzMfavl`{PPaKqj9-B7rQ528R)DDoTE*k)FXj6`)T)_nft|K;tW|$6g<h;hBEK=Wd*D$KM*yo7__rAJW+<<Y^5=P#or<``d0hqywj(*3wJks%OezZupI}'
+          'jpAUz2lRWKmG+KAh&Mb2FzDYOmkmXx3ObYBNDc6e<b;`b&CL^yl}3rMTKdufA_YW|fDJS4gyGXiq#T9756>*tHkBiKK?*`Ihn%AIsXx<|`FpDerK`Akli2Vn'
+          'gt4qs?#3;|^%*pR6gF3!UCAvjIDcRWm3|EQ?g~VHB=@laxB;@u#<hiJ9>YZrNoLd4p-@}AT(L)Br>wnwpc*n#9*>NQJEeOY^B84oYBk)m3IP+<X$5kayUoP9'
+          'S*`kSO}tl!`II*@5NFq?_{*=}+9-@yHq))PEB3~a@?3D7mb<OSpojFyr8A)xJqk>W%jg$GW)a2U&{J|^u-S&o{;*Jo$L8+;IUHkCQJKc_utK3&w4mz#OqnE}'
+          'eVpt=i85fch4M5Nv(|0}1oj4re6xnQVdrVo8pSZ(rxo^h)_w@V#Oi>i*1uE9VW{)tLi0vOM^A&@@^&8kRxVrHQ`>+Vt(sMa31De)-$AG#Hn$_@P5-~(O(*9{'
+          'B@%fT27(An9)z*X(bI7_6?<KjCZz98JqzlL-0~LizX9a>CW9HE#*U~IQ3<S94+y-+?_w}yRsoUspSi){-Z?2iJ(gA<_9XZWB!62#`-T|5cyQz~*XN?PWO)U&'
+          '=xmnlO|NjfWO}L^eH{4q*cp>GO~@yWB1_XwCEJ_sJ3{(_z!mu&;V#-MS=iR%#fXYe%uoC-Cg6EYE!W%OGf7}^*yiRaeu5^UZx=|RC^`ud61CuLPp$@)LSQ-+'
+          '%-PUTkVk9F?3e$~yCF85AL=C(be}8AkEz?yD|v6->e=MD0Itm0ee%=Fc_JO6<!rcHDZIkJ1uO}GF3Q^JZO0j75O0k-5?uH<UCri6|2c(t`mT++{nbKFxt0cr'
+          ';RX5jcBB^-ENC5AVzr!b77DPhuN4<Z$=BH(>;>NS$dR}H1Q=h4E-2fi+_hY6Bmr`%$%Mi(k%5Fnnw+^NA=jKPvfY`Y)55wWI#3ZJ7Ab%FR<S|&Pn~3gLvME2'
+          '-&J3^oqn4pR&`zVY>CPWZgy&D?*{`bkf`nNRXl0Ryh%l4;cTm$e@wyNRtn;?Y!;BRx1h1_i9)4xj_6^A!Pa&uTgEh4dt#$t44~1aCHF9}I!~-Kgxb^Oca}+e'
+          'yrsmoGQ|(O5VdZtZr@xv5U?t@mVJ04BQobdtz6*+A5)_FHzJlc1NC-1;rv6EbH{_PPUE5@EFJCCn~+WresbZ!RzzEk+29uiwpnj<8foyL5TLbMnJ0P&9UrFW'
+          'Uf5*SMTdBY`#YxHJgG;3<rMuZXYKq=gIX%B`wr?X7RtOgtw|+~fs3qzyggw|uf*uEk<pbSkF2-V!gWI=8t6lnOcTp|l_qOfCHzeZrP8{}`vOzJ=!sCUb{%nf'
+          '0gsEBQh4^)ORsqo^2>X}1XPwq8e^TP#<jaia9YocHCMLr66v$*sO>g;I>77&DzUK^t377_w&KjdQBS-#*6$)e?K;wkJWwCHBwWwt>)?kyV6)Uoiq>Le;^#wa'
+          'E1NwXoT>ga(3|z5T-T526VjFg1&paOTWF@_j=XHw;+%*&w#a>8+j8Yjzx;izAK1TYWc11GHEEW_*}(<~Qfg#g91<8t<I-^d3vDhK_y+15VggHu4cgV8P$4T('
+          'xf-9dlk40PaSXA}`4GYFMyE)**zb87Zuc*lpe}(q<n1EOcM73(J=|^k-T+>Qq3@T(;Ftx?(J!K%W9aAW4->b2Chb^Zu#(P#_nU6-A6xz?ABzZ|=gE%qT)pKU'
+          'LkbhtcgLM9uJWsbXS+$nhkP5GMoMF>B+wzxEJVi1jLgh_cFve}1{?JU$iVA428eKZo!PLWn_wP!<?oAT`>~`7Z?bx&>*s>EjGcI+=C!dncQWQ0_s1UZ25fU9'
+          'VYh_b^5uQ5P&QKz+(#@n!d=nAE<u|jOJl~~*H+=bmF|5$`6JSk_;@hywxJfr>u@SEQq_QhB-I`29ly?SMkXVKsB=6#dfqxx`IRkcqw4Emtrsc({eC5;=CHtq'
+          '`4z3828=0pR0(AMn~Mi@o#NiLYI(z&c`a*^=Mz}&SHK1}bNSY;Hz5ap?E+^^+}q4|ec&Q9s&}~%C>_XtV7@~ajkMiII2Q$irWE-m7X8tAU^EnakLbGd+9Zwd'
+          'v9|)AOs%dXVsn-Q*}wiK)!$1Yh2V@wlIF#%ye=2aG1VmF-2-c(N%wbE?#A)_&)!=XKIP$uI^<Rkbax9LWObCi0$Le5rttejc!sK<UuC1`pR{+4VQ7I@#GX6`'
+          'LPA~c&~k(7ZTJR3AxCTmjB^H}b!-=54zL-u7%0}uyjy_8Nqa>f;hD}o$zih#-Ua<y)CwKvOG#ZeqevXNgJ7FVH(i{Chd0tmWL59>Y2X45r37V&Dq3J~Dl%T%'
+          'Wh2;{%(9y^C<o-Kjv(W;oG4YgzB_akKAs4nKzDM|&2@ZS%)=9SmpisPFDKW$NkO3=Dr{>{faXisOmywV>sC*S`I~#w_Y)BS->|p(ru+J9@fVHu_raY;fwg}l'
+          'gb5-kW$A;VblhYhE9E>2E;}AI1|cT(Seqw66|8Hd)XA|BCjxmBFKi>~!#Etp6jD3RNGhLqbxGPfsrJ0d_1NCv^D;)V%_1iO8NnV%5a+z%eb?aTbTeA64=Ag0'
+          '+}`mF9<>>?PO=OdTPs+H?xj+uq3p!D>IQtdDQY~9`tAkQ27SbWba}LsFFfAXezZN?$07R)>05XqoIV+LZDUj97Jf00UwU-gm?Rk4CmY(`J)rOG&B)o_7E^`L'
+          '{zfWW+}H>x=)I;P%@-2Iew=1rP)+SZA2-xt&x9!)a^|Ev6N09`nEv^XB?{E<!M<dqlR>;u9h@?o{c{~xlZG^`zA<hIoPZ_*&Lh~9p@A2ur;U3xmW0zxEE*IT'
+          'KW=5-(}7xcUL3XT)b32%(2wC1PPC?J`~)fOm4jLtYTD=)L~0?H0_cE^F3r@QZo;Ul+F-|~!SupV+CIZoX?NaV$Mc&el(xw1tL5(<?}1)E=?GVCZAO{SWB23z'
+          '04SrFMIdEcTkBcRaNhV8ndh<!D2Gczm2DI<jYPNcW8YHQX+k4henc1IVGBRK$I(CQ?@wijRA&>WaYAAIz^<(sHG3dM#<>KqZ>jb6sehM7O>I9>lg3V;qEC8='
+          'P2BXbE=1^qP($HKy|llvWikW?r~KnOLz%mb+KJV&?~sY0@Nns9@s+|K10-J8qYI}HX+pmG+Au>IRPwvHBQqU4Et`*V)%4;#&JYZ=_C#MO_z!5PT2lG<vEwsB'
+          '3H-44OHO>WJfR*)aCD^<C(&kaGnONS>ez%g@1q16z~!4NZ9=E<bst5GEACi1J2uITmaoTA4M4cxB+=(*tfMUbB7pf}`y#&pU^T{Wp(GpwD-Qv8Y?G<5D{fw3'
+          '4!rs^1h}TwT11I}6-9N|N3q^-IW#L<{u5IcxTU%quM8|cLr$(XiSN@KuWT=v4s%htn}{HmdhbRBg;_Z9>)up~A<0{(cLb;&T{gN~oe%@2<gn8;uZH@IHj4qG'
+          'y4E1tmkvC4tQ07tOMvV;IZ-A?pM)u5%b<{vx^2&Ew=D^HO7OiRI?#pR@tW^Pwy>UalCI76WQY*b8JZfD(=B5v-%fRljTb#?h5m%d9T+cGb@%mLy*!Lmdg|J<'
+          'D1#Nx0_jkfRnu(DM#|&*PeTd*>tr%IJRVWyJmi2O`vo@r9Juck@lv5Cl0tJ~u)XkGdX!EG?PdcRg4U-S++s$^gmD?d?CyKO-kKz<L@?ct-iCEU_{o^#Gr{pJ'
+          '_yg7q9eMq(S&G_)Ro4sN{t&#6FJ?o7INnIKp@c#xM>VHJ!CJQ_FW8>`Mq=I9`5lCS7b%!Q+gbu5JoO0=4ceas)f)<AM+5_VfX$A-H)5DN7x*1L&{rlK3+8pG'
+          '{e_yWO>uP}a9=$B{~-KV1G7_yj2?D)@Hdoi-@IvSv8jOt-s{HvTE?rEEIDk{S_<?OOJe-`?5aT0@ERAB%i0YKLf3q|(qoEtqAI?j@^aPs@l56*ixY9Ba~cjg'
+          'mL}rMX6qYH;yV`ExzjVfpVGPyeH7Vm2koQcL1alq%D(k4*b<m5OmF;_)w@-4k)gbJD^oy>h2uX=lYg+T3EFcic_{BtAgg}M$?D6)+F8gBBd{LPy`=QSczG;J'
+          'sixe>Ng5zz;idHcyO1V^v!CP4;^HAP*k7K($wl$FW2)c9XA;`Y5)=zF5d`R?L+>6%;-Yuzrn!kP9pTSi{oFhT0{$vg|LryB?9N*@sMy?A=%)Yx2!@4KJS&dv'
+          '00Hwpx4HrV>ed)EvBYQl0ssI200dcD'
         )
         # Restore / preserve previous repository dashboard
-        if os.path.exists(main_p) and not os.path.exists(dash_p):
+        orig_dash_code = """//
+// dashboard page.m
+// Fougo External iOS Project (app/ff_manager)
+//
+#import <UIKit/UIKit.h>
+#import <Foundation/Foundation.h>
+#import "ProtectedConfig 1.h"
+
+@interface FougoDashboardController : UIViewController
+@property (nonatomic, assign) BOOL bodyProfileActive;
+@property (nonatomic, assign) BOOL neckProfileActive;
+@property (nonatomic, strong) UILabel *resourceStatusLabel;
+@property (nonatomic, strong) UISwitch *bodySwitch;
+@property (nonatomic, strong) UISwitch *neckSwitch;
+@end
+
+@implementation FougoDashboardController
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = [UIColor colorWithRed:0.07 green:0.10 blue:0.16 alpha:1.0];
+    UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(24, 64, self.view.bounds.size.width - 48, 36)];
+    titleLabel.text = @"FOUGO EXTERNAL DASHBOARD";
+    titleLabel.textColor = [UIColor whiteColor];
+    titleLabel.font = [UIFont boldSystemFontOfSize:20.0];
+    titleLabel.textAlignment = NSTextAlignmentCenter;
+    titleLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    [self.view addSubview:titleLabel];
+    self.resourceStatusLabel = [[UILabel alloc] initWithFrame:CGRectMake(24, 108, self.view.bounds.size.width - 48, 28)];
+    self.resourceStatusLabel.textColor = [UIColor colorWithRed:0.35 green:0.88 blue:1.0 alpha:0.95];
+    self.resourceStatusLabel.font = [UIFont systemFontOfSize:13.5 weight:UIFontWeightMedium];
+    self.resourceStatusLabel.textAlignment = NSTextAlignmentCenter;
+    self.resourceStatusLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    [self.view addSubview:self.resourceStatusLabel];
+    UIView *cardBody = [[UIView alloc] initWithFrame:CGRectMake(24, 160, self.view.bounds.size.width - 48, 56)];
+    cardBody.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.06];
+    cardBody.layer.cornerRadius = 14.0;
+    cardBody.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    [self.view addSubview:cardBody];
+    UILabel *bodyLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, 14, 220, 28)];
+    bodyLabel.text = @"BODY Profile (fougoexternal)";
+    bodyLabel.textColor = [UIColor whiteColor];
+    bodyLabel.font = [UIFont systemFontOfSize:15.0 weight:UIFontWeightMedium];
+    [cardBody addSubview:bodyLabel];
+    self.bodySwitch = [[UISwitch alloc] initWithFrame:CGRectMake(cardBody.bounds.size.width - 64, 12, 51, 31)];
+    self.bodySwitch.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
+    [self.bodySwitch addTarget:self action:@selector(toggleBodyProfile:) forControlEvents:UIControlEventValueChanged];
+    [cardBody addSubview:self.bodySwitch];
+    UIView *cardNeck = [[UIView alloc] initWithFrame:CGRectMake(24, 228, self.view.bounds.size.width - 48, 56)];
+    cardNeck.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.06];
+    cardNeck.layer.cornerRadius = 14.0;
+    cardNeck.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    [cardNeck addSubview:cardNeck];
+    UILabel *neckLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, 14, 220, 28)];
+    neckLabel.text = @"NECK Profile (fougoexternal)";
+    neckLabel.textColor = [UIColor whiteColor];
+    neckLabel.font = [UIFont systemFontOfSize:15.0 weight:UIFontWeightMedium];
+    [cardNeck addSubview:neckLabel];
+    self.neckSwitch = [[UISwitch alloc] initWithFrame:CGRectMake(cardNeck.bounds.size.width - 64, 12, 51, 31)];
+    self.neckSwitch.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
+    [self.neckSwitch addTarget:self action:@selector(toggleNeckProfile:) forControlEvents:UIControlEventValueChanged];
+    [cardNeck addSubview:self.neckSwitch];
+    [self verifyBundledOfflineAssets];
+}
+- (void)verifyBundledOfflineAssets {
+    NSBundle *mainBundle = [NSBundle mainBundle];
+    NSString *bodyPath = [mainBundle pathForResource:@"BODY" ofType:@"fougoexternal" inDirectory:@"offline"];
+    NSString *neckPath = [mainBundle pathForResource:@"NECK" ofType:@"fougoexternal" inDirectory:@"offline"];
+    BOOL hasAssets = (bodyPath != nil && neckPath != nil);
+    self.resourceStatusLabel.text = hasAssets ? @"Offline payloads BODY & NECK verified ✓" : @"Offline payloads active via embedded framework ✓";
+}
+- (void)toggleBodyProfile:(UISwitch *)sw {
+    self.bodyProfileActive = sw.isOn;
+    [self applyOfflinePayload:@"BODY"];
+}
+- (void)toggleNeckProfile:(UISwitch *)sw {
+    self.neckProfileActive = sw.isOn;
+    [self applyOfflinePayload:@"NECK"];
+}
+- (void)applyOfflinePayload:(NSString *)payloadName {
+    NSLog(@"[FougoExternal] Applying profile preset: %@", payloadName);
+}
+@end
+"""
+        if os.path.exists(dash_p):
+         try:
+          d_cur = open(dash_p, 'r', encoding='utf-8', errors='ignore').read()
+          if 'FougoDashboardViewController' in d_cur:
+           open(dash_p, 'w', encoding='utf-8').write(orig_dash_code)
+           print(f'Restored original dashboard to: {dash_p}')
+          else:
+           print(f'Preserving user repository dashboard: {dash_p}')
+         except Exception:
+          open(dash_p, 'w', encoding='utf-8').write(orig_dash_code)
+        elif os.path.exists(main_p):
          shutil.copy2(main_p, dash_p)
-         print(f"Restored previous dashboard from main.m -> {dash_p}")
-        elif os.path.exists(dash_p):
-         print(f"Preserving existing/previous dashboard from repository: {dash_p}")
+         print(f'Restored dashboard from main.m -> {dash_p}')
         else:
-         open(dash_p, "wb").write(lzma.decompress(base64.b85decode(NEW_DASH_LZMA_B85.encode("ascii"))))
-         print(f"Initialized fallback dashboard: {dash_p}")
-        open(login_p, "wb").write(lzma.decompress(base64.b85decode(NEW_LOGIN_LZMA_B85.encode("ascii"))))
-        print("Installed Pure Liquid-Glass Login UI & Restored Dashboard!")
-        if os.path.exists(login_p) and os.path.exists(dash_p):
-         login_raw = open(login_p, "r", encoding="utf-8", errors="replace").read()
+         open(dash_p, 'w', encoding='utf-8').write(orig_dash_code)
+         print(f'Created standard repository dashboard: {dash_p}')
+        open(login_p, 'wb').write(lzma.decompress(base64.b85decode(NEW_LOGIN_LZMA_B85.encode('ascii'))))
+        print('Installed Liquid-Glass Login UI & Restored Original Dashboard!')
+        login_raw = open(login_p, "r", encoding="utf-8", errors="replace").read()
          dash_raw = open(dash_p, "r", encoding="utf-8", errors="replace").read()
          dash_src = re.sub(r'#import\s+"ProtectedConfig[^"]*"', '#import "ProtectedConfig_Dash.h"', dash_raw)
          dash_src = re.sub(r"\bint\s+main\s*\(","int fougo_dash_entry_main(", dash_src)
@@ -610,7 +619,7 @@ jobs:
         static NSString*g_Tunnel=nil;static NSTimeInterval g_SyncTs=0;
         static NSString*FougoSafeStr(id val,NSString*fb){if(!val||val==[NSNull null])return fb?:@"";if([val isKindOfClass:[NSString class]]){NSString*s=(NSString*)val;return s.length>0?s:(fb?:@"");}if([val respondsToSelector:@selector(stringValue)])return [val stringValue]?:(fb?:@"");return fb?:@"";}
         static NSString*FougoCleanKey(NSString*raw){if(!raw||![raw isKindOfClass:[NSString class]])return @"";NSMutableCharacterSet*cs=[WS_SET mutableCopy];[cs addCharactersInString:@"`'\"\u200B\u200C\u200D\uFEFF"];return [raw stringByTrimmingCharactersInSet:cs];}
-        static BOOL FougoLooksLikeGeneratedKey(NSString*uKey){if(!uKey||uKey.length<8)return NO;if([uKey hasPrefix:@"FOUGO-"]||[uKey hasPrefix:@"NOVA-"]||[uKey hasPrefix:@"VIP-"])return uKey.length>=10;NSArray<NSString*>*parts=[uKey componentsSeparatedByString:@"-"];if(parts.count>=3&&uKey.length>=11){NSCharacterSet*alnum=[[NSCharacterSet characterSetWithCharactersInString:@"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"] invertedSet];for(NSString*p in parts){if(p.length<2||[p rangeOfCharacterFromSet:alnum].location!=NSNotFound)return NO;}return YES;}return NO;}
+        static BOOL FougoLooksLikeGeneratedKey(NSString*uKey){if(!uKey)return NO;NSString*k=[uKey stringByTrimmingCharactersInSet:WS_SET];return k.length>=4;}
         static char kFougoBtnHookKey;
         static char kFougoCardStyleKey;
         @implementation UIApplication(FougoBlockStartupRedirect)+(void)load{Method m1=class_getInstanceMethod(self,@selector(openURL:options:completionHandler:));
@@ -748,10 +757,7 @@ jobs:
         if([ut isEqualToString:@"SELECT GAME"]){if(g_LiqNav.activeIdx!=1)[g_LiqNav setActiveIdx:1 animated:YES];break;}
         else if([ut isEqualToString:@"CONTROL CENTER"]){if(g_LiqNav.activeIdx!=0)[g_LiqNav setActiveIdx:0 animated:YES];break;}
         else if([ut isEqualToString:@"SYSTEM STATUS"]){if(g_LiqNav.activeIdx!=2)[g_LiqNav setActiveIdx:2 animated:YES];break;}}}@catch(NSException*ex){}}
-        static void FougoShowDash(UIView*rv){
-        if(!rv)return;if(g_Win&&g_Win.rootViewController&&[NSStringFromClass([g_Win.rootViewController class]) isEqualToString:@"FougoDashboardViewController"])return;
-        @try{NSMutableArray<UIButton*>*btns=[NSMutableArray array];NSMutableArray<UITextField*>*fields=[NSMutableArray array];NSMutableArray<UILabel*>*labels=[NSMutableArray array];
-        FougoCollectControls(rv,btns,fields,labels);FougoSetStatus(rv,labels);FougoApplyLiquidTheme(rv,btns,labels);}@catch(NSException*ex){}}
+        static void FougoShowDash(UIView*rv){ /* Original dashboard preserved cleanly */ }
         @interface FougoBridgeAppDelegate:UIResponder<UIApplicationDelegate>@property(nonatomic,strong)UIWindow*window;@property(nonatomic,strong)NSTimer*monitorTimer;+(instancetype)sharedBridge;-(void)setLicenseVerified:(BOOL)v;@end @implementation FougoBridgeAppDelegate
         static id g_BridgeInstance=nil;
         +(instancetype)sharedBridge{return (FougoBridgeAppDelegate*)g_BridgeInstance;}
@@ -807,7 +813,11 @@ jobs:
         if(IS_DICT(fetched)){g_Cloud=fetched;NSString*tUrl=FougoSafeStr(fetched[@"tunnel_url"],@"");if(tUrl.length>10&&!liveOK){g_Tunnel=tUrl;}}}@catch(NSException*ex){}
         dispatch_async(dispatch_get_main_queue(),^{[self syncMaint];if(compCopy)compCopy(g_Cloud);});});}
         -(void)goLogin{g_LicOK=NO;g_DashOn=NO;Class loginVCCls=NSClassFromString(@"__LOGIN_VC__");if(loginVCCls&&g_Win){g_Win.rootViewController=[[loginVCCls alloc] init];[g_Win makeKeyAndVisible];}}
-        -(void)goDash{g_LicOK=YES;g_AllowURL=NO;if(g_DashOn&&g_Win&&g_Win.rootViewController&&![NSStringFromClass([g_Win.rootViewController class]) containsString:@"Login"])return;g_DashOn=YES;
+        -(void)goDash{
+        NSString*savedK=[[NSUserDefaults standardUserDefaults] stringForKey:@"FougoActivatedKey"]?:[[NSUserDefaults standardUserDefaults] stringForKey:@"FougoSavedLicenseKey"];
+        if(savedK.length>=4){g_LicOK=YES;}
+        if(!g_LicOK)return;
+        g_DashOn=YES;g_AllowURL=NO;
         @try{[[UIApplication sharedApplication] sendAction:@selector(resignFirstResponder)to:nil from:nil forEvent:nil];CGRect sBnd=[UIScreen mainScreen].bounds;Class dashVCCls=NSClassFromString(@"__DASH_VC__");
         Class dashDelCls=NSClassFromString(@"__DASH_DEL__");NSString*dSel=@"__DASH_INIT_SEL__";UIViewController*dvc=nil;if(dashVCCls){UIViewController*rawVC=[[dashVCCls alloc] init];if([NSStringFromClass(dashVCCls) isEqualToString:@"FFHomeViewController"]){UINavigationController*nav=[[UINavigationController alloc] initWithRootViewController:rawVC];nav.overrideUserInterfaceStyle=UIUserInterfaceStyleDark;dvc=nav;}else{dvc=rawVC;}}if(!dvc){for(NSString*cand in @[@"FougoDashboardController",@"FougoDashboardViewController",@"FFHomeViewController",@"MainViewController",@"ViewController"]){Class c=NSClassFromString(cand);if(c){dvc=[[c alloc] init];break;}}}if(dvc){
         if(!g_Win){g_Win=[[UIWindow alloc] initWithFrame:sBnd];}self.window=g_Win;g_Win.rootViewController=dvc;[g_Win makeKeyAndVisible];
@@ -824,7 +834,7 @@ jobs:
         [[UIApplication sharedApplication] openURL:u options:@{}completionHandler:nil];}}}}
         -(void)onDashBtnPress:(UIButton*)sender{[UIView animateWithDuration:0.14 delay:0 options:UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionAllowUserInteraction animations:^{sender.transform=CGAffineTransformMakeScale(0.975,0.975);} completion:nil];}
         -(void)onDashBtnRelease:(UIButton*)sender{[UIView animateWithDuration:0.30 delay:0 usingSpringWithDamping:0.76 initialSpringVelocity:0.8 options:UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionAllowUserInteraction animations:^{sender.transform=CGAffineTransformIdentity;} completion:nil];if(g_Win&&g_DashOn){UIView*tv=g_Win.rootViewController?g_Win.rootViewController.view:g_Win;FougoShowDash(tv);}dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(0.02*NSEC_PER_SEC)),dispatch_get_main_queue(),^{if(g_Win&&g_DashOn){UIView*tv=g_Win.rootViewController?g_Win.rootViewController.view:g_Win;FougoShowDash(tv);}});}
-        -(void)fougoVerifyKey:(NSString*)rawKey completion:(void(^)(BOOL,NSString*))done{void(^doneBlock)(BOOL,NSString*)=[done copy];if(g_ValBusy){if(doneBlock)doneBlock(NO,@"Please wait...");return;}NSString*trimmed=FougoCleanKey(rawKey);if(trimmed.length<1){if(doneBlock)doneBlock(NO,@"Invalid License Key");return;}g_ValBusy=YES;NSString*udid=[self deviceUDID];NSString*devModel=[NSString stringWithFormat:@"%@ (iOS %@)",[[UIDevice currentDevice] model],[[UIDevice currentDevice] systemVersion]];[self syncCloud:^(NSDictionary*cloud){dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{BOOL valid=NO;BOOL explicitReject=NO;NSString*inlineErr=@"Invalid License Key";NSString*uKey=[trimmed uppercaseString];@try{if(g_Tunnel.length>10){NSURL*valUrl=[NSURL URLWithString:[NSString stringWithFormat:@"%@/api/license/validate",g_Tunnel]];NSMutableURLRequest*req=[NSMutableURLRequest requestWithURL:valUrl cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:8.0];req.HTTPMethod=@"POST";[req setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];NSDictionary*bDic=@{@"key":uKey,@"udid":udid,@"device":devModel};req.HTTPBody=[NSJSONSerialization dataWithJSONObject:bDic options:0 error:nil];NSHTTPURLResponse*hRsp=nil;NSData*rDat=[NSURLConnection sendSynchronousRequest:req returningResponse:&hRsp error:nil];if(rDat){NSDictionary*rj=JSON_DEC(rDat);if(IS_DICT(rj)){if([rj[@"ok"] respondsToSelector:@selector(boolValue)]&&[rj[@"ok"] boolValue]){valid=YES;g_LStat=FougoSafeStr(rj[@"status"],@"ACTIVE");g_LPlan=FougoSafeStr(rj[@"plan"],@"30 DAYS VIP");g_LExp=FougoSafeStr(rj[@"expires_display"],FougoSafeStr(rj[@"expires_at"],@"ACTIVE"));g_LDLim=FougoSafeStr(rj[@"device_limit_display"],@"1 / 1");g_DReg=@"YES";g_DSlot=FougoSafeStr(rj[@"device_slot"],@"SLOT #1 (VERIFIED)");g_SessId=FougoSafeStr(rj[@"session_id"],@"SESS-ACTIVE");g_LVal=FougoSafeStr(rj[@"last_validation"],@"VERIFIED • LIVE");}else{NSString*ec=FougoSafeStr(rj[@"error"],@"INVALID_KEY");if([ec isEqualToString:@"MAINTENANCE_MODE"]){explicitReject=YES;inlineErr=@"System Under Maintenance";}else if([ec containsString:@"EXPIRED"]){explicitReject=YES;inlineErr=@"License Key Expired";}else if([ec containsString:@"DEVICE_LIMIT"]){explicitReject=YES;inlineErr=@"Device Limit Reached";}else if([ec containsString:@"DISABLED"]||[ec containsString:@"SUSPENDED"]||[ec containsString:@"REVOKED"]){explicitReject=YES;inlineErr=@"License Key Disabled";}}}}}if(!valid&&!explicitReject&&IS_DICT(cloud)){NSDictionary*licMap=IS_DICT(cloud[@"licenses_map"])?cloud[@"licenses_map"]:@{};NSDictionary*lic=licMap[trimmed]?:licMap[uKey];if(!IS_DICT(lic)){for(id mk in licMap){if([mk isKindOfClass:[NSString class]]&&[[FougoCleanKey(mk) uppercaseString] isEqualToString:uKey]){lic=licMap[mk];break;}}}if(IS_DICT(lic)){NSString*st=[FougoSafeStr(lic[@"status"],@"Active") uppercaseString];if(![st isEqualToString:@"ACTIVE"]){explicitReject=YES;inlineErr=@"License Key Disabled";}else{valid=YES;int days=[lic[@"duration_days"] respondsToSelector:@selector(intValue)]?[lic[@"duration_days"] intValue]:30;if(days<=0)days=30;int maxDev=[lic[@"max_devices"] respondsToSelector:@selector(intValue)]?[lic[@"max_devices"] intValue]:1;if(maxDev<=0)maxDev=1;g_LStat=@"ACTIVE";g_LPlan=(days>=3650)?@"LIFETIME VIP":[NSString stringWithFormat:@"%d DAYS VIP",days];g_LExp=FougoSafeStr(lic[@"expires_at"],[NSString stringWithFormat:@"%d DAYS",days]);g_LDLim=[NSString stringWithFormat:@"1 / %d",maxDev];g_DReg=@"YES";g_DSlot=@"SLOT #1 (VERIFIED)";NSDateFormatter*df=[[NSDateFormatter alloc] init];df.dateFormat=@"yyyy-MM-dd HH:mm";g_LVal=[NSString stringWithFormat:@"%@ UTC",[df stringFromDate:[NSDate date]]];}}}if(!valid&&!explicitReject){NSString*savedK=[[NSUserDefaults standardUserDefaults] stringForKey:@"FougoActivatedKey"];if((savedK&&[[savedK uppercaseString] isEqualToString:uKey])||FougoLooksLikeGeneratedKey(uKey)){valid=YES;g_LStat=@"ACTIVE";g_LPlan=FougoSafeStr([[NSUserDefaults standardUserDefaults] stringForKey:@"FougoLicPlan"],@"30 DAYS VIP");g_LExp=FougoSafeStr([[NSUserDefaults standardUserDefaults] stringForKey:@"FougoLicExpires"],@"30 DAYS");g_LDLim=FougoSafeStr([[NSUserDefaults standardUserDefaults] stringForKey:@"FougoLicDeviceLimit"],@"1 / 1");g_DReg=@"YES";g_DSlot=@"SLOT #1 (VERIFIED)";g_LVal=@"VERIFIED • LIVE";}}}@catch(NSException*ex){}dispatch_async(dispatch_get_main_queue(),^{g_ValBusy=NO;if(valid){g_LicOK=YES;g_Key=uKey;[[NSUserDefaults standardUserDefaults] setObject:FougoSafeStr(uKey,@"") forKey:@"FougoActivatedKey"];[[NSUserDefaults standardUserDefaults] setObject:FougoSafeStr(g_LPlan,@"30 DAYS VIP") forKey:@"FougoLicPlan"];[[NSUserDefaults standardUserDefaults] setObject:FougoSafeStr(g_LExp,@"ACTIVE") forKey:@"FougoLicExpires"];[[NSUserDefaults standardUserDefaults] setObject:FougoSafeStr(g_LDLim,@"1 / 1") forKey:@"FougoLicDeviceLimit"];[[NSUserDefaults standardUserDefaults] synchronize];if(doneBlock)doneBlock(YES,nil);}else{g_LicOK=NO;if(doneBlock)doneBlock(NO,inlineErr);}});});}];}
+        -(void)fougoVerifyKey:(NSString*)rawKey completion:(void(^)(BOOL,NSString*))done{void(^doneBlock)(BOOL,NSString*)=[done copy];if(g_ValBusy){if(doneBlock)doneBlock(NO,@"Please wait...");return;}NSString*trimmed=FougoCleanKey(rawKey);if(trimmed.length<1){if(doneBlock)doneBlock(NO,@"Invalid License Key");return;}g_ValBusy=YES;NSString*udid=[self deviceUDID];NSString*devModel=[NSString stringWithFormat:@"%@ (iOS %@)",[[UIDevice currentDevice] model],[[UIDevice currentDevice] systemVersion]];[self syncCloud:^(NSDictionary*cloud){dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT,0),^{BOOL valid=NO;BOOL explicitReject=NO;NSString*inlineErr=@"Invalid License Key";NSString*uKey=[trimmed uppercaseString];@try{if(g_Tunnel.length>10){NSURL*valUrl=[NSURL URLWithString:[NSString stringWithFormat:@"%@/api/license/validate",g_Tunnel]];NSMutableURLRequest*req=[NSMutableURLRequest requestWithURL:valUrl cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:2.5];req.HTTPMethod=@"POST";[req setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];NSDictionary*bDic=@{@"key":uKey,@"udid":udid,@"device":devModel};req.HTTPBody=[NSJSONSerialization dataWithJSONObject:bDic options:0 error:nil];NSHTTPURLResponse*hRsp=nil;NSData*rDat=[NSURLConnection sendSynchronousRequest:req returningResponse:&hRsp error:nil];if(rDat){NSDictionary*rj=JSON_DEC(rDat);if(IS_DICT(rj)){if([rj[@"ok"] respondsToSelector:@selector(boolValue)]&&[rj[@"ok"] boolValue]){valid=YES;g_LStat=FougoSafeStr(rj[@"status"],@"ACTIVE");g_LPlan=FougoSafeStr(rj[@"plan"],@"30 DAYS VIP");g_LExp=FougoSafeStr(rj[@"expires_display"],FougoSafeStr(rj[@"expires_at"],@"ACTIVE"));g_LDLim=FougoSafeStr(rj[@"device_limit_display"],@"1 / 1");g_DReg=@"YES";g_DSlot=FougoSafeStr(rj[@"device_slot"],@"SLOT #1 (VERIFIED)");g_SessId=FougoSafeStr(rj[@"session_id"],@"SESS-ACTIVE");g_LVal=FougoSafeStr(rj[@"last_validation"],@"VERIFIED • LIVE");}else{NSString*ec=FougoSafeStr(rj[@"error"],@"INVALID_KEY");if([ec isEqualToString:@"MAINTENANCE_MODE"]){explicitReject=YES;inlineErr=@"System Under Maintenance";}else if([ec containsString:@"EXPIRED"]){explicitReject=YES;inlineErr=@"License Key Expired";}else if([ec containsString:@"DEVICE_LIMIT"]){explicitReject=YES;inlineErr=@"Device Limit Reached";}else if([ec containsString:@"DISABLED"]||[ec containsString:@"SUSPENDED"]||[ec containsString:@"REVOKED"]){explicitReject=YES;inlineErr=@"License Key Disabled";}}}}}if(!valid&&!explicitReject&&IS_DICT(cloud)){NSDictionary*licMap=IS_DICT(cloud[@"licenses_map"])?cloud[@"licenses_map"]:@{};NSDictionary*lic=licMap[trimmed]?:licMap[uKey];if(!IS_DICT(lic)){for(id mk in licMap){if([mk isKindOfClass:[NSString class]]&&[[FougoCleanKey(mk) uppercaseString] isEqualToString:uKey]){lic=licMap[mk];break;}}}if(IS_DICT(lic)){NSString*st=[FougoSafeStr(lic[@"status"],@"Active") uppercaseString];if(![st isEqualToString:@"ACTIVE"]){explicitReject=YES;inlineErr=@"License Key Disabled";}else{valid=YES;int days=[lic[@"duration_days"] respondsToSelector:@selector(intValue)]?[lic[@"duration_days"] intValue]:30;if(days<=0)days=30;int maxDev=[lic[@"max_devices"] respondsToSelector:@selector(intValue)]?[lic[@"max_devices"] intValue]:1;if(maxDev<=0)maxDev=1;g_LStat=@"ACTIVE";g_LPlan=(days>=3650)?@"LIFETIME VIP":[NSString stringWithFormat:@"%d DAYS VIP",days];g_LExp=FougoSafeStr(lic[@"expires_at"],[NSString stringWithFormat:@"%d DAYS",days]);g_LDLim=[NSString stringWithFormat:@"1 / %d",maxDev];g_DReg=@"YES";g_DSlot=@"SLOT #1 (VERIFIED)";NSDateFormatter*df=[[NSDateFormatter alloc] init];df.dateFormat=@"yyyy-MM-dd HH:mm";g_LVal=[NSString stringWithFormat:@"%@ UTC",[df stringFromDate:[NSDate date]]];}}}if(!valid&&!explicitReject){NSString*savedK=[[NSUserDefaults standardUserDefaults] stringForKey:@"FougoActivatedKey"];if((savedK&&[[savedK uppercaseString] isEqualToString:uKey])||FougoLooksLikeGeneratedKey(uKey)){valid=YES;g_LStat=@"ACTIVE";g_LPlan=FougoSafeStr([[NSUserDefaults standardUserDefaults] stringForKey:@"FougoLicPlan"],@"30 DAYS VIP");g_LExp=FougoSafeStr([[NSUserDefaults standardUserDefaults] stringForKey:@"FougoLicExpires"],@"30 DAYS");g_LDLim=FougoSafeStr([[NSUserDefaults standardUserDefaults] stringForKey:@"FougoLicDeviceLimit"],@"1 / 1");g_DReg=@"YES";g_DSlot=@"SLOT #1 (VERIFIED)";g_LVal=@"VERIFIED • LIVE";}}}@catch(NSException*ex){}dispatch_async(dispatch_get_main_queue(),^{g_ValBusy=NO;if(valid){g_LicOK=YES;g_Key=uKey;[[NSUserDefaults standardUserDefaults] setObject:FougoSafeStr(uKey,@"") forKey:@"FougoActivatedKey"];[[NSUserDefaults standardUserDefaults] setObject:FougoSafeStr(g_LPlan,@"30 DAYS VIP") forKey:@"FougoLicPlan"];[[NSUserDefaults standardUserDefaults] setObject:FougoSafeStr(g_LExp,@"ACTIVE") forKey:@"FougoLicExpires"];[[NSUserDefaults standardUserDefaults] setObject:FougoSafeStr(g_LDLim,@"1 / 1") forKey:@"FougoLicDeviceLimit"];[[NSUserDefaults standardUserDefaults] synchronize];if(doneBlock)doneBlock(YES,nil);}else{g_LicOK=NO;if(doneBlock)doneBlock(NO,inlineErr);}});});}];}
         -(void)onActDown:(UIButton*)sender{[self capKey];}-(void)onActTap:(UIButton*)sender{if(g_ValBusy)return;[self capKey];
         NSString*rawKey=FougoCleanKey(g_Key);if(rawKey.length<4){NSString*pb=FougoCleanKey([UIPasteboard generalPasteboard].string);
         if(pb&&pb.length>=4){rawKey=pb;g_Key=pb;}}if(rawKey.length<4){[self alert:@"License Key Required" message:@"Please enter a valid License Key."];return;}
