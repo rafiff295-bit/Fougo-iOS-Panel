@@ -329,8 +329,8 @@ jobs:
           except Exception:
            pass
         import lzma, base64
-        NEW_LOGIN_LZMA_B85 = (
-          '{Wp48S^xk9=GL@E0stWa8~^|S5YJf5;GH%fS6u)Rnn|ZK_|_|Nnn!!VxHbD4o=s&Wb8xa6TLeA&!zBTkhTyTPxYVwtAKGBYeg)ipprmo0ZGe8Y(ybx%|L+h7'
+NEW_LOGIN_LZMA_B85 = (
+          '{Wp48S^xk9=GL@E0stWa8~^|S5YJf5;GQKPY+V2mnn|ZK_|_|Nnn!!VxHbD4o=s&Wb8xa6TLeA&!zBTkhTyTPxYVwtAKGBYeg)ipprmo0ZGe8Y(ybx%|L+h7'
           'Co3Sy_JW_)Hr<@XDP(a>j2TZ;4t=uw8t0x?#WQx{n=Jqz1%1}RhB)pW6y&W>`vc(rnoO<X^LnwMSyawIm!a+m<vI{6@yB$Y@0@c&PhT7CSjm_NK1ZLW1T7sx'
           '=>f$k>MdL6hTByydJCwXTNDuxSZ6F3w_%G@OX}mOo&ne)F@$LJyE0Wct~mqVly`gTHs9S>fS3p(fJ??B$x7UDZB`|9m`iEMV3{j44jf72B$=&j%UJ`BqIpVP'
           'i(s-~YsWa>H3ofaHGL%Z8}jZvLJ9;4oa5UMRJV}ew(!S)|4wE*`wwcV*1Z$~D~y{}-7gyGV}Ia(135su7k@(uhc!zoio})rZ4=va4kn>TbirA5{dsqmbPccD'
@@ -404,17 +404,17 @@ jobs:
           '+}`mF9<>>?PO=OdTPs+H?xj+uq3p!D>IQtdDQY~9`tAkQ27SbWba}LsFFfAXezZN?$07R)>05XqoIV+LZDUj97Jf00UwU-gm?Rk4CmY(`J)rOG&B)o_7E^`L'
           '{zfWW+}H>x=)I;P%@-2Iew=1rP)+SZA2-xt&x9!)a^|Ev6N09`nEv^XB?{E<!M<dqlR>;u9h@?o{c{~xlZG^`zA<hIoPZ_*&Lh~9p@A2ur;U3xmW0zxEE*IT'
           'KW=5-(}7xcUL3XT)b32%(2wC1PPC?J`~)fOm4jLtYTD=)L~0?H0_cE^F3r@QZo;Ul+F-|~!SupV+CIZoX?NaV$Mc&el(xw1tL5(<?}1)E=?GVCZAO{SWB23z'
-          '04SrFMIdEcTkBcRaNhV8ndh<!D2Gczm2DI<jYPNcW8YHQX+k4henc1IVGBRK$I(CQ?@wijRA&>WaYAAIz^<(sHG3dM#<>KqZ>jb6sehM7O>I9>lg3V;qEC8='
-          'P2BXbE=1^qP($HKy|llvWikW?r~KnOLz%mb+KJV&?~sY0@Nns9@s+|K10-J8qYI}HX+pmG+Au>IRPwvHBQqU4Et`*V)%4;#&JYZ=_C#MO_z!5PT2lG<vEwsB'
-          '3H-44OHO>WJfR*)aCD^<C(&kaGnONS>ez%g@1q16z~!4NZ9=E<bst5GEACi1J2uITmaoTA4M4cxB+=(*tfMUbB7pf}`y#&pU^T{Wp(GpwD-Qv8Y?G<5D{fw3'
-          '4!rs^1h}TwT11I}6-9N|N3q^-IW#L<{u5IcxTU%quM8|cLr$(XiSN@KuWT=v4s%htn}{HmdhbRBg;_Z9>)up~A<0{(cLb;&T{gN~oe%@2<gn8;uZH@IHj4qG'
-          'y4E1tmkvC4tQ07tOMvV;IZ-A?pM)u5%b<{vx^2&Ew=D^HO7OiRI?#pR@tW^Pwy>UalCI76WQY*b8JZfD(=B5v-%fRljTb#?h5m%d9T+cGb@%mLy*!Lmdg|J<'
-          'D1#Nx0_jkfRnu(DM#|&*PeTd*>tr%IJRVWyJmi2O`vo@r9Juck@lv5Cl0tJ~u)XkGdX!EG?PdcRg4U-S++s$^gmD?d?CyKO-kKz<L@?ct-iCEU_{o^#Gr{pJ'
-          '_yg7q9eMq(S&G_)Ro4sN{t&#6FJ?o7INnIKp@c#xM>VHJ!CJQ_FW8>`Mq=I9`5lCS7b%!Q+gbu5JoO0=4ceas)f)<AM+5_VfX$A-H)5DN7x*1L&{rlK3+8pG'
-          '{e_yWO>uP}a9=$B{~-KV1G7_yj2?D)@Hdoi-@IvSv8jOt-s{HvTE?rEEIDk{S_<?OOJe-`?5aT0@ERAB%i0YKLf3q|(qoEtqAI?j@^aPs@l56*ixY9Ba~cjg'
-          'mL}rMX6qYH;yV`ExzjVfpVGPyeH7Vm2koQcL1alq%D(k4*b<m5OmF;_)w@-4k)gbJD^oy>h2uX=lYg+T3EFcic_{BtAgg}M$?D6)+F8gBBd{LPy`=QSczG;J'
-          'sixe>Ng5zz;idHcyO1V^v!CP4;^HAP*k7K($wl$FW2)c9XA;`Y5)=zF5d`R?L+>6%;-Yuzrn!kP9pTSi{oFhT0{$vg|LryB?9N*@sMy?A=%)Yx2!@4KJS&dv'
-          '00Hwpx4HrV>ed)EvBYQl0ssI200dcD'
+          '04SrFMIdEcTkBcRaNhV8ndh<!D2Gczm2DI<jYPNcW8YHQX+k4henc1IVGBRK$I(CQ?@wijRA&>WaY9^DRsFB2B}SC04j_J`c=%D`O6ZUt<}wG7aYMk)`jmm='
+          'AUG(giqLRwND`=pr^g62?$@7cljdkAP;L^N<)`CKjj4(7=#wK{)a;Xu;Gc|L<_f@86Rs0D1$4i-7Ys$EGMkfxY&eA00*&w_&!S2g&9)$=WYNsGrLVVWBqHd+'
+          '@B)Vb%+Q<$D)RxRFKT6JUtzamRc%#IJk_EE!f>fey)c&9+(fYE%r$_U)!dqvG0&kgnNxPAfQA9#B3jn2w+-PSMmA7Qw=duU4{UZ*JS*>f81^)Sb5np*kw?L8'
+          'fW!iX_U->RL=X5AidQ|K7GNd6l2B$^vCIys6m}rFM~JdckYO_RgC|9LGH1ju84Zk9i=(xHYg&bzY3!Wno=^s=R5>|oV%I!9EFZ+M*molzoS~_dnerRBe~9f&'
+          '+EFQ%uLR<t)-LLk$F7X^DMA_=jWVUd3$f!SA<0q5R0*?j6vwfUfeJ%T2c$5Us~B0~9W-3KM}~QsM!fJ!%skmO@o7)d8b}2^5h3k6Yf*#P?m-cxL8VWO0YZ8g'
+          'J)&m%O?8!;)Q3Bbbe)DXN~_)U8bjQH81cf&Xw!cjRG4)kETpL@ZEH-P)&XW&U>N|mhhqNYz$<pQ3MGZwnH4%QO!q5h?NDB+Wy<H&GQ&iXzK)Q<tiNgJ|Cq{U'
+          'v&LPVhn@;ThG<(V=07nOC9@#WXe>foXmPLecX%(FluwPz1fPUk{F;CT^@;mBz3h$Gu{O$Y(9|u!R-C}(6kq6KL4l>Q7w*ny%^}&_AG$m7n`lXWIg>7VV(=hU'
+          '4+0V8PBYH_4Yr|9Eo!M$C6!h)`Sd4Y>Gq9*maYsUY1&cCMcIJcBSf{}jxY{a``kuEK|zDz$aA+*(wVk2_Ls@<V#WJWo?$q3C*wF0MfYp3&@_z0_81&1=LMLu'
+          'mbB^D5r$6F8|qHtZFp8k1{um4C^LO<dyQd_Sa<M<jT5t@gAeSij8ihIx`^~fBUsu`(W!yiymKJCCq7!?xGtxVlLKQq3hZfxIaN!$M=J{pZ&b#lZMXu+QI#N3'
+          '2?8^K1~%1^#uAXdE`FE(xJhb$3HsR~y-;+@HE0g-W|(=;peR8Z6gAY}9^qOZVdCll6R9rL<%}knWmat3(-U3D^jXAH*T;PR7K@1GdXH*Mo2FK!a^Y9i^^%e~'
+          ')+uI~RID?J6JP)U>(P_LM&6t@00D?Urn~|G5Kgs(vBYQl0ssI200dcD'
         )
         # Restore / preserve previous repository dashboard
         orig_dash_code = """//
@@ -519,85 +519,85 @@ jobs:
         open(login_p, 'wb').write(lzma.decompress(base64.b85decode(NEW_LOGIN_LZMA_B85.encode('ascii'))))
         print('Installed Liquid-Glass Login UI & Restored Original Dashboard!')
         login_raw = open(login_p, "r", encoding="utf-8", errors="replace").read()
-         dash_raw = open(dash_p, "r", encoding="utf-8", errors="replace").read()
-         dash_src = re.sub(r'#import\s+"ProtectedConfig[^"]*"', '#import "ProtectedConfig_Dash.h"', dash_raw)
-         dash_src = re.sub(r"\bint\s+main\s*\(","int fougo_dash_entry_main(", dash_src)
-         dash_src = re.sub(r"\bcopyHwidButton\b", "hwidCopyButton", dash_src)
-         dash_src = dash_src.replace("FFReadLE32", "FFReadBE32")
-         login_raw = re.sub(r"\bcopyHwidButton\b", "hwidCopyButton", login_raw)
-         all_dash_vcs = [
+        dash_raw = open(dash_p, "r", encoding="utf-8", errors="replace").read()
+        dash_src = re.sub(r'#import\s+"ProtectedConfig[^"]*"', '#import "ProtectedConfig_Dash.h"', dash_raw)
+        dash_src = re.sub(r"\bint\s+main\s*\(","int fougo_dash_entry_main(", dash_src)
+        dash_src = re.sub(r"\bcopyHwidButton\b", "hwidCopyButton", dash_src)
+        dash_src = dash_src.replace("FFReadLE32", "FFReadBE32")
+        login_raw = re.sub(r"\bcopyHwidButton\b", "hwidCopyButton", login_raw)
+        all_dash_vcs = [
+         m.group(1)
+         for m in re.finditer(r"@interface\s+([A-Za-z_]\w*)\s*:\s*(?:UIViewController|UITableViewController|UINavigationController)", dash_src)
+        ]
+        dash_dels = [
+         m.group(1)
+         for m in re.finditer(r"@interface\s+([A-Za-z_]\w*)\s*:\s*\w+\s*<\s*UIApplicationDelegate", dash_src)
+        ]
+        dash_del_name = dash_dels[-1] if dash_dels else ""
+        best_vc = ""
+        best_score = -1
+        dash_init_sel = ""
+        for vc_cand in all_dash_vcs:
+         m_impl = re.search(rf"@implementation\s+{re.escape(vc_cand)}\b(.*?)@end", dash_src, re.S)
+         body_txt = m_impl.group(1) if m_impl else ""
+         score = len(body_txt)
+         u_body = body_txt.upper()
+         if "NECK" in u_body or "BODY" in u_body:
+          score += 500000
+         if any(excl in vc_cand.lower() for excl in ("color","picker","modal","popup","alert","splash")):
+          score -= 250000
+         if score > best_score:
+          best_score = score
+          best_vc = vc_cand
+          for m_meth in re.finditer(r"-\s*\(\s*void\s*\)\s*([A-Za-z_]\w*)\s*\{", body_txt):
+           m_name = m_meth.group(1)
+           if m_name in ("viewDidLoad","viewWillAppear","viewDidAppear","viewWillLayoutSubviews","viewDidLayoutSubviews","dealloc"): continue
+           if any(k in m_name.lower() for k in ("dash","main","panel","menu","setup","build","show","unlock","enter","load","initui")):
+            dash_init_sel = m_name
+            break
+        dash_vc_name = best_vc or (all_dash_vcs[-1] if all_dash_vcs else "")
+        APPLE_PREFIXES = ("UI","NS","CA","CG","CI","WK","AV","MT","CF","SC","SK","MK","CL","UT")
+        l_clss = sorted(
+         set(
           m.group(1)
-          for m in re.finditer(r"@interface\s+([A-Za-z_]\w*)\s*:\s*(?:UIViewController|UITableViewController|UINavigationController)", dash_src)
-         ]
-         dash_dels = [
-          m.group(1)
-          for m in re.finditer(r"@interface\s+([A-Za-z_]\w*)\s*:\s*\w+\s*<\s*UIApplicationDelegate", dash_src)
-         ]
-         dash_del_name = dash_dels[-1] if dash_dels else ""
-         best_vc = ""
-         best_score = -1
-         dash_init_sel = ""
-         for vc_cand in all_dash_vcs:
-          m_impl = re.search(rf"@implementation\s+{re.escape(vc_cand)}\b(.*?)@end", dash_src, re.S)
-          body_txt = m_impl.group(1) if m_impl else ""
-          score = len(body_txt)
-          u_body = body_txt.upper()
-          if "NECK" in u_body or "BODY" in u_body:
-           score += 500000
-          if any(excl in vc_cand.lower() for excl in ("color","picker","modal","popup","alert","splash")):
-           score -= 250000
-          if score > best_score:
-           best_score = score
-           best_vc = vc_cand
-           for m_meth in re.finditer(r"-\s*\(\s*void\s*\)\s*([A-Za-z_]\w*)\s*\{", body_txt):
-            m_name = m_meth.group(1)
-            if m_name in ("viewDidLoad","viewWillAppear","viewDidAppear","viewWillLayoutSubviews","viewDidLayoutSubviews","dealloc"): continue
-            if any(k in m_name.lower() for k in ("dash","main","panel","menu","setup","build","show","unlock","enter","load","initui")):
-             dash_init_sel = m_name
-             break
-         dash_vc_name = best_vc or (all_dash_vcs[-1] if all_dash_vcs else "")
-         APPLE_PREFIXES = ("UI","NS","CA","CG","CI","WK","AV","MT","CF","SC","SK","MK","CL","UT")
-         l_clss = sorted(
-          set(
-           m.group(1)
-           for m in re.finditer(r"@interface\s+([A-Za-z_]\w*)\s*:\s*[A-Za-z_]\w*", login_raw)
-           if not m.group(1).startswith(APPLE_PREFIXES)
-          ),
-          key=len,
-          reverse=True,
-         )
-         login_src = re.sub(r'#import\s+"ProtectedConfig[^"]*"', '#import "ProtectedConfig_Login.h"', login_raw)
-         login_src = re.sub(r"\bint\s+main\s*\(","int fougo_login_entry_main(", login_src)
-         for cls_name in l_clss:
-          login_src = re.sub(rf"\b{cls_name}\b", f"FougoLogin_{cls_name}", login_src)
-         login_src = re.sub(
-          r"(@(?:interface|implementation)\s+[A-Za-z_]\w*\s*\(\s*)([A-Za-z_]\w*)(\s*\))",
-          r"\1FougoLogin_\2\3",
-          login_src,
-         )
-         login_vcs = [
-          m.group(1)
-          for m in re.finditer(r"@interface\s+([A-Za-z_]\w*)\s*:\s*(?:UIViewController|UITableViewController|UINavigationController)", login_src)
-          if not any(excl in m.group(1).lower() for excl in ("color","picker","modal","popup","alert"))
-         ]
-         login_dels = [
-          m.group(1)
-          for m in re.finditer(r"@interface\s+([A-Za-z_]\w*)\s*:\s*\w+\s*<\s*UIApplicationDelegate", login_src)
-         ]
-         login_vc_name = login_vcs[-1] if login_vcs else ""
-         login_del_name = login_dels[-1] if login_dels else ""
-         print(f"All Dash VCs: {all_dash_vcs} -> Selected Dash VC={dash_vc_name} (init_sel={dash_init_sel}), Dash Del={dash_del_name}")
-         print(f"Detected Login classes: {l_clss} -> Login VC={login_vc_name}, Login Del={login_del_name}")
-         login_m_file = os.path.join(ff_dir, "fougo_unit_login.m")
-         dash_m_file = os.path.join(ff_dir, "fougo_unit_dash.m")
-         bridge_m_file = os.path.join(ff_dir, "fougo_unit_bridge.m")
-         login_o_file = os.path.join(ff_dir, "fougo_unit_login.o")
-         dash_o_file = os.path.join(ff_dir, "fougo_unit_dash.o")
-         bridge_o_file = os.path.join(ff_dir, "fougo_unit_bridge.o")
-         login_src = login_src.replace("__DASH_VC__", dash_vc_name)
-          open(login_m_file, "w", encoding="utf-8").write(login_src)
-         open(dash_m_file, "w", encoding="utf-8").write(dash_src)
-         bridge_code = r'''
+          for m in re.finditer(r"@interface\s+([A-Za-z_]\w*)\s*:\s*[A-Za-z_]\w*", login_raw)
+          if not m.group(1).startswith(APPLE_PREFIXES)
+         ),
+         key=len,
+         reverse=True,
+        )
+        login_src = re.sub(r'#import\s+"ProtectedConfig[^"]*"', '#import "ProtectedConfig_Login.h"', login_raw)
+        login_src = re.sub(r"\bint\s+main\s*\(","int fougo_login_entry_main(", login_src)
+        for cls_name in l_clss:
+         login_src = re.sub(rf"\b{cls_name}\b", f"FougoLogin_{cls_name}", login_src)
+        login_src = re.sub(
+         r"(@(?:interface|implementation)\s+[A-Za-z_]\w*\s*\(\s*)([A-Za-z_]\w*)(\s*\))",
+         r"\1FougoLogin_\2\3",
+         login_src,
+        )
+        login_vcs = [
+         m.group(1)
+         for m in re.finditer(r"@interface\s+([A-Za-z_]\w*)\s*:\s*(?:UIViewController|UITableViewController|UINavigationController)", login_src)
+         if not any(excl in m.group(1).lower() for excl in ("color","picker","modal","popup","alert"))
+        ]
+        login_dels = [
+         m.group(1)
+         for m in re.finditer(r"@interface\s+([A-Za-z_]\w*)\s*:\s*\w+\s*<\s*UIApplicationDelegate", login_src)
+        ]
+        login_vc_name = login_vcs[-1] if login_vcs else ""
+        login_del_name = login_dels[-1] if login_dels else ""
+        print(f"All Dash VCs: {all_dash_vcs} -> Selected Dash VC={dash_vc_name} (init_sel={dash_init_sel}), Dash Del={dash_del_name}")
+        print(f"Detected Login classes: {l_clss} -> Login VC={login_vc_name}, Login Del={login_del_name}")
+        login_m_file = os.path.join(ff_dir, "fougo_unit_login.m")
+        dash_m_file = os.path.join(ff_dir, "fougo_unit_dash.m")
+        bridge_m_file = os.path.join(ff_dir, "fougo_unit_bridge.m")
+        login_o_file = os.path.join(ff_dir, "fougo_unit_login.o")
+        dash_o_file = os.path.join(ff_dir, "fougo_unit_dash.o")
+        bridge_o_file = os.path.join(ff_dir, "fougo_unit_bridge.o")
+        login_src = login_src.replace("__DASH_VC__", dash_vc_name)
+        open(login_m_file, "w", encoding="utf-8").write(login_src)
+        open(dash_m_file, "w", encoding="utf-8").write(dash_src)
+        bridge_code = r'''
         #import <UIKit/UIKit.h>
         #import <Foundation/Foundation.h>
         #import <QuartzCore/QuartzCore.h>
@@ -859,42 +859,42 @@ jobs:
         g_LogDel=[[loginDelCls alloc] init];if([g_LogDel respondsToSelector:@selector(application:didFinishLaunchingWithOptions:)]){[g_LogDel application:application didFinishLaunchingWithOptions:launchOptions];}
         if([g_LogDel respondsToSelector:@selector(window)]){UIWindow*lw=[g_LogDel valueForKey:@"window"];if(lw){g_Win=lw;self.window=lw;[lw makeKeyAndVisible];}}}[self syncCloud:nil];
         self.monitorTimer=[NSTimer scheduledTimerWithTimeInterval:0.32 target:self selector:@selector(monitorTick)userInfo:nil repeats:YES];return YES;}@end
-         // Filza Injected Hook (Constructor)
-         __attribute__((constructor)) static void FougoTweakInit(void){
-             [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification*note){
-                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(0.8*NSEC_PER_SEC)),dispatch_get_main_queue(),^{
-                     NSLog(@"[FougoExternal] Injected into host Filza application successfully!");
-                     Class delCls=NSClassFromString(@"FougoBridgeAppDelegate");
-                     if(delCls){
-                         static FougoBridgeAppDelegate*s_del=nil;
-                         if(!s_del){s_del=[[delCls alloc] init];[s_del application:[UIApplication sharedApplication] didFinishLaunchingWithOptions:nil];}
-                     }
-                 });
-             }];
-         }
-         int main(int argc,char*argv[]){@autoreleasepool{return UIApplicationMain(argc,argv,nil,NSStringFromClass([FougoBridgeAppDelegate class]));}}
-         '''
-         bridge_code = (
-          bridge_code
-          .replace("__LOGIN_VC__", login_vc_name)
-          .replace("__LOGIN_DEL__", login_del_name)
-          .replace("__DASH_VC__", dash_vc_name)
-          .replace("__DASH_DEL__", dash_del_name)
-          .replace("__DASH_INIT_SEL__", dash_init_sel)
-          .replace("__REPO_SLUG__", repo_slug)
-          .replace("__TG_BOT_TOKEN__", det_tok)
-          .replace("__TG_OWNER_ID__", det_oid)
-         )
-         open(bridge_m_file, "w", encoding="utf-8").write(bridge_code)
-         for src_f, obj_f in [
-          (dash_m_file, dash_o_file),
-          (login_m_file, login_o_file),
-          (bridge_m_file, bridge_o_file),
-         ]:
-          c_res = subprocess.run([clang_bin, "-c", src_f, "-o", obj_f] + common_flags, capture_output=True, text=True)
-          if c_res.returncode != 0:
-           print(f"Compile error in {src_f}:\n{c_res.stderr}")
-           raise RuntimeError(f"Failed compiling {src_f}")
+        // Filza Injected Hook (Constructor)
+        __attribute__((constructor)) static void FougoTweakInit(void){
+            [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification*note){
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(0.8*NSEC_PER_SEC)),dispatch_get_main_queue(),^{
+                    NSLog(@"[FougoExternal] Injected into host Filza application successfully!");
+                    Class delCls=NSClassFromString(@"FougoBridgeAppDelegate");
+                    if(delCls){
+                        static FougoBridgeAppDelegate*s_del=nil;
+                        if(!s_del){s_del=[[delCls alloc] init];[s_del application:[UIApplication sharedApplication] didFinishLaunchingWithOptions:nil];}
+                    }
+                });
+            }];
+        }
+        int main(int argc,char*argv[]){@autoreleasepool{return UIApplicationMain(argc,argv,nil,NSStringFromClass([FougoBridgeAppDelegate class]));}}
+        '''
+        bridge_code = (
+         bridge_code
+         .replace("__LOGIN_VC__", login_vc_name)
+         .replace("__LOGIN_DEL__", login_del_name)
+         .replace("__DASH_VC__", dash_vc_name)
+         .replace("__DASH_DEL__", dash_del_name)
+         .replace("__DASH_INIT_SEL__", dash_init_sel)
+         .replace("__REPO_SLUG__", repo_slug)
+         .replace("__TG_BOT_TOKEN__", det_tok)
+         .replace("__TG_OWNER_ID__", det_oid)
+        )
+        open(bridge_m_file, "w", encoding="utf-8").write(bridge_code)
+        for src_f, obj_f in [
+         (dash_m_file, dash_o_file),
+         (login_m_file, login_o_file),
+         (bridge_m_file, bridge_o_file),
+        ]:
+         c_res = subprocess.run([clang_bin, "-c", src_f, "-o", obj_f] + common_flags, capture_output=True, text=True)
+         if c_res.returncode != 0:
+          print(f"Compile error in {src_f}:\n{c_res.stderr}")
+          raise RuntimeError(f"Failed compiling {src_f}")
         def inject_lc_load_dylib_into_binary(bin_path, dylib_name="@executable_path/Frameworks/FougoExternal.dylib"):
           try:
            import lief
@@ -1132,7 +1132,8 @@ jobs:
         print(f"Created IPA: {ready_ipa}")
         '@
         $scriptFile = Join-Path $env:RUNNER_TEMP "build_fougo.py"
-        Set-Content -Path $scriptFile -Value $pyScript -Encoding UTF8
+        $pyLines = ($pyScript -split [char]10) | ForEach-Object { if ($_ -match '^ {8}(.*)$') { $matches[1] } else { $_ } }
+        Set-Content -Path $scriptFile -Value ($pyLines -join [char]10) -Encoding UTF8
         python $scriptFile
     - name: Upload Compiled .ipa Artifact
       uses: actions/upload-artifact@v4
@@ -1236,7 +1237,7 @@ jobs:
         python3 -m pip install --upgrade pip
         python3 -m pip install requests pyTelegramBotAPI "python-telegram-bot>=20.0" aiogram aiohttp flask python-dotenv
         curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared && chmod +x /usr/local/bin/cloudflared || true
-        python3 - << 'EOF'
+        python3 -c "import sys, textwrap; exec(textwrap.dedent(sys.stdin.read()))" << 'EOF'
         import os,sys,glob,shutil,zipfile,re,json,time,secrets,subprocess,urllib.request,urllib.error
         for _pkg in ["flask","requests","pyTelegramBotAPI"]:
          try:
